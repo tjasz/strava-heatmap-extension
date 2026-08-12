@@ -2,6 +2,10 @@
 
 ## Versions
 
+### `0.13.7` (2026-08-12)
+
+- [iD] Fix Shift+Q / Shift+W overlay shortcuts not re-binding reliably after iD 2.42.0
+
 ### `0.13.6` (2026-02-19)
 
 - Enable missing redirect for strava.com/onboarding
