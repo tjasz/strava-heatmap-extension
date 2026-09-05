@@ -39,6 +39,23 @@ const ACTIVITIES = {
   sport_NordicSki: 'Nordic Ski',
   sport_Snowboard: 'Snowboard',
   sport_Snowshoe: 'Snowshoe',
+  sport_Badminton: 'Badminton',
+  sport_Basketball: 'Basketball',
+  sport_Cricket: 'Cricket',
+  sport_Dance: 'Dance',
+  sport_Golf: 'Golf',
+  sport_Handcycle: 'Handcycle',
+  sport_InlineSkate: 'Inline Skate',
+  sport_Padel: 'Padel',
+  sport_PhysicalTherapy: 'Physical Therapy',
+  sport_Pickleball: 'Pickleball',
+  sport_RockClimbing: 'Rock Climbing',
+  sport_RollerSki: 'Roller Ski',
+  sport_Skateboard: 'Skateboard',
+  sport_Soccer: 'Soccer',
+  sport_Tennis: 'Tennis',
+  sport_Volleyball: 'Volleyball',
+  sport_Wheelchair: 'Wheelchair',
 };
 
 const ACTIVITY_GROUPS = {
@@ -71,6 +88,25 @@ const ACTIVITY_GROUPS = {
     'sport_Snowboard',
     'sport_Snowshoe',
   ],
+  'Other Sports': [
+    'sport_Badminton',
+    'sport_Basketball',
+    'sport_Cricket',
+    'sport_Dance',
+    'sport_Golf',
+    'sport_Handcycle',
+    'sport_InlineSkate',
+    'sport_Padel',
+    'sport_PhysicalTherapy',
+    'sport_Pickleball',
+    'sport_RockClimbing',
+    'sport_RollerSki',
+    'sport_Skateboard',
+    'sport_Soccer',
+    'sport_Tennis',
+    'sport_Volleyball',
+    'sport_Wheelchair',
+  ]
 };
 
 export const COLOR_OPTIONS = Object.keys(COLORS).map((key) => [
