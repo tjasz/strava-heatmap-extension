@@ -154,6 +154,7 @@ function createRibbon() {
 
   const ribbon = document.createElement('div');
   ribbon.id = RIBBON_ID;
+  ribbon.classList.add('MuiStack-root');
   ribbon.setAttribute('role', 'toolbar');
   ribbon.setAttribute('aria-label', 'Strava heatmap controls');
 
@@ -198,7 +199,9 @@ function createRibbon() {
   opacityLabel.append(opacityInput, opacityOutput);
 
   ribbon.append(toggleLabel, layerLabel, opacityLabel);
-  document.body.appendChild(ribbon);
+  document
+    .querySelector('div.sidebarContent > div.MuiStack-root')
+    .appendChild(ribbon);
   updateLayerOptions();
 }
 
