@@ -41,7 +41,9 @@
 
   function injectClientScript(layerPresets, authenticated, manifestVersion) {
     try {
-      const host = window.location.host;
+      const host = window.location.host === 'www.caltopo.com'
+        ? 'caltopo.com'
+        : window.location.host;
       const path = `src/clients/${host}/index.js`;
       const script = document.createElement('script');
       script.id = 'strava-heatmap-client';
@@ -67,7 +69,9 @@
 
   function injectClientCSS() {
     try {
-      const host = window.location.host;
+      const host = window.location.host === 'www.caltopo.com'
+        ? 'caltopo.com'
+        : window.location.host;
       const path = `src/clients/${host}/index.css`;
       const href = browser.runtime.getURL(path);
 

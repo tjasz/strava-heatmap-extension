@@ -1,0 +1,49 @@
+#strava-heatmap-caltopo-ribbon {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2147483647;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 38px;
+  box-sizing: border-box;
+  padding: 6px 14px;
+  color: #fff;
+  background: #d84828;
+  border-bottom: 1px solid #a62e19;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 25%);
+  font: 600 13px/1.2 sans-serif;
+}
+
+#strava-heatmap-caltopo-ribbon label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+#strava-heatmap-caltopo-ribbon .strava-heatmap-toggle {
+  cursor: pointer;
+}
+
+#strava-heatmap-caltopo-ribbon select {
+  max-width: 220px;
+  height: 26px;
+  border: 1px solid #a62e19;
+  border-radius: 4px;
+  background: #fff;
+  color: #262626;
+}
+
+#strava-heatmap-caltopo-ribbon input[type='range'] {
+  width: clamp(100px, 20vw, 220px);
+  accent-color: #fff;
+}
+
+#strava-heatmap-caltopo-ribbon output {
+  width: 36px;
+  font-variant-numeric: tabular-nums;
+}
