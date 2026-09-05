@@ -57,26 +57,56 @@ function addOverlay() {
     return true;
   }
 
-  const overlay = new window.google.maps.ImageMapType({
-    getTileUrl(coord, googleZoom) {
-      const zoom = googleZoom - 1;
-      if (zoom < 0) return null;
-
-      const tileCount = 2 ** zoom;
-      const x = ((coord.x % tileCount) + tileCount) % tileCount;
-      if (coord.y < 0 || coord.y >= tileCount) return null;
-
-      return config.template
-        .replace('{z}', zoom)
-        .replace('{x}', x)
-        .replace('{y}', coord.y);
-    },
-    tileSize: new window.google.maps.Size(512, 512),
+  const tiles = new Set();
+  const tileSize = 512;
+  const overlay = {
+    tileSize: new window.google.maps.Size(tileSize, tileSize),
     minZoom: 13,
-    maxZoom: config.zoomExtent[1] + 1,
     name: config.name,
     opacity,
-  });
+    getTile(coord, googleZoom, ownerDocument) {
+      const requestedZoom = googleZoom - 1;
+      const [minZoom, maxZoom] = config.zoomExtent;
+      const tile = ownerDocument.createElement('div');
+      tile.style.width = `${tileSize}px`;
+      tile.style.height = `${tileSize}px`;
+      tile.style.overflow = 'hidden';
+      tile.style.opacity = String(this.opacity);
+      tiles.add(tile);
+
+      if (requestedZoom < minZoom) return tile;
+
+      const sourceZoom = Math.min(requestedZoom, maxZoom);
+      const scale = 2 ** (requestedZoom - sourceZoom);
+      const requestedTileCount = 2 ** requestedZoom;
+      const requestedX =
+        ((coord.x % requestedTileCount) + requestedTileCount) % requestedTileCount;
+      if (coord.y < 0 || coord.y >= requestedTileCount) return tile;
+
+      const sourceX = Math.floor(requestedX / scale);
+      const sourceY = Math.floor(coord.y / scale);
+      const image = ownerDocument.createElement('img');
+      image.src = config.template
+        .replace('{z}', sourceZoom)
+        .replace('{x}', sourceX)
+        .replace('{y}', sourceY);
+      image.style.width = `${tileSize}px`;
+      image.style.height = `${tileSize}px`;
+      image.style.transformOrigin = 'top left';
+      image.style.transform = `scale(${scale})`;
+      image.style.marginLeft = `${-(requestedX % scale) * tileSize}px`;
+      image.style.marginTop = `${-(coord.y % scale) * tileSize}px`;
+      tile.appendChild(image);
+      return tile;
+    },
+    releaseTile(tile) {
+      tiles.delete(tile);
+    },
+    setOpacity(value) {
+      this.opacity = value;
+      for (const tile of tiles) tile.style.opacity = String(value);
+    },
+  };
 
   googleMap.overlayMapTypes.push(overlay);
   window[OVERLAY_KEY] = overlay;
