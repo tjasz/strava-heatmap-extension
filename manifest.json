@@ -15,7 +15,9 @@
     "*://www.strava.com/*",
     "*://content-a.strava.com/*",
     "*://www.openstreetmap.org/*",
-    "*://gpx.studio/*"
+    "*://gpx.studio/*",
+    "*://caltopo.com/*",
+    "*://www.caltopo.com/*"
   ],
   "action": {
     "default_popup": ""
@@ -30,6 +32,16 @@
       "js": ["src/clients/www.openstreetmap.org/start.js"],
       "run_at": "document_start",
       "all_frames": true
+    },
+    {
+      "matches": ["*://caltopo.com/*", "*://www.caltopo.com/*"],
+      "js": [
+        "lib/browser-polyfill.min.js",
+        "src/content/inject-client.js",
+        "src/content/watch-storage.js",
+        "src/content/watch-tile-errors.js"
+      ],
+      "run_at": "document_end"
     },
     {
       "matches": [
@@ -69,7 +81,12 @@
         "src/clients/common/hash.js",
         "src/clients/common/layers.js"
       ],
-      "matches": ["*://www.openstreetmap.org/*", "*://gpx.studio/*"]
+      "matches": [
+        "*://www.openstreetmap.org/*",
+        "*://gpx.studio/*",
+        "*://caltopo.com/*",
+        "*://www.caltopo.com/*"
+      ]
     },
     {
       "resources": [
@@ -88,6 +105,13 @@
         "src/clients/gpx.studio/index.css"
       ],
       "matches": ["*://gpx.studio/*"]
+    },
+    {
+      "resources": [
+        "src/clients/caltopo.com/index.js",
+        "src/clients/caltopo.com/index.css"
+      ],
+      "matches": ["*://caltopo.com/*", "*://www.caltopo.com/*"]
     }
   ],
   "icons": {

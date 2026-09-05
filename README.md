@@ -1,6 +1,6 @@
 # Strava Heatmap extension
 
-This browser extension seamlessly integrates the [Strava Global Heatmap](https://www.strava.com/maps/global-heatmap) into popular mapping editors, including the OpenStreetMap [iD editor](https://www.openstreetmap.org/edit?editor=id) and [GPX Studio](https://gpx.studio/app), enhancing your mapping and route analysis capabilities.
+This browser extension seamlessly integrates the [Strava Global Heatmap](https://www.strava.com/maps/global-heatmap) into popular mapping editors, including the OpenStreetMap [iD editor](https://www.openstreetmap.org/edit?editor=id), [GPX Studio](https://gpx.studio/app), and [CalTopo](https://caltopo.com/), enhancing your mapping and route analysis capabilities.
 
 <img src="./images/screenshot1.png" width="48%"/>&nbsp;<img src="./images/screenshot2.png" width="48%"/>
 
@@ -64,6 +64,14 @@ To enable the Strava Heatmap in GPX.studio:
 4. If you see the message "Click the Strava Heatmap extension icon to log into Strava…", click the red extension icon to authenticate.
 5. Once logged in, use the green extension icon to configure, reorder, or delete heatmap layers by activity and color.
 
+### CalTopo
+
+To enable the Strava Heatmap in CalTopo:
+
+1. Open a map at https://caltopo.com/.
+2. Use the Strava heatmap ribbon at the top of the map to select a configured layer, toggle it, or adjust its opacity.
+3. Use the extension icon to log into Strava and configure the available heatmap layers.
+
 ### Troubleshooting
 
 **Q: “Click the Strava Heatmap extension icon to log into Strava and enable the heatmap.” — What does this mean?**  
@@ -85,7 +93,7 @@ To learn more about using the Strava Heatmap in OpenStreetMap, visit the [Strava
 
 ### Support for Other Sites
 
-This extension currently supports the iD editor and [gpx.studio](https://gpx.studio). I'm not taking on additional sites at the moment. If you'd like to add support for another tool, feel free to fork the project.
+This extension currently supports the iD editor, [gpx.studio](https://gpx.studio), and [CalTopo](https://caltopo.com/). I'm not taking on additional sites at the moment. If you'd like to add support for another tool, feel free to fork the project.
 
 - For JOSM, check out the [JOSM Strava Heatmap Extension](https://github.com/zekefarwell/josm-strava-heatmap).
 - For RapidId, refer to the [RapId Power User Extension](https://github.com/emersonveenstra/rapid-power-user-extension/).
