@@ -152,6 +152,12 @@ function updateLayerOptions() {
 function createRibbon() {
   if (document.getElementById(RIBBON_ID)) return;
 
+  const routeDiscoveryHeading = [...document.querySelectorAll('p')].find(
+    ({ textContent }) => textContent.trim() === 'Route Discovery',
+  );
+  const routeDiscoveryList = routeDiscoveryHeading?.nextElementSibling;
+  if (routeDiscoveryList?.tagName !== 'UL') return;
+
   const ribbon = document.createElement('div');
   ribbon.id = RIBBON_ID;
   ribbon.classList.add('MuiStack-root');
@@ -199,9 +205,7 @@ function createRibbon() {
   opacityLabel.append(opacityInput, opacityOutput);
 
   ribbon.append(toggleLabel, layerLabel, opacityLabel);
-  document
-    .querySelector('div.sidebarContent > div.MuiStack-root')
-    .appendChild(ribbon);
+  routeDiscoveryList.appendChild(ribbon);
   updateLayerOptions();
 }
 
