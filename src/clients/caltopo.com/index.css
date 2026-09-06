@@ -1,3 +1,22 @@
+.strava-heatmap-swatch {
+  align-items: center;
+  background-color: rgba(204, 93, 49, 0.15);
+  border-radius: 14px;
+  display: flex;
+  flex: 0 0 28px;
+  font-size: 16px;
+  height: 28px;
+  justify-content: center;
+  min-width: 28px;
+  overflow: hidden;
+}
+
+.strava-heatmap-title {
+  align-items: center;
+  display: inline-flex;
+  min-height: 28px;
+}
+
 .strava-heatmap-controls {
   display: flex;
   flex-direction: column;
