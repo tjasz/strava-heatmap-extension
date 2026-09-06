@@ -7,6 +7,7 @@ import {
 
 const OVERLAY_KEY = '__stravaHeatmapCalTopoOverlay';
 const RIBBON_ID = 'strava-heatmap-caltopo-ribbon';
+const STORAGE_KEY = 'strava-heatmap-extension:caltopo-layer-state';
 const RETRY_INTERVAL_MS = 500;
 const MAX_ATTEMPTS = 120;
 
@@ -23,6 +24,32 @@ let opacityOutput;
 let observedOverlayMapTypes;
 let overlayMapTypeListeners = [];
 let restoreOverlayTimer;
+
+function loadState() {
+  try {
+    const state = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (!state || typeof state !== 'object') return;
+
+    if (typeof state.enabled === 'boolean') enabled = state.enabled;
+    if (typeof state.layerId === 'string') selectedLayerId = state.layerId;
+    if (Number.isFinite(state.opacity)) {
+      opacity = Math.max(0, Math.min(1, state.opacity));
+    }
+  } catch (error) {
+    console.warn('[StravaHeatmapExt] Could not restore CalTopo layer state.', error);
+  }
+}
+
+function saveState() {
+  try {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ enabled, layerId: selectedLayerId, opacity }),
+    );
+  } catch (error) {
+    console.warn('[StravaHeatmapExt] Could not save CalTopo layer state.', error);
+  }
+}
 
 function getGoogleMap() {
   const googleMap = window.map?.map?.map;
@@ -88,10 +115,12 @@ function removeOverlay() {
   enabled = false;
   detachOverlay();
   updateControls();
+  saveState();
 }
 
 function addOverlay() {
   enabled = true;
+  saveState();
   const googleMap = getGoogleMap();
   const config = layerConfigs.find(({ id }) => id === selectedLayerId);
   if (!googleMap || !config) {
@@ -172,6 +201,7 @@ function setOpacity(value) {
   opacity = Math.max(0, Math.min(1, Number(value)));
   window[OVERLAY_KEY]?.setOpacity(opacity);
   updateControls();
+  saveState();
 }
 
 function updateControls() {
@@ -241,7 +271,7 @@ function createRibbon() {
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
     if (enabled) removeOverlay();
-    else removeOverlay();
+    else addOverlay();
   });
 
   const swatch = document.createElement('div');
@@ -282,6 +312,7 @@ function createRibbon() {
   layerInput.addEventListener('change', () => {
     selectedLayerId = layerInput.value;
     refreshOverlay();
+    saveState();
   });
   layerLabel.appendChild(layerInput);
 
@@ -326,6 +357,7 @@ async function main() {
   let authenticated = script.dataset.authenticated === 'true';
   let layerPresets = parseLayerPresets(script.dataset.layers);
 
+  loadState();
   applyLayerConfigs(layerPresets, authenticated, version);
   createRibbon();
 
