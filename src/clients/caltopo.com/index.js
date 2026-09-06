@@ -206,8 +206,7 @@ function setOpacity(value) {
 
 function updateControls() {
   if (stack) {
-    stack.classList.toggle('css-12mbytc', !enabled);
-    stack.classList.toggle('css-zwtvk2', enabled);
+    stack.classList.toggle('strava-heatmap-layer-active', enabled);
   }
   if (toggleButton) {
     toggleButton.setAttribute('aria-pressed', String(enabled));
