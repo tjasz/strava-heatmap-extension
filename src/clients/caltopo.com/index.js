@@ -20,10 +20,54 @@ let controlsCollapse;
 let layerInput;
 let opacityInput;
 let opacityOutput;
+let observedOverlayMapTypes;
+let overlayMapTypeListeners = [];
+let restoreOverlayTimer;
 
 function getGoogleMap() {
   const googleMap = window.map?.map?.map;
   return window.google?.maps && googleMap?.overlayMapTypes ? googleMap : null;
+}
+
+function restoreOverlayOnTop() {
+  restoreOverlayTimer = undefined;
+  if (!enabled) return;
+
+  const overlay = window[OVERLAY_KEY];
+  const googleMap = getGoogleMap();
+  if (!overlay || !googleMap) return;
+
+  const overlays = googleMap.overlayMapTypes;
+  const overlayIndexes = [];
+  for (let index = 0; index < overlays.getLength(); index++) {
+    if (overlays.getAt(index) === overlay) overlayIndexes.push(index);
+  }
+  if (
+    overlayIndexes.length === 1 &&
+    overlayIndexes[0] === overlays.getLength() - 1
+  ) {
+    return;
+  }
+
+  for (let index = overlayIndexes.length - 1; index >= 0; index--) {
+    overlays.removeAt(overlayIndexes[index]);
+  }
+  overlays.push(overlay);
+}
+
+function setupOverlayMapTypesListener(googleMap) {
+  const overlays = googleMap.overlayMapTypes;
+  if (observedOverlayMapTypes === overlays) return;
+
+  for (const listener of overlayMapTypeListeners) listener.remove();
+  observedOverlayMapTypes = overlays;
+  const scheduleRestore = () => {
+    if (restoreOverlayTimer !== undefined) return;
+    restoreOverlayTimer = window.setTimeout(restoreOverlayOnTop, 0);
+  };
+  overlayMapTypeListeners = ['insert_at', 'remove_at', 'set_at'].map((event) =>
+    overlays.addListener(event, scheduleRestore),
+  );
 }
 
 function detachOverlay() {
@@ -54,7 +98,9 @@ function addOverlay() {
     updateControls();
     return false;
   }
+  setupOverlayMapTypesListener(googleMap);
   if (window[OVERLAY_KEY]) {
+    restoreOverlayOnTop();
     updateControls();
     return true;
   }
