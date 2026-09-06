@@ -14,6 +14,7 @@ let enabled = true;
 let opacity = 1;
 let selectedLayerId;
 let layerConfigs = [];
+let stack;
 let toggleButton;
 let controlsCollapse;
 let layerInput;
@@ -128,6 +129,10 @@ function setOpacity(value) {
 }
 
 function updateControls() {
+  if (stack) {
+    stack.classList.toggle('css-12mbytc', !enabled);
+    stack.classList.toggle('css-zwtvk2', enabled);
+  }
   if (toggleButton) {
     toggleButton.setAttribute('aria-pressed', String(enabled));
     toggleButton.classList.toggle('strava-heatmap-active', enabled);
@@ -174,7 +179,7 @@ function createRibbon() {
     'MuiListItem-root MuiListItem-gutters MuiListItem-padding css-5rcv3b';
   ribbon.setAttribute('value', 'Strava Heatmap');
 
-  const stack = document.createElement('div');
+  stack = document.createElement('div');
   stack.className = 'MuiStack-root css-12mbytc';
 
   toggleButton = document.createElement('div');
