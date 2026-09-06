@@ -14,7 +14,8 @@ let enabled = true;
 let opacity = 1;
 let selectedLayerId;
 let layerConfigs = [];
-let enabledInput;
+let toggleButton;
+let controlsCollapse;
 let layerInput;
 let opacityInput;
 let opacityOutput;
@@ -127,7 +128,16 @@ function setOpacity(value) {
 }
 
 function updateControls() {
-  if (enabledInput) enabledInput.checked = enabled;
+  if (toggleButton) {
+    toggleButton.setAttribute('aria-pressed', String(enabled));
+    toggleButton.classList.toggle('strava-heatmap-active', enabled);
+  }
+  if (controlsCollapse) {
+    controlsCollapse.classList.toggle('MuiCollapse-hidden', !enabled);
+    controlsCollapse.style.minHeight = enabled ? '' : '0px';
+    controlsCollapse.style.height = enabled ? 'auto' : '0px';
+    controlsCollapse.style.visibility = enabled ? 'visible' : 'hidden';
+  }
   if (layerInput) layerInput.value = selectedLayerId ?? '';
   if (opacityInput) {
     opacityInput.value = String(Math.round(opacity * 100));
@@ -158,26 +168,58 @@ function createRibbon() {
   const routeDiscoveryList = routeDiscoveryHeading?.nextElementSibling;
   if (routeDiscoveryList?.tagName !== 'UL') return;
 
-  const ribbon = document.createElement('div');
+  const ribbon = document.createElement('li');
   ribbon.id = RIBBON_ID;
-  ribbon.classList.add('MuiStack-root');
-  ribbon.setAttribute('role', 'toolbar');
-  ribbon.setAttribute('aria-label', 'Strava heatmap controls');
+  ribbon.className =
+    'MuiListItem-root MuiListItem-gutters MuiListItem-padding css-5rcv3b';
+  ribbon.setAttribute('value', 'Strava Heatmap');
 
-  const toggleLabel = document.createElement('label');
-  toggleLabel.className = 'strava-heatmap-toggle';
+  const stack = document.createElement('div');
+  stack.className = 'MuiStack-root css-12mbytc';
 
-  enabledInput = document.createElement('input');
-  enabledInput.type = 'checkbox';
-  enabledInput.setAttribute('aria-label', 'Show Strava heatmap');
-  enabledInput.addEventListener('change', () => {
-    if (enabledInput.checked) addOverlay();
+  toggleButton = document.createElement('div');
+  toggleButton.className = 'MuiButtonBase-root MuiBox-root css-lp7ikr';
+  toggleButton.tabIndex = 0;
+  toggleButton.setAttribute('role', 'button');
+  toggleButton.setAttribute('aria-label', 'Strava Heatmap');
+  toggleButton.addEventListener('click', () => {
+    if (enabled) removeOverlay();
+    else addOverlay();
+  });
+  toggleButton.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    if (enabled) removeOverlay();
     else removeOverlay();
   });
 
+  const swatch = document.createElement('div');
+  swatch.className = 'MuiBox-root strava-heatmap-swatch';
+
+  const titleGrid = document.createElement('div');
+  titleGrid.className =
+    'MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-grid-xs-12 css-cjc644';
+  const titleItem = document.createElement('div');
+  titleItem.className =
+    'MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-1kofupb';
   const title = document.createElement('span');
-  title.textContent = 'Strava heatmap';
-  toggleLabel.append(enabledInput, title);
+  title.setAttribute('aria-label', 'Strava Heatmap');
+  title.textContent = 'Strava Heatmap';
+  titleItem.appendChild(title);
+  titleGrid.appendChild(titleItem);
+  toggleButton.append(swatch, titleGrid);
+
+  controlsCollapse = document.createElement('div');
+  controlsCollapse.className =
+    'MuiCollapse-root MuiCollapse-vertical css-a0y2e3';
+  const collapseWrapper = document.createElement('div');
+  collapseWrapper.className =
+    'MuiCollapse-wrapper MuiCollapse-vertical css-hboir5';
+  const collapseInner = document.createElement('div');
+  collapseInner.className =
+    'MuiCollapse-wrapperInner MuiCollapse-vertical css-8atqhb';
+  const controls = document.createElement('div');
+  controls.className = 'MuiBox-root css-1y82lur strava-heatmap-controls';
 
   const layerLabel = document.createElement('label');
   layerLabel.textContent = 'Layer';
@@ -204,7 +246,12 @@ function createRibbon() {
   opacityOutput.setAttribute('aria-live', 'polite');
   opacityLabel.append(opacityInput, opacityOutput);
 
-  ribbon.append(toggleLabel, layerLabel, opacityLabel);
+  controls.append(layerLabel, opacityLabel);
+  collapseInner.appendChild(controls);
+  collapseWrapper.appendChild(collapseInner);
+  controlsCollapse.appendChild(collapseWrapper);
+  stack.append(toggleButton, controlsCollapse);
+  ribbon.appendChild(stack);
   routeDiscoveryList.appendChild(ribbon);
   updateLayerOptions();
 }
