@@ -200,6 +200,8 @@ function createRibbon() {
 
   const swatch = document.createElement('div');
   swatch.className = 'MuiBox-root strava-heatmap-swatch';
+  swatch.setAttribute('aria-hidden', 'true');
+  swatch.textContent = '🔥';
 
   const titleGrid = document.createElement('div');
   titleGrid.className =
@@ -208,6 +210,7 @@ function createRibbon() {
   titleItem.className =
     'MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-1kofupb';
   const title = document.createElement('span');
+  title.className = 'strava-heatmap-title';
   title.setAttribute('aria-label', 'Strava Heatmap');
   title.textContent = 'Strava Heatmap';
   titleItem.appendChild(title);
