@@ -2,6 +2,10 @@
 
 ## Versions
 
+### `0.13.8` (2026-09-09)
+
+- Add more sport types to the Other Sports group (Badminton, Basketball, Cricket, Dance, Golf, Handcycle, Inline Skate, Padel, Physical Therapy, Pickleball, Rock Climb, Roller Ski, Skateboard, Football (Soccer), Tennis, Volleyball, Wheelchair)
+
 ### `0.13.7` (2026-08-12)
 
 - [iD] Fix Shift+Q / Shift+W overlay shortcuts not re-binding reliably after iD 2.42.0
