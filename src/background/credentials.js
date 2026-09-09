@@ -48,7 +48,7 @@ export async function requestCredentials(skipValidation = false) {
   }
 
   const rules = await updateHeatmapRules(credentials);
-  console.debug('[StravaHeatmapExt] Heatmap rules updated', rules);
+  console.debug('[StravaHeatmapExt] Heatmap rules updated', rules.length);
 
   // Validate credentials by attempting to access a protected tile
   if (credentials && !skipValidation) {
