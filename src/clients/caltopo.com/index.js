@@ -24,6 +24,7 @@ let opacityOutput;
 let observedOverlayMapTypes;
 let overlayMapTypeListeners = [];
 let restoreOverlayTimer;
+let ribbonObserver;
 
 function loadState() {
   try {
@@ -56,11 +57,23 @@ function getGoogleMap() {
   return window.google?.maps && googleMap?.overlayMapTypes ? googleMap : null;
 }
 
+function getLeafletMap() {
+  const leafletMap = window.map?.map?.map;
+  return window.L?.tileLayer && leafletMap?.addLayer && leafletMap?.removeLayer
+    ? leafletMap
+    : null;
+}
+
 function restoreOverlayOnTop() {
   restoreOverlayTimer = undefined;
   if (!enabled) return;
 
   const overlay = window[OVERLAY_KEY];
+  if (overlay?.__stravaHeatmapRenderer === 'leaflet') {
+    overlay.bringToFront();
+    return;
+  }
+
   const googleMap = getGoogleMap();
   if (!overlay || !googleMap) return;
 
@@ -99,6 +112,12 @@ function setupOverlayMapTypesListener(googleMap) {
 
 function detachOverlay() {
   const overlay = window[OVERLAY_KEY];
+  if (overlay?.__stravaHeatmapRenderer === 'leaflet') {
+    overlay.remove();
+    delete window[OVERLAY_KEY];
+    return true;
+  }
+
   const googleMap = getGoogleMap();
   if (!overlay || !googleMap) return false;
 
@@ -121,12 +140,42 @@ function removeOverlay() {
 function addOverlay() {
   enabled = true;
   saveState();
+  const leafletMap = getLeafletMap();
   const googleMap = getGoogleMap();
   const config = layerConfigs.find(({ id }) => id === selectedLayerId);
-  if (!googleMap || !config) {
+  if ((!leafletMap && !googleMap) || !config) {
     updateControls();
     return false;
   }
+
+  if (leafletMap) {
+    const existingOverlay = window[OVERLAY_KEY];
+    if (
+      existingOverlay?.__stravaHeatmapRenderer === 'leaflet' &&
+      existingOverlay._map === leafletMap
+    ) {
+      restoreOverlayOnTop();
+      updateControls();
+      return true;
+    }
+    if (existingOverlay) detachOverlay();
+
+    const [minZoom, maxZoom] = config.zoomExtent;
+    const overlay = window.L.tileLayer(config.template, {
+      minZoom: minZoom + 1,
+      maxNativeZoom: maxZoom + 1,
+      opacity,
+      tileSize: 512,
+      zoomOffset: -1,
+      zIndex: 1000,
+    });
+    overlay.__stravaHeatmapRenderer = 'leaflet';
+    overlay.addTo(leafletMap);
+    window[OVERLAY_KEY] = overlay;
+    updateControls();
+    return true;
+  }
+
   setupOverlayMapTypesListener(googleMap);
   if (window[OVERLAY_KEY]) {
     restoreOverlayOnTop();
@@ -340,6 +389,16 @@ function createRibbon() {
   updateLayerOptions();
 }
 
+function setupRibbonObserver() {
+  createRibbon();
+  if (ribbonObserver) return;
+
+  ribbonObserver = new MutationObserver(() => {
+    if (!document.getElementById(RIBBON_ID)) createRibbon();
+  });
+  ribbonObserver.observe(document.body, { childList: true, subtree: true });
+}
+
 function applyLayerConfigs(layerPresets, authenticated, version) {
   const previousLayerId = selectedLayerId;
   layerConfigs = getLayerConfigs(layerPresets, authenticated, version, true);
@@ -358,7 +417,7 @@ async function main() {
 
   loadState();
   applyLayerConfigs(layerPresets, authenticated, version);
-  createRibbon();
+  setupRibbonObserver();
 
   setupAuthStatusChangeListener((newAuthenticated) => {
     authenticated = newAuthenticated;
