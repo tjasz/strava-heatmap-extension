@@ -11,6 +11,7 @@ const COLORS = {
 
 export const DEFAULT_GRADIENT_START = '#000000';
 export const DEFAULT_GRADIENT_END = '#ffffff';
+export const DEFAULT_GRADIENT_OPACITY = 1;
 
 const ACTIVITIES = {
   all: 'All Sports',
@@ -135,6 +136,8 @@ function getLayerConfig(
   color,
   gradientStart,
   gradientEnd,
+  gradientStartOpacity,
+  gradientEndOpacity,
   timestamp,
   authenticated,
   version,
@@ -154,7 +157,10 @@ function getLayerConfig(
     description: `Shows ${activityName.toLowerCase()} aggregated, public Strava activities over the last year in ${colorEmoji} color.`,
     template:
       authenticated && color === 'grayscale'
-        ? `${template}#strava-gradient=${gradientStart.slice(1)}-${gradientEnd.slice(1)}`
+        ? `${template}#strava-gradient=${formatGradientEndpoint(
+            gradientStart,
+            gradientStartOpacity
+          )}-${formatGradientEndpoint(gradientEnd, gradientEndOpacity)}`
         : template,
     zoomExtent: authenticated ? [0, 15] : [0, 20],
   };
@@ -170,6 +176,8 @@ export function getLayerConfigs(layerPresets, authenticated, version, short = fa
       color,
       gradientStart = DEFAULT_GRADIENT_START,
       gradientEnd = DEFAULT_GRADIENT_END,
+      gradientStartOpacity = DEFAULT_GRADIENT_OPACITY,
+      gradientEndOpacity = DEFAULT_GRADIENT_OPACITY,
     } = layer;
     return getLayerConfig(
       index + 1,
@@ -177,6 +185,8 @@ export function getLayerConfigs(layerPresets, authenticated, version, short = fa
       color,
       gradientStart,
       gradientEnd,
+      gradientStartOpacity,
+      gradientEndOpacity,
       timestamp,
       authenticated,
       version,
@@ -196,7 +206,14 @@ export function setupLayerPresetsChangeListener(callback) {
 
 export function parseLayerPresets(string) {
   return string.split(';').map((item) => {
-    const [activity, color, gradientStart, gradientEnd] = item.split(':');
+    const [
+      activity,
+      color,
+      gradientStart,
+      gradientEnd,
+      gradientStartOpacity,
+      gradientEndOpacity,
+    ] = item.split(':');
     return {
       activity,
       color,
@@ -207,6 +224,14 @@ export function parseLayerPresets(string) {
               DEFAULT_GRADIENT_START
             ),
             gradientEnd: normalizeGradientColor(gradientEnd, DEFAULT_GRADIENT_END),
+            gradientStartOpacity: normalizeGradientOpacity(
+              gradientStartOpacity,
+              DEFAULT_GRADIENT_OPACITY
+            ),
+            gradientEndOpacity: normalizeGradientOpacity(
+              gradientEndOpacity,
+              DEFAULT_GRADIENT_OPACITY
+            ),
           }
         : {}),
     };
@@ -215,4 +240,18 @@ export function parseLayerPresets(string) {
 
 export function normalizeGradientColor(value, fallback) {
   return /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : fallback;
+}
+
+export function normalizeGradientOpacity(value, fallback) {
+  const opacity = Number(value);
+  return Number.isFinite(opacity) && opacity >= 0 && opacity <= 1
+    ? opacity
+    : fallback;
+}
+
+function formatGradientEndpoint(color, opacity) {
+  const alpha = Math.round(opacity * 255)
+    .toString(16)
+    .padStart(2, '0');
+  return `${color.slice(1)}${alpha}`;
 }

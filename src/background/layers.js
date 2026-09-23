@@ -1,7 +1,9 @@
 import {
 	DEFAULT_GRADIENT_END,
+	DEFAULT_GRADIENT_OPACITY,
 	DEFAULT_GRADIENT_START,
 	normalizeGradientColor,
+	normalizeGradientOpacity,
 	parseLayerPresets,
 } from '../clients/common/layers.js';
 
@@ -41,12 +43,28 @@ export async function getLayerPresets() {
 
 export function formatLayerPresets(layerPresets) {
 	return layerPresets
-		.map(({ activity, color, gradientStart, gradientEnd }) => {
+		.map((layer) => {
+			const {
+				activity,
+				color,
+				gradientStart,
+				gradientEnd,
+				gradientStartOpacity,
+				gradientEndOpacity,
+			} = layer;
 			const fields = [activity, color];
 			if (color === 'grayscale') {
 				fields.push(
 					normalizeGradientColor(gradientStart, DEFAULT_GRADIENT_START),
-					normalizeGradientColor(gradientEnd, DEFAULT_GRADIENT_END)
+					normalizeGradientColor(gradientEnd, DEFAULT_GRADIENT_END),
+					normalizeGradientOpacity(
+						gradientStartOpacity,
+						DEFAULT_GRADIENT_OPACITY
+					),
+					normalizeGradientOpacity(
+						gradientEndOpacity,
+						DEFAULT_GRADIENT_OPACITY
+					)
 				);
 			}
 			return fields.join(':');
@@ -55,17 +73,31 @@ export function formatLayerPresets(layerPresets) {
 }
 
 export function validateLayerPresets(layerPresets) {
-	for (const { activity, color, gradientStart, gradientEnd } of layerPresets) {
+	for (const {
+		activity,
+		color,
+		gradientStart,
+		gradientEnd,
+		gradientStartOpacity,
+		gradientEndOpacity,
+	} of layerPresets) {
 		if (activity === undefined || color === undefined) {
 			return false;
 		}
 		if (
 			color === 'grayscale' &&
 			(!/^#[0-9a-f]{6}$/i.test(gradientStart) ||
-				!/^#[0-9a-f]{6}$/i.test(gradientEnd))
+				!/^#[0-9a-f]{6}$/i.test(gradientEnd) ||
+				!isValidOpacity(gradientStartOpacity) ||
+				!isValidOpacity(gradientEndOpacity))
 		) {
 			return false;
 		}
 	}
 	return true;
+}
+
+function isValidOpacity(value) {
+	const opacity = Number(value);
+	return Number.isFinite(opacity) && opacity >= 0 && opacity <= 1;
 }

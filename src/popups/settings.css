@@ -74,26 +74,37 @@ p {
 
   .gradient-controls {
     display: flex;
+    flex-direction: column;
     justify-content: flex-end;
-    gap: 1rem;
+    gap: 0.4rem;
     width: 100%;
   }
 
-  .gradient-controls label {
-    display: flex;
+  .gradient-endpoint {
+    display: grid;
+    grid-template-columns: 2.5rem 3rem 1fr 3rem;
     align-items: center;
     gap: 0.4em;
     font-size: 0.85em;
     color: #555;
   }
 
-  .gradient-controls input {
+  .gradient-endpoint input[type='color'] {
     width: 3rem;
     height: 1.75rem;
     padding: 0;
     border: 1px solid #aaa;
     border-radius: 4px;
     cursor: pointer;
+  }
+
+  .gradient-endpoint input[type='range'] {
+    width: 100%;
+    cursor: pointer;
+  }
+
+  .gradient-endpoint output {
+    text-align: right;
   }
 }
 

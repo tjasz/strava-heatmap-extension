@@ -1,5 +1,5 @@
 const GRADIENT_HASH_PATTERN =
-  /(?:^|&)strava-gradient=([0-9a-f]{6})-([0-9a-f]{6})(?:&|$)/i;
+  /(?:^|&)strava-gradient=([0-9a-f]{6}(?:[0-9a-f]{2})?)-([0-9a-f]{6}(?:[0-9a-f]{2})?)(?:&|$)/i;
 
 function getGradient(url) {
   if (typeof url !== 'string') return null;
@@ -11,13 +11,17 @@ function getGradient(url) {
   if (!match) return null;
 
   return {
-    start: hexToRgb(match[1]),
-    end: hexToRgb(match[2]),
+    start: hexToRgba(match[1]),
+    end: hexToRgba(match[2]),
   };
 }
 
-function hexToRgb(hex) {
-  return [0, 2, 4].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
+function hexToRgba(hex) {
+  const rgba = [0, 2, 4].map((offset) =>
+    Number.parseInt(hex.slice(offset, offset + 2), 16)
+  );
+  rgba.push(hex.length === 8 ? Number.parseInt(hex.slice(6, 8), 16) : 255);
+  return rgba;
 }
 
 async function recolorBlob(blob, gradient) {
@@ -46,6 +50,10 @@ async function recolorBlob(blob, gradient) {
         gradient.start[2],
         gradient.end[2],
         intensity
+      );
+      data[offset + 3] = Math.round(
+        (data[offset + 3] / 255) *
+          interpolate(gradient.start[3], gradient.end[3], intensity)
       );
     }
 
