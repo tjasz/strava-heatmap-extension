@@ -8,6 +8,8 @@ import {
 
 const MAX_ATTEMPTS = 100;
 const RETRY_INTERVAL = 100;
+const HEATMAP_PANE = 'stravaHeatmapPane';
+const HEATMAP_PANE_Z_INDEX = 300;
 
 installGradientTileRecoloring();
 
@@ -58,6 +60,10 @@ function getRequestedOverlayIds() {
 }
 
 function createOverlayControl(map, overlays, layerConfigs, enabledIds) {
+  const heatmapPane = map.getPane(HEATMAP_PANE) ?? map.createPane(HEATMAP_PANE);
+  heatmapPane.style.zIndex = HEATMAP_PANE_Z_INDEX;
+  heatmapPane.style.pointerEvents = 'none';
+
   const control = window.L.control.layers();
   control.addTo(map);
   const container = control.getContainer();
@@ -67,6 +73,7 @@ function createOverlayControl(map, overlays, layerConfigs, enabledIds) {
     const layer = window.L.tileLayer(config.template, {
       geotabId: config.id,
       maxNativeZoom: config.zoomExtent[1],
+      pane: HEATMAP_PANE,
     });
     control.addOverlay(layer, config.name);
     return { config, layer };
