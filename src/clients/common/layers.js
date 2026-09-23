@@ -6,7 +6,11 @@ const COLORS = {
   purple: ['🟣', 'Purple'],
   bluered: ['🔴', 'Blue-Red'],
   orange: ['🟠', 'Orange'],
+  grayscale: ['⚫', 'Grayscale'],
 };
+
+export const DEFAULT_GRADIENT_START = '#000000';
+export const DEFAULT_GRADIENT_END = '#ffffff';
 
 const ACTIVITIES = {
   all: 'All Sports',
@@ -129,6 +133,8 @@ function getLayerConfig(
   position,
   activity,
   color,
+  gradientStart,
+  gradientEnd,
   timestamp,
   authenticated,
   version,
@@ -136,6 +142,9 @@ function getLayerConfig(
 ) {
   const activityName = ACTIVITIES[activity];
   const [colorEmoji] = COLORS[color] || '❓';
+  const template = authenticated
+    ? `https://content-a.strava.com/identified/globalheat/${activity}/${color}/{z}/{x}/{y}.png?v=19&t=${timestamp}`
+    : `https://raw.githubusercontent.com/julcnx/strava-heatmap-extension/refs/heads/v${version}/assets/heatmap-fallback.png?v=1&z={z}&x={x}&y={y}`;
 
   return {
     id: `strava-heatmap-${activity}`,
@@ -143,9 +152,10 @@ function getLayerConfig(
       short ? activityName : `Strava Heatmap ${activityName}`
     }`,
     description: `Shows ${activityName.toLowerCase()} aggregated, public Strava activities over the last year in ${colorEmoji} color.`,
-    template: authenticated
-      ? `https://content-a.strava.com/identified/globalheat/${activity}/${color}/{z}/{x}/{y}.png?v=19&t=${timestamp}`
-      : `https://raw.githubusercontent.com/julcnx/strava-heatmap-extension/refs/heads/v${version}/assets/heatmap-fallback.png?v=1&z={z}&x={x}&y={y}`,
+    template:
+      authenticated && color === 'grayscale'
+        ? `${template}#strava-gradient=${gradientStart.slice(1)}-${gradientEnd.slice(1)}`
+        : template,
     zoomExtent: authenticated ? [0, 15] : [0, 20],
   };
 }
@@ -154,9 +164,25 @@ function getLayerConfig(
 export function getLayerConfigs(layerPresets, authenticated, version, short = false) {
   const timestamp = Date.now().toString();
 
-  return layerPresets.map(({ activity, color }, index) =>
-    getLayerConfig(index + 1, activity, color, timestamp, authenticated, version, short)
-  );
+  return layerPresets.map((layer, index) => {
+    const {
+      activity,
+      color,
+      gradientStart = DEFAULT_GRADIENT_START,
+      gradientEnd = DEFAULT_GRADIENT_END,
+    } = layer;
+    return getLayerConfig(
+      index + 1,
+      activity,
+      color,
+      gradientStart,
+      gradientEnd,
+      timestamp,
+      authenticated,
+      version,
+      short
+    );
+  });
 }
 
 export function setupLayerPresetsChangeListener(callback) {
@@ -170,7 +196,23 @@ export function setupLayerPresetsChangeListener(callback) {
 
 export function parseLayerPresets(string) {
   return string.split(';').map((item) => {
-    const [activity, color] = item.split(':');
-    return { activity, color };
+    const [activity, color, gradientStart, gradientEnd] = item.split(':');
+    return {
+      activity,
+      color,
+      ...(color === 'grayscale'
+        ? {
+            gradientStart: normalizeGradientColor(
+              gradientStart,
+              DEFAULT_GRADIENT_START
+            ),
+            gradientEnd: normalizeGradientColor(gradientEnd, DEFAULT_GRADIENT_END),
+          }
+        : {}),
+    };
   });
+}
+
+export function normalizeGradientColor(value, fallback) {
+  return /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : fallback;
 }

@@ -1,3 +1,10 @@
+import {
+	DEFAULT_GRADIENT_END,
+	DEFAULT_GRADIENT_START,
+	normalizeGradientColor,
+	parseLayerPresets,
+} from '../clients/common/layers.js';
+
 export async function resetLayerPresets(force = false) {
 	const layerPresets = await getLayerPresets();
 	if (layerPresets.length > 0 && !force) return false;
@@ -29,21 +36,34 @@ export async function getLayerPresets() {
 	const { layers } = await browser.storage.local.get('layers');
 	if (typeof layers !== 'string') return [];
 
-	const layerPresets = layers.split(';').map((item) => {
-		const [activity, color] = item.split(':');
-		return { activity, color };
-	});
-
-	return layerPresets;
+	return parseLayerPresets(layers);
 }
 
 export function formatLayerPresets(layerPresets) {
-	return layerPresets.map(({ activity, color }) => `${activity}:${color}`).join(';');
+	return layerPresets
+		.map(({ activity, color, gradientStart, gradientEnd }) => {
+			const fields = [activity, color];
+			if (color === 'grayscale') {
+				fields.push(
+					normalizeGradientColor(gradientStart, DEFAULT_GRADIENT_START),
+					normalizeGradientColor(gradientEnd, DEFAULT_GRADIENT_END)
+				);
+			}
+			return fields.join(':');
+		})
+		.join(';');
 }
 
 export function validateLayerPresets(layerPresets) {
-	for (const { activity, color } of layerPresets) {
+	for (const { activity, color, gradientStart, gradientEnd } of layerPresets) {
 		if (activity === undefined || color === undefined) {
+			return false;
+		}
+		if (
+			color === 'grayscale' &&
+			(!/^#[0-9a-f]{6}$/i.test(gradientStart) ||
+				!/^#[0-9a-f]{6}$/i.test(gradientEnd))
+		) {
 			return false;
 		}
 	}

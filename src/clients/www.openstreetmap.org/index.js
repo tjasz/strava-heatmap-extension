@@ -1,8 +1,11 @@
 import { setupAuthStatusChangeListener } from '../common/auth.js';
+import { installGradientTileRecoloring } from '../common/gradient-tiles.js';
 import { parseLayerPresets, setupLayerPresetsChangeListener } from '../common/layers.js';
 import { restoreiDContainer, setupiDCoreContextListener } from './id.js';
 import { applyImagery } from './imagery.js';
 import { setupOverlaysListeners } from './overlays.js';
+
+installGradientTileRecoloring();
 
 async function main() {
   const script = document.querySelector('script#strava-heatmap-client');

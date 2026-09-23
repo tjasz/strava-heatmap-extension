@@ -78,6 +78,7 @@
     {
       "resources": [
         "src/clients/common/auth.js",
+        "src/clients/common/gradient-tiles.js",
         "src/clients/common/hash.js",
         "src/clients/common/layers.js"
       ],
