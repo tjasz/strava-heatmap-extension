@@ -93,15 +93,35 @@ function installFetchInterceptor(nativeFetch) {
 
 function installImageInterceptor(nativeFetch) {
   const imageStates = new WeakMap();
+  const sourceDescriptor = Object.getOwnPropertyDescriptor(
+    HTMLImageElement.prototype,
+    'src'
+  );
 
-  async function processImage(image) {
-    const source = image.getAttribute('src');
+  function cancelPendingImage(image, source) {
+    const state = imageStates.get(image);
+    if (!state || state.outputSource === source) return;
+
+    image.style.visibility = state.visibility;
+    imageStates.delete(image);
+  }
+
+  async function processImage(image, source) {
+    if (source === null && imageStates.has(image)) return;
+
     const gradient = getGradient(source);
-    if (!gradient || imageStates.get(image)?.source === source) return;
+    if (!gradient) {
+      cancelPendingImage(image, source);
+      return;
+    }
+    const previousState = imageStates.get(image);
+    if (previousState?.source === source) return;
 
     const state = {
       source,
-      visibility: image.style.visibility,
+      visibility: previousState?.visibility ?? image.style.visibility,
+      outputSource: undefined,
+      failed: false,
     };
     imageStates.set(image, state);
     image.style.visibility = 'hidden';
@@ -115,6 +135,7 @@ function installImageInterceptor(nativeFetch) {
       if (imageStates.get(image) !== state) return;
 
       const objectUrl = URL.createObjectURL(recolored);
+      state.outputSource = objectUrl;
       image.addEventListener(
         'load',
         () => {
@@ -126,26 +147,55 @@ function installImageInterceptor(nativeFetch) {
         },
         { once: true }
       );
-      image.src = objectUrl;
+      sourceDescriptor.set.call(image, objectUrl);
     } catch (error) {
       if (imageStates.get(image) === state) {
         image.style.visibility = state.visibility;
-        imageStates.delete(image);
+        state.failed = true;
+        sourceDescriptor.set.call(image, source);
       }
       console.error('[StravaHeatmapExt] Failed to recolor grayscale tile.', error);
     }
   }
 
+  Object.defineProperty(HTMLImageElement.prototype, 'src', {
+    ...sourceDescriptor,
+    set(value) {
+      const source = String(value);
+      if (getGradient(source)) {
+        const state = imageStates.get(this);
+        if (state?.source === source && state.failed) {
+          sourceDescriptor.set.call(this, value);
+          return;
+        }
+        processImage(this, source);
+      } else {
+        cancelPendingImage(this, source);
+        sourceDescriptor.set.call(this, value);
+      }
+    },
+  });
+
   const observer = new MutationObserver((records) => {
     for (const record of records) {
       if (record.type === 'attributes') {
-        processImage(record.target);
+        if (record.target instanceof HTMLImageElement) {
+          const source = record.target.getAttribute('src');
+          const state = imageStates.get(record.target);
+          if (state?.source !== source || !state.failed) {
+            processImage(record.target, source);
+          }
+        }
         continue;
       }
       for (const node of record.addedNodes) {
         if (!(node instanceof Element)) continue;
-        if (node instanceof HTMLImageElement) processImage(node);
-        node.querySelectorAll('img').forEach(processImage);
+        if (node instanceof HTMLImageElement) {
+          processImage(node, node.getAttribute('src'));
+        }
+        node
+          .querySelectorAll('img')
+          .forEach((image) => processImage(image, image.getAttribute('src')));
       }
     }
   });
@@ -156,7 +206,9 @@ function installImageInterceptor(nativeFetch) {
     childList: true,
     subtree: true,
   });
-  document.querySelectorAll('img').forEach(processImage);
+  document
+    .querySelectorAll('img')
+    .forEach((image) => processImage(image, image.getAttribute('src')));
 }
 
 export function installGradientTileRecoloring() {
