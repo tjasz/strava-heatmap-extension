@@ -31,6 +31,7 @@ export async function applyImagery(context, layerPresets, authenticated, version
       terms_url:
         'https://wiki.openstreetmap.org/wiki/Strava#Data_Permission_-_Allowed_for_tracing!',
     });
+    preserveGradientFragment(source, config.template);
     imagery.backgrounds.push(source);
   });
 
@@ -55,4 +56,18 @@ export async function applyImagery(context, layerPresets, authenticated, version
     `[StravaHeatmapExt] Updated iD imagery with Strava layer configs`,
     stravaConfigs
   );
+}
+
+function preserveGradientFragment(source, template) {
+  const fragmentIndex = template.indexOf('#strava-gradient=');
+  if (fragmentIndex === -1) return;
+
+  const gradientFragment = template.slice(fragmentIndex);
+  const getTileUrl = source.url;
+  source.url = function (coord) {
+    const url = getTileUrl.call(this, coord);
+    return url && !url.includes('#strava-gradient=')
+      ? `${url}${gradientFragment}`
+      : url;
+  };
 }
