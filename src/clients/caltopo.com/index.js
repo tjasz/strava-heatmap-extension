@@ -1,9 +1,12 @@
 import { setupAuthStatusChangeListener } from '../common/auth.js';
+import { installGradientTileRecoloring } from '../common/gradient-tiles.js';
 import {
   getLayerConfigs,
   parseLayerPresets,
   setupLayerPresetsChangeListener,
 } from '../common/layers.js';
+
+installGradientTileRecoloring();
 
 const OVERLAY_KEY = '__stravaHeatmapCalTopoOverlay';
 const RIBBON_ID = 'strava-heatmap-caltopo-ribbon';

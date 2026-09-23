@@ -1,5 +1,8 @@
 import { setupAuthStatusChangeListener } from '../common/auth.js';
 import { parseLayerPresets, setupLayerPresetsChangeListener, getLayerConfigs } from '../common/layers.js';
+import { installGradientTileRecoloring } from '../common/gradient-tiles.js';
+
+installGradientTileRecoloring();
 
 async function waitForGpxStudio(maxAttempts = 50, interval = 100) {
   for (let i = 0; i < maxAttempts; i++) {

@@ -10,12 +10,18 @@ import {
   validateLayerPresets,
 } from '../background/layers.js';
 
-import { ACTIVITY_OPTIONS, COLOR_OPTIONS } from '../clients/common/layers.js';
+import {
+  ACTIVITY_OPTIONS,
+  COLOR_OPTIONS,
+  DEFAULT_GRADIENT_END,
+  DEFAULT_GRADIENT_START,
+} from '../clients/common/layers.js';
 
 const MAX_LAYERS = 8;
 
 function createActivitySelect(selected, disabled) {
   const select = document.createElement('select');
+  select.classList.add('layer-activity');
   select.classList.toggle('invalid', selected === undefined);
 
   const placeholder = document.createElement('option');
@@ -42,6 +48,7 @@ function createActivitySelect(selected, disabled) {
 
 function createColorPicker(selected) {
   const select = document.createElement('select');
+  select.classList.add('layer-color');
   select.classList.toggle('invalid', selected === undefined);
 
   const placeholder = document.createElement('option');
@@ -58,6 +65,28 @@ function createColorPicker(selected) {
     select.appendChild(option);
   });
   return select;
+}
+
+function createGradientControls(layer, changeCallback) {
+  const controls = document.createElement('div');
+  controls.className = 'gradient-controls';
+
+  [
+    ['Start', 'gradient-start', layer.gradientStart ?? DEFAULT_GRADIENT_START],
+    ['End', 'gradient-end', layer.gradientEnd ?? DEFAULT_GRADIENT_END],
+  ].forEach(([labelText, className, value]) => {
+    const label = document.createElement('label');
+    label.textContent = labelText;
+    const input = document.createElement('input');
+    input.type = 'color';
+    input.className = className;
+    input.value = value;
+    input.addEventListener('change', changeCallback);
+    label.appendChild(input);
+    controls.appendChild(label);
+  });
+
+  return controls;
 }
 
 function createLayerItem(
@@ -85,10 +114,13 @@ function createLayerItem(
   deleteButton.textContent = '🗑️';
   deleteButton.onclick = () => removeCallback(index);
 
-  li.appendChild(dragHandle);
-  li.appendChild(activitySelect);
-  li.appendChild(colorSelect);
-  li.appendChild(deleteButton);
+  const main = document.createElement('div');
+  main.className = 'layer-main';
+  main.append(dragHandle, activitySelect, colorSelect, deleteButton);
+  li.appendChild(main);
+  if (layer.color === 'grayscale') {
+    li.appendChild(createGradientControls(layer, changeCallback));
+  }
 
   return li;
 }
@@ -128,11 +160,18 @@ async function renderLayers(layers) {
 function getCurrentLayers() {
   const items = [...document.querySelectorAll('#layer-list .layer')];
   return items.map((item) => {
-    const selects = item.querySelectorAll('select');
-    return {
-      activity: selects[0].value,
-      color: selects[1].value,
+    const color = item.querySelector('.layer-color').value;
+    const layer = {
+      activity: item.querySelector('.layer-activity').value,
+      color,
     };
+    if (color === 'grayscale') {
+      layer.gradientStart =
+        item.querySelector('.gradient-start')?.value ?? DEFAULT_GRADIENT_START;
+      layer.gradientEnd =
+        item.querySelector('.gradient-end')?.value ?? DEFAULT_GRADIENT_END;
+    }
+    return layer;
   });
 }
 

@@ -7,6 +7,7 @@ const COLORS = {
   pink: ['🌸', 'Pink'],
   highcontrast: ['⚪', 'Contrast'],
   bluered: ['🔴', 'Blue-Red'],
+  grayscale: ['⚫', 'Grayscale'],
 };
 
 // Closest pre-colored legacy tile flavor, for clients that can't colorize
@@ -22,6 +23,9 @@ const LEGACY_COLORS = {
 };
 
 const COLOR_PARAM = 'heatmap-color';
+
+export const DEFAULT_GRADIENT_START = '#000000';
+export const DEFAULT_GRADIENT_END = '#ffffff';
 
 const ACTIVITIES = {
   all: 'All Sports',
@@ -144,6 +148,8 @@ function getLayerConfig(
   position,
   activity,
   color,
+  gradientStart,
+  gradientEnd,
   timestamp,
   authenticated,
   version,
@@ -153,13 +159,18 @@ function getLayerConfig(
   const activityName = ACTIVITIES[activity];
   const [colorEmoji] = COLORS[color] || '❓';
 
+  const template = getTileTemplate(activity, color, timestamp, authenticated, version, legacy);
+  
   return {
     id: `strava-heatmap-${activity}`,
     name: `${new Array(position).join('󠀠')}${colorEmoji} ${
       short ? activityName : `Strava Heatmap ${activityName}`
     }`,
     description: `Shows ${activityName.toLowerCase()} aggregated, public Strava activities over the last year in ${colorEmoji} color.`,
-    template: getTileTemplate(activity, color, timestamp, authenticated, version, legacy),
+    template:
+      authenticated && color === 'grayscale'
+        ? `${template}#strava-gradient=${gradientStart.slice(1)}-${gradientEnd.slice(1)}`
+        : template,
     zoomExtent: authenticated ? [0, 15] : [0, 20],
   };
 }
@@ -186,18 +197,26 @@ export function getLayerConfigs(
 ) {
   const timestamp = Date.now().toString();
 
-  return layerPresets.map(({ activity, color }, index) =>
-    getLayerConfig(
+  return layerPresets.map((layer, index) => {
+    const {
+      activity,
+      color,
+      gradientStart = DEFAULT_GRADIENT_START,
+      gradientEnd = DEFAULT_GRADIENT_END,
+    } = layer;
+    return getLayerConfig(
       index + 1,
       activity,
       color,
+      gradientStart,
+      gradientEnd,
       timestamp,
       authenticated,
       version,
       short,
       legacy
-    )
-  );
+    );
+  });
 }
 
 export function setupLayerPresetsChangeListener(callback) {
@@ -211,7 +230,23 @@ export function setupLayerPresetsChangeListener(callback) {
 
 export function parseLayerPresets(string) {
   return string.split(';').map((item) => {
-    const [activity, color] = item.split(':');
-    return { activity, color };
+    const [activity, color, gradientStart, gradientEnd] = item.split(':');
+    return {
+      activity,
+      color,
+      ...(color === 'grayscale'
+        ? {
+            gradientStart: normalizeGradientColor(
+              gradientStart,
+              DEFAULT_GRADIENT_START
+            ),
+            gradientEnd: normalizeGradientColor(gradientEnd, DEFAULT_GRADIENT_END),
+          }
+        : {}),
+    };
   });
+}
+
+export function normalizeGradientColor(value, fallback) {
+  return /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : fallback;
 }
