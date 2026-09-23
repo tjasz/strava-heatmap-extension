@@ -13,9 +13,7 @@ import {
 import {
   ACTIVITY_OPTIONS,
   COLOR_OPTIONS,
-  DEFAULT_GRADIENT_END,
-  DEFAULT_GRADIENT_OPACITY,
-  DEFAULT_GRADIENT_START,
+  normalizeGradientStops,
 } from '../clients/common/layers.js';
 
 const MAX_LAYERS = 8;
@@ -71,41 +69,36 @@ function createColorPicker(selected) {
 function createGradientControls(layer, changeCallback) {
   const controls = document.createElement('div');
   controls.className = 'gradient-controls';
+  const stops = normalizeGradientStops(layer.gradientStops);
 
-  [
-    [
-      'Start',
-      'gradient-start',
-      layer.gradientStart ?? DEFAULT_GRADIENT_START,
-      'gradient-start-opacity',
-      layer.gradientStartOpacity ?? DEFAULT_GRADIENT_OPACITY,
-    ],
-    [
-      'End',
-      'gradient-end',
-      layer.gradientEnd ?? DEFAULT_GRADIENT_END,
-      'gradient-end-opacity',
-      layer.gradientEndOpacity ?? DEFAULT_GRADIENT_OPACITY,
-    ],
-  ].forEach(([labelText, colorClass, color, opacityClass, opacity]) => {
-    const label = document.createElement('label');
-    label.className = 'gradient-endpoint';
-    label.textContent = labelText;
+  stops.forEach((stop, index) => {
+    const row = document.createElement('div');
+    row.className = 'gradient-stop';
+
+    const dragHandle = document.createElement('span');
+    dragHandle.className = 'gradient-drag-handle';
+    dragHandle.textContent = '⠿';
+    dragHandle.title = 'Drag to reorder gradient stop';
+
+    const label = document.createElement('span');
+    label.className = 'gradient-stop-label';
+    label.textContent = `Stop ${index + 1}`;
+
     const colorInput = document.createElement('input');
     colorInput.type = 'color';
-    colorInput.className = colorClass;
-    colorInput.value = color;
-    colorInput.setAttribute('aria-label', `${labelText} color`);
-    colorInput.addEventListener('change', changeCallback);
+    colorInput.className = 'gradient-stop-color';
+    colorInput.value = stop.color;
+    colorInput.setAttribute('aria-label', `Stop ${index + 1} color`);
+    colorInput.addEventListener('change', () => changeCallback());
 
     const opacityInput = document.createElement('input');
     opacityInput.type = 'range';
-    opacityInput.className = opacityClass;
+    opacityInput.className = 'gradient-stop-opacity';
     opacityInput.min = '0';
     opacityInput.max = '100';
     opacityInput.step = '1';
-    opacityInput.value = String(Math.round(opacity * 100));
-    opacityInput.setAttribute('aria-label', `${labelText} opacity`);
+    opacityInput.value = String(Math.round(stop.opacity * 100));
+    opacityInput.setAttribute('aria-label', `Stop ${index + 1} opacity`);
 
     const opacityOutput = document.createElement('output');
     opacityOutput.value = `${opacityInput.value}%`;
@@ -113,13 +106,89 @@ function createGradientControls(layer, changeCallback) {
     opacityInput.addEventListener('input', () => {
       opacityOutput.value = `${opacityInput.value}%`;
     });
-    opacityInput.addEventListener('change', changeCallback);
+    opacityInput.addEventListener('change', () => changeCallback());
 
-    label.append(colorInput, opacityInput, opacityOutput);
-    controls.appendChild(label);
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.className = 'gradient-stop-remove';
+    removeButton.textContent = '−';
+    removeButton.title = `Remove stop ${index + 1}`;
+    removeButton.setAttribute('aria-label', `Remove stop ${index + 1}`);
+    removeButton.disabled = stops.length <= 2;
+    removeButton.addEventListener('click', () => {
+      changeCallback((currentLayer) => {
+        currentLayer.gradientStops.splice(index, 1);
+      });
+    });
+
+    row.append(
+      dragHandle,
+      label,
+      colorInput,
+      opacityInput,
+      opacityOutput,
+      removeButton
+    );
+
+    if (index < stops.length - 1) {
+      const addButton = document.createElement('button');
+      addButton.type = 'button';
+      addButton.className = 'gradient-stop-add';
+      addButton.textContent = '+';
+      addButton.title = `Add a stop between stops ${index + 1} and ${index + 2}`;
+      addButton.setAttribute(
+        'aria-label',
+        `Add a stop between stops ${index + 1} and ${index + 2}`
+      );
+      addButton.addEventListener('click', () => {
+        changeCallback((currentLayer) => {
+          const currentStops = currentLayer.gradientStops;
+          currentStops.splice(
+            index + 1,
+            0,
+            interpolateGradientStops(currentStops[index], currentStops[index + 1])
+          );
+        });
+      });
+      row.appendChild(addButton);
+    }
+
+    controls.appendChild(row);
+  });
+
+  Sortable.create(controls, {
+    handle: '.gradient-drag-handle',
+    draggable: '.gradient-stop',
+    animation: 150,
+    forceFallback: true,
+    fallbackTolerance: 3,
+    onEnd: () => changeCallback(),
   });
 
   return controls;
+}
+
+function interpolateGradientStops(start, end) {
+  const startRgb = hexToRgb(start.color);
+  const endRgb = hexToRgb(end.color);
+  const color = `#${startRgb
+    .map((channel, index) =>
+      Math.round((channel + endRgb[index]) / 2)
+        .toString(16)
+        .padStart(2, '0')
+    )
+    .join('')}`;
+
+  return {
+    color,
+    opacity: (start.opacity + end.opacity) / 2,
+  };
+}
+
+function hexToRgb(color) {
+  return [1, 3, 5].map((offset) =>
+    Number.parseInt(color.slice(offset, offset + 2), 16)
+  );
 }
 
 function createLayerItem(
@@ -171,8 +240,9 @@ async function renderLayers(layers) {
         layers.splice(index, 1);
         await renderLayers(layers);
       },
-      async () => {
+      async (updateLayer) => {
         const current = getCurrentLayers();
+        if (typeof updateLayer === 'function') updateLayer(current[i]);
         await renderLayers(current);
       }
     );
@@ -199,20 +269,15 @@ function getCurrentLayers() {
       color,
     };
     if (color === 'grayscale') {
-      layer.gradientStart =
-        item.querySelector('.gradient-start')?.value ?? DEFAULT_GRADIENT_START;
-      layer.gradientEnd =
-        item.querySelector('.gradient-end')?.value ?? DEFAULT_GRADIENT_END;
-      layer.gradientStartOpacity =
-        Number(
-          item.querySelector('.gradient-start-opacity')?.value ??
-            DEFAULT_GRADIENT_OPACITY * 100
-        ) / 100;
-      layer.gradientEndOpacity =
-        Number(
-          item.querySelector('.gradient-end-opacity')?.value ??
-            DEFAULT_GRADIENT_OPACITY * 100
-        ) / 100;
+      const stopRows = [...item.querySelectorAll('.gradient-stop')];
+      layer.gradientStops =
+        stopRows.length >= 2
+          ? stopRows.map((row) => ({
+              color: row.querySelector('.gradient-stop-color').value,
+              opacity:
+                Number(row.querySelector('.gradient-stop-opacity').value) / 100,
+            }))
+          : normalizeGradientStops();
     }
     return layer;
   });

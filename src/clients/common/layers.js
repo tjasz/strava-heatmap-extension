@@ -12,6 +12,16 @@ const COLORS = {
 export const DEFAULT_GRADIENT_START = '#000000';
 export const DEFAULT_GRADIENT_END = '#ffffff';
 export const DEFAULT_GRADIENT_OPACITY = 1;
+export const DEFAULT_GRADIENT_STOPS = Object.freeze([
+  Object.freeze({
+    color: DEFAULT_GRADIENT_START,
+    opacity: DEFAULT_GRADIENT_OPACITY,
+  }),
+  Object.freeze({
+    color: DEFAULT_GRADIENT_END,
+    opacity: DEFAULT_GRADIENT_OPACITY,
+  }),
+]);
 
 const ACTIVITIES = {
   all: 'All Sports',
@@ -134,10 +144,7 @@ function getLayerConfig(
   position,
   activity,
   color,
-  gradientStart,
-  gradientEnd,
-  gradientStartOpacity,
-  gradientEndOpacity,
+  gradientStops,
   timestamp,
   authenticated,
   version,
@@ -157,10 +164,9 @@ function getLayerConfig(
     description: `Shows ${activityName.toLowerCase()} aggregated, public Strava activities over the last year in ${colorEmoji} color.`,
     template:
       authenticated && color === 'grayscale'
-        ? `${template}#strava-gradient=${formatGradientEndpoint(
-            gradientStart,
-            gradientStartOpacity
-          )}-${formatGradientEndpoint(gradientEnd, gradientEndOpacity)}`
+        ? `${template}#strava-gradient=${gradientStops
+            .map(formatGradientStop)
+            .join('-')}`
         : template,
     zoomExtent: authenticated ? [0, 15] : [0, 20],
   };
@@ -174,19 +180,13 @@ export function getLayerConfigs(layerPresets, authenticated, version, short = fa
     const {
       activity,
       color,
-      gradientStart = DEFAULT_GRADIENT_START,
-      gradientEnd = DEFAULT_GRADIENT_END,
-      gradientStartOpacity = DEFAULT_GRADIENT_OPACITY,
-      gradientEndOpacity = DEFAULT_GRADIENT_OPACITY,
+      gradientStops = DEFAULT_GRADIENT_STOPS,
     } = layer;
     return getLayerConfig(
       index + 1,
       activity,
       color,
-      gradientStart,
-      gradientEnd,
-      gradientStartOpacity,
-      gradientEndOpacity,
+      normalizeGradientStops(gradientStops),
       timestamp,
       authenticated,
       version,
@@ -206,33 +206,12 @@ export function setupLayerPresetsChangeListener(callback) {
 
 export function parseLayerPresets(string) {
   return string.split(';').map((item) => {
-    const [
-      activity,
-      color,
-      gradientStart,
-      gradientEnd,
-      gradientStartOpacity,
-      gradientEndOpacity,
-    ] = item.split(':');
+    const [activity, color, ...gradientFields] = item.split(':');
     return {
       activity,
       color,
       ...(color === 'grayscale'
-        ? {
-            gradientStart: normalizeGradientColor(
-              gradientStart,
-              DEFAULT_GRADIENT_START
-            ),
-            gradientEnd: normalizeGradientColor(gradientEnd, DEFAULT_GRADIENT_END),
-            gradientStartOpacity: normalizeGradientOpacity(
-              gradientStartOpacity,
-              DEFAULT_GRADIENT_OPACITY
-            ),
-            gradientEndOpacity: normalizeGradientOpacity(
-              gradientEndOpacity,
-              DEFAULT_GRADIENT_OPACITY
-            ),
-          }
+        ? { gradientStops: parseGradientStops(gradientFields) }
         : {}),
     };
   });
@@ -249,7 +228,48 @@ export function normalizeGradientOpacity(value, fallback) {
     : fallback;
 }
 
-function formatGradientEndpoint(color, opacity) {
+export function normalizeGradientStops(stops) {
+  if (!Array.isArray(stops) || stops.length < 2) {
+    return DEFAULT_GRADIENT_STOPS.map((stop) => ({ ...stop }));
+  }
+
+  return stops.map(({ color, opacity }) => ({
+    color: normalizeGradientColor(color, DEFAULT_GRADIENT_START),
+    opacity: normalizeGradientOpacity(opacity, DEFAULT_GRADIENT_OPACITY),
+  }));
+}
+
+function parseGradientStops(fields) {
+  if (fields.length === 1 && fields[0].includes(',')) {
+    return normalizeGradientStops(
+      fields[0].split('|').map((stop) => {
+        const [color, opacity] = stop.split(',');
+        return { color, opacity };
+      })
+    );
+  }
+
+  const [gradientStart, gradientEnd, gradientStartOpacity, gradientEndOpacity] =
+    fields;
+  return normalizeGradientStops([
+    {
+      color: normalizeGradientColor(gradientStart, DEFAULT_GRADIENT_START),
+      opacity: normalizeGradientOpacity(
+        gradientStartOpacity,
+        DEFAULT_GRADIENT_OPACITY
+      ),
+    },
+    {
+      color: normalizeGradientColor(gradientEnd, DEFAULT_GRADIENT_END),
+      opacity: normalizeGradientOpacity(
+        gradientEndOpacity,
+        DEFAULT_GRADIENT_OPACITY
+      ),
+    },
+  ]);
+}
+
+function formatGradientStop({ color, opacity }) {
   const alpha = Math.round(opacity * 255)
     .toString(16)
     .padStart(2, '0');

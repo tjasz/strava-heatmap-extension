@@ -49,7 +49,7 @@ To enable the Strava Heatmap in the iD editor:
 2. Press B or click Background settings, then scroll to Overlays.
 3. Select a Strava Heatmap overlay from the list.
 4. If you see the message "Click the Strava Heatmap extension icon to log into Strava…", click the red extension icon to authenticate.
-5. After logging in, use the green extension icon to configure heatmap layers — choose activity type, color, and manage layer order or deletion. Grayscale layers also support custom start and end colors and opacity for a two-color gradient.
+5. After logging in, use the green extension icon to configure heatmap layers — choose activity type, color, and manage layer order or deletion. Grayscale layers support ordered color and opacity stops for custom gradients.
 6. In the editor, press Shift + Q to toggle the heatmap, and Shift + W to toggle data visibility.
 
 ---
@@ -62,7 +62,7 @@ To enable the Strava Heatmap in GPX.studio:
 2. Hover over the layers menu icon then scroll to Overlays.
 3. Choose a Strava Heatmap overlay from the list.
 4. If you see the message "Click the Strava Heatmap extension icon to log into Strava…", click the red extension icon to authenticate.
-5. Once logged in, use the green extension icon to configure, reorder, or delete heatmap layers by activity and color. Grayscale layers can be recolored with custom start and end colors and opacity.
+5. Once logged in, use the green extension icon to configure, reorder, or delete heatmap layers by activity and color. Grayscale layers support ordered color and opacity stops for custom gradients.
 
 ### CalTopo
 
@@ -70,7 +70,7 @@ To enable the Strava Heatmap in CalTopo:
 
 1. Open a map at https://caltopo.com/.
 2. Use the Strava heatmap ribbon at the top of the map to select a configured layer, toggle it, or adjust its opacity.
-3. Use the extension icon to log into Strava and configure the available heatmap layers. Grayscale layers support custom start and end colors and opacity.
+3. Use the extension icon to log into Strava and configure the available heatmap layers. Grayscale layers support ordered color and opacity stops for custom gradients.
 
 ### Troubleshooting
 

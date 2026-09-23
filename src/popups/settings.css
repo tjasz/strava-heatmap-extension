@@ -75,21 +75,27 @@ p {
   .gradient-controls {
     display: flex;
     flex-direction: column;
-    justify-content: flex-end;
-    gap: 0.4rem;
+    align-items: stretch;
+    gap: 0.65rem;
     width: 100%;
   }
 
-  .gradient-endpoint {
+  .gradient-stop {
+    position: relative;
     display: grid;
-    grid-template-columns: 2.5rem 3rem 1fr 3rem;
+    grid-template-columns: 1.25rem 3.25rem 3rem 1fr 3rem 1.75rem;
     align-items: center;
     gap: 0.4em;
     font-size: 0.85em;
     color: #555;
   }
 
-  .gradient-endpoint input[type='color'] {
+  .gradient-drag-handle {
+    cursor: grab;
+    font-size: 1.1rem;
+  }
+
+  .gradient-stop input[type='color'] {
     width: 3rem;
     height: 1.75rem;
     padding: 0;
@@ -98,13 +104,51 @@ p {
     cursor: pointer;
   }
 
-  .gradient-endpoint input[type='range'] {
+  .gradient-stop input[type='range'] {
     width: 100%;
     cursor: pointer;
   }
 
-  .gradient-endpoint output {
+  .gradient-stop output {
     text-align: right;
+  }
+
+  .gradient-stop-remove,
+  .gradient-stop-add {
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  .gradient-stop-remove {
+    width: 1.75rem;
+    height: 1.75rem;
+    font-size: 1.2rem;
+    background: transparent;
+  }
+
+  .gradient-stop-remove:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .gradient-stop-add {
+    position: absolute;
+    left: 50%;
+    bottom: -0.7rem;
+    z-index: 1;
+    width: 1.5rem;
+    height: 1.5rem;
+    transform: translateX(-50%);
+    background: #fff;
+    border: 1px solid #aaa;
+    color: #555;
+    font-weight: bold;
+  }
+
+  .gradient-stop-add:hover {
+    background: #e5e5e5;
   }
 }
 

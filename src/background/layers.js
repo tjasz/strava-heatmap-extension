@@ -1,9 +1,5 @@
 import {
-	DEFAULT_GRADIENT_END,
-	DEFAULT_GRADIENT_OPACITY,
-	DEFAULT_GRADIENT_START,
-	normalizeGradientColor,
-	normalizeGradientOpacity,
+	normalizeGradientStops,
 	parseLayerPresets,
 } from '../clients/common/layers.js';
 
@@ -44,28 +40,15 @@ export async function getLayerPresets() {
 export function formatLayerPresets(layerPresets) {
 	return layerPresets
 		.map((layer) => {
-			const {
-				activity,
-				color,
-				gradientStart,
-				gradientEnd,
-				gradientStartOpacity,
-				gradientEndOpacity,
-			} = layer;
+			const { activity, color, gradientStops } = layer;
 			const fields = [activity, color];
 			if (color === 'grayscale') {
-				fields.push(
-					normalizeGradientColor(gradientStart, DEFAULT_GRADIENT_START),
-					normalizeGradientColor(gradientEnd, DEFAULT_GRADIENT_END),
-					normalizeGradientOpacity(
-						gradientStartOpacity,
-						DEFAULT_GRADIENT_OPACITY
-					),
-					normalizeGradientOpacity(
-						gradientEndOpacity,
-						DEFAULT_GRADIENT_OPACITY
+				const serializedStops = normalizeGradientStops(gradientStops)
+					.map(({ color: stopColor, opacity }) =>
+						`${stopColor},${opacity}`
 					)
-				);
+					.join('|');
+				fields.push(serializedStops);
 			}
 			return fields.join(':');
 		})
@@ -73,23 +56,19 @@ export function formatLayerPresets(layerPresets) {
 }
 
 export function validateLayerPresets(layerPresets) {
-	for (const {
-		activity,
-		color,
-		gradientStart,
-		gradientEnd,
-		gradientStartOpacity,
-		gradientEndOpacity,
-	} of layerPresets) {
+	for (const { activity, color, gradientStops } of layerPresets) {
 		if (activity === undefined || color === undefined) {
 			return false;
 		}
 		if (
 			color === 'grayscale' &&
-			(!/^#[0-9a-f]{6}$/i.test(gradientStart) ||
-				!/^#[0-9a-f]{6}$/i.test(gradientEnd) ||
-				!isValidOpacity(gradientStartOpacity) ||
-				!isValidOpacity(gradientEndOpacity))
+			(!Array.isArray(gradientStops) ||
+				gradientStops.length < 2 ||
+				gradientStops.some(
+					({ color: stopColor, opacity }) =>
+						!/^#[0-9a-f]{6}$/i.test(stopColor) ||
+						!isValidOpacity(opacity)
+				))
 		) {
 			return false;
 		}

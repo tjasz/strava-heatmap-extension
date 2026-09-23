@@ -1,5 +1,5 @@
 const GRADIENT_HASH_PATTERN =
-  /(?:^|&)strava-gradient=([0-9a-f]{6}(?:[0-9a-f]{2})?)-([0-9a-f]{6}(?:[0-9a-f]{2})?)(?:&|$)/i;
+  /(?:^|&)strava-gradient=([0-9a-f]{6}(?:[0-9a-f]{2})?(?:-[0-9a-f]{6}(?:[0-9a-f]{2})?)+)(?:&|$)/i;
 
 function getGradient(url) {
   if (typeof url !== 'string') return null;
@@ -10,10 +10,7 @@ function getGradient(url) {
   const match = url.slice(hashIndex + 1).match(GRADIENT_HASH_PATTERN);
   if (!match) return null;
 
-  return {
-    start: hexToRgba(match[1]),
-    end: hexToRgba(match[2]),
-  };
+  return match[1].split('-').map(hexToRgba);
 }
 
 function hexToRgba(hex) {
@@ -40,20 +37,20 @@ async function recolorBlob(blob, gradient) {
     for (let offset = 0; offset < data.length; offset += 4) {
       const intensity =
         (data[offset] + data[offset + 1] + data[offset + 2]) / (3 * 255);
-      data[offset] = interpolate(gradient.start[0], gradient.end[0], intensity);
-      data[offset + 1] = interpolate(
-        gradient.start[1],
-        gradient.end[1],
-        intensity
+      const scaledIntensity = intensity * (gradient.length - 1);
+      const stopIndex = Math.min(
+        Math.floor(scaledIntensity),
+        gradient.length - 2
       );
-      data[offset + 2] = interpolate(
-        gradient.start[2],
-        gradient.end[2],
-        intensity
-      );
+      const segmentIntensity = scaledIntensity - stopIndex;
+      const start = gradient[stopIndex];
+      const end = gradient[stopIndex + 1];
+      data[offset] = interpolate(start[0], end[0], segmentIntensity);
+      data[offset + 1] = interpolate(start[1], end[1], segmentIntensity);
+      data[offset + 2] = interpolate(start[2], end[2], segmentIntensity);
       data[offset + 3] = Math.round(
         (data[offset + 3] / 255) *
-          interpolate(gradient.start[3], gradient.end[3], intensity)
+          interpolate(start[3], end[3], segmentIntensity)
       );
     }
 
