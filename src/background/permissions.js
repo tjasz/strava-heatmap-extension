@@ -5,6 +5,7 @@ const REQUIRED_ORIGINS = [
   '*://content-a.strava.com/*',
   '*://gpx.studio/*',
   '*://www.openstreetmap.org/*',
+  '*://tjasz.github.io/*',
 ];
 
 export async function checkPermissions(showSuccess = false) {

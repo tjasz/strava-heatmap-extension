@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Strava Heatmap [DEV]",
-  "description": "Overlay Strava Global Heatmap in iD, GPX.studio, and CalTopo to reveal popular routes and patterns.",
+  "description": "Overlay Strava Global Heatmap in iD, GPX.studio, CalTopo, and Geotab to reveal popular routes and patterns.",
   "version": "0.13.8",
   "homepage_url": "https://github.com/julcnx/strava-heatmap-extension",
   "permissions": [
@@ -17,7 +17,8 @@
     "*://www.openstreetmap.org/*",
     "*://gpx.studio/*",
     "*://caltopo.com/*",
-    "*://www.caltopo.com/*"
+    "*://www.caltopo.com/*",
+    "*://tjasz.github.io/*"
   ],
   "action": {
     "default_popup": ""
@@ -35,6 +36,16 @@
     },
     {
       "matches": ["*://caltopo.com/*", "*://www.caltopo.com/*"],
+      "js": [
+        "lib/browser-polyfill.min.js",
+        "src/content/inject-client.js",
+        "src/content/watch-storage.js",
+        "src/content/watch-tile-errors.js"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "matches": ["*://tjasz.github.io/geotab/*"],
       "js": [
         "lib/browser-polyfill.min.js",
         "src/content/inject-client.js",
@@ -86,7 +97,8 @@
         "*://www.openstreetmap.org/*",
         "*://gpx.studio/*",
         "*://caltopo.com/*",
-        "*://www.caltopo.com/*"
+        "*://www.caltopo.com/*",
+        "*://tjasz.github.io/*"
       ]
     },
     {
@@ -113,6 +125,13 @@
         "src/clients/caltopo.com/index.css"
       ],
       "matches": ["*://caltopo.com/*", "*://www.caltopo.com/*"]
+    },
+    {
+      "resources": [
+        "src/clients/tjasz.github.io/index.js",
+        "src/clients/tjasz.github.io/index.css"
+      ],
+      "matches": ["*://tjasz.github.io/*"]
     }
   ],
   "icons": {
