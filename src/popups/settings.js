@@ -14,6 +14,7 @@ import {
   ACTIVITY_OPTIONS,
   COLOR_OPTIONS,
   DEFAULT_GRADIENT_END,
+  DEFAULT_GRADIENT_OPACITY,
   DEFAULT_GRADIENT_START,
 } from '../clients/common/layers.js';
 
@@ -72,17 +73,49 @@ function createGradientControls(layer, changeCallback) {
   controls.className = 'gradient-controls';
 
   [
-    ['Start', 'gradient-start', layer.gradientStart ?? DEFAULT_GRADIENT_START],
-    ['End', 'gradient-end', layer.gradientEnd ?? DEFAULT_GRADIENT_END],
-  ].forEach(([labelText, className, value]) => {
+    [
+      'Start',
+      'gradient-start',
+      layer.gradientStart ?? DEFAULT_GRADIENT_START,
+      'gradient-start-opacity',
+      layer.gradientStartOpacity ?? DEFAULT_GRADIENT_OPACITY,
+    ],
+    [
+      'End',
+      'gradient-end',
+      layer.gradientEnd ?? DEFAULT_GRADIENT_END,
+      'gradient-end-opacity',
+      layer.gradientEndOpacity ?? DEFAULT_GRADIENT_OPACITY,
+    ],
+  ].forEach(([labelText, colorClass, color, opacityClass, opacity]) => {
     const label = document.createElement('label');
+    label.className = 'gradient-endpoint';
     label.textContent = labelText;
-    const input = document.createElement('input');
-    input.type = 'color';
-    input.className = className;
-    input.value = value;
-    input.addEventListener('change', changeCallback);
-    label.appendChild(input);
+    const colorInput = document.createElement('input');
+    colorInput.type = 'color';
+    colorInput.className = colorClass;
+    colorInput.value = color;
+    colorInput.setAttribute('aria-label', `${labelText} color`);
+    colorInput.addEventListener('change', changeCallback);
+
+    const opacityInput = document.createElement('input');
+    opacityInput.type = 'range';
+    opacityInput.className = opacityClass;
+    opacityInput.min = '0';
+    opacityInput.max = '100';
+    opacityInput.step = '1';
+    opacityInput.value = String(Math.round(opacity * 100));
+    opacityInput.setAttribute('aria-label', `${labelText} opacity`);
+
+    const opacityOutput = document.createElement('output');
+    opacityOutput.value = `${opacityInput.value}%`;
+    opacityOutput.setAttribute('aria-live', 'polite');
+    opacityInput.addEventListener('input', () => {
+      opacityOutput.value = `${opacityInput.value}%`;
+    });
+    opacityInput.addEventListener('change', changeCallback);
+
+    label.append(colorInput, opacityInput, opacityOutput);
     controls.appendChild(label);
   });
 
@@ -170,6 +203,16 @@ function getCurrentLayers() {
         item.querySelector('.gradient-start')?.value ?? DEFAULT_GRADIENT_START;
       layer.gradientEnd =
         item.querySelector('.gradient-end')?.value ?? DEFAULT_GRADIENT_END;
+      layer.gradientStartOpacity =
+        Number(
+          item.querySelector('.gradient-start-opacity')?.value ??
+            DEFAULT_GRADIENT_OPACITY * 100
+        ) / 100;
+      layer.gradientEndOpacity =
+        Number(
+          item.querySelector('.gradient-end-opacity')?.value ??
+            DEFAULT_GRADIENT_OPACITY * 100
+        ) / 100;
     }
     return layer;
   });
