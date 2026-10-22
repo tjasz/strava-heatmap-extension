@@ -6,6 +6,7 @@ const REQUIRED_ORIGINS = [
   '*://gpx.studio/*',
   '*://www.openstreetmap.org/*',
   '*://tjasz.github.io/*',
+  '*://brouter.de/*',
 ];
 
 export async function checkPermissions(showSuccess = false) {

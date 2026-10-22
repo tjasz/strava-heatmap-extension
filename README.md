@@ -1,6 +1,6 @@
 # Strava Heatmap extension
 
-This browser extension seamlessly integrates the [Strava Global Heatmap](https://www.strava.com/maps/global-heatmap) into popular mapping editors, including the OpenStreetMap [iD editor](https://www.openstreetmap.org/edit?editor=id), [GPX Studio](https://gpx.studio/app), [CalTopo](https://caltopo.com/), and [Geotab](https://tjasz.github.io/geotab/), enhancing your mapping and route analysis capabilities.
+This browser extension seamlessly integrates the [Strava Global Heatmap](https://www.strava.com/maps/global-heatmap) into popular mapping editors, including the OpenStreetMap [iD editor](https://www.openstreetmap.org/edit?editor=id), [GPX Studio](https://gpx.studio/app), [CalTopo](https://caltopo.com/), [Geotab](https://tjasz.github.io/geotab/), and [BRouter](https://brouter.de/brouter-web/), enhancing your mapping and route analysis capabilities.
 
 <img src="./images/screenshot1.png" width="48%"/>&nbsp;<img src="./images/screenshot2.png" width="48%"/>
 
@@ -80,6 +80,13 @@ To enable the Strava Heatmap in Geotab:
 2. Open the Leaflet layers control and select a configured Strava Heatmap overlay.
 3. Use the extension icon to log into Strava and configure the available heatmap layers. Grayscale layers support ordered color and opacity stops for custom gradients.
 
+### BRouter
+
+1. Open https://brouter.de/brouter-web/.
+2. Open the Layers sidebar and select a configured Strava Heatmap overlay.
+3. Use BRouter's overlay transparency slider to adjust opacity.
+4. Use the extension icon to log into Strava and configure layers. Grayscale layers support ordered color and opacity stops for custom gradients.
+
 ### Troubleshooting
 
 **Q: “Click the Strava Heatmap extension icon to log into Strava and enable the heatmap.” — What does this mean?**  
@@ -101,7 +108,7 @@ To learn more about using the Strava Heatmap in OpenStreetMap, visit the [Strava
 
 ### Support for Other Sites
 
-This extension currently supports the iD editor, [gpx.studio](https://gpx.studio), [CalTopo](https://caltopo.com/), and [Geotab](https://tjasz.github.io/geotab/). I'm not taking on additional sites at the moment. If you'd like to add support for another tool, feel free to fork the project.
+This extension currently supports the iD editor, [gpx.studio](https://gpx.studio), [CalTopo](https://caltopo.com/), [Geotab](https://tjasz.github.io/geotab/), and [BRouter](https://brouter.de/brouter-web/). I'm not taking on additional sites at the moment. If you'd like to add support for another tool, feel free to fork the project.
 
 - For JOSM, check out the [JOSM Strava Heatmap Extension](https://github.com/zekefarwell/josm-strava-heatmap).
 - For RapidId, refer to the [RapId Power User Extension](https://github.com/emersonveenstra/rapid-power-user-extension/).

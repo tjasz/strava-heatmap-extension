@@ -1,0 +1,3 @@
+#layers-control-wrapper .leaflet-control-layers-overlays label {
+  overflow-wrap: anywhere;
+}

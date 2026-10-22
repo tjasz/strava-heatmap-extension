@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Strava Heatmap [DEV]",
-  "description": "Overlay Strava Global Heatmap in iD, GPX.studio, CalTopo, and Geotab to reveal popular routes and patterns.",
+  "description": "Overlay Strava Global Heatmap in iD, GPX.studio, CalTopo, Geotab, and BRouter for route planning.",
   "version": "0.14.0",
   "homepage_url": "https://github.com/julcnx/strava-heatmap-extension",
   "permissions": [
@@ -18,7 +18,8 @@
     "*://gpx.studio/*",
     "*://caltopo.com/*",
     "*://www.caltopo.com/*",
-    "*://tjasz.github.io/*"
+    "*://tjasz.github.io/*",
+    "*://brouter.de/*"
   ],
   "action": {
     "default_popup": ""
@@ -46,6 +47,16 @@
     },
     {
       "matches": ["*://tjasz.github.io/geotab/*"],
+      "js": [
+        "lib/browser-polyfill.min.js",
+        "src/content/inject-client.js",
+        "src/content/watch-storage.js",
+        "src/content/watch-tile-errors.js"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "matches": ["*://brouter.de/brouter-web/*"],
       "js": [
         "lib/browser-polyfill.min.js",
         "src/content/inject-client.js",
@@ -99,7 +110,8 @@
         "*://gpx.studio/*",
         "*://caltopo.com/*",
         "*://www.caltopo.com/*",
-        "*://tjasz.github.io/*"
+        "*://tjasz.github.io/*",
+        "*://brouter.de/*"
       ]
     },
     {
@@ -134,6 +146,13 @@
         "src/clients/tjasz.github.io/index.css"
       ],
       "matches": ["*://tjasz.github.io/*"]
+    },
+    {
+      "resources": [
+        "src/clients/brouter.de/index.js",
+        "src/clients/brouter.de/index.css"
+      ],
+      "matches": ["*://brouter.de/*"]
     }
   ],
   "icons": {
