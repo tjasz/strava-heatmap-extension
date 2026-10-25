@@ -7,7 +7,7 @@ const COLORS = {
   pink: ['🌸', 'Pink'],
   highcontrast: ['⚪', 'Contrast'],
   bluered: ['🔴', 'Blue-Red'],
-  grayscale: ['⚫', 'Grayscale'],
+  grayscale: ['⚫', 'Custom Gradient'],
 };
 
 // Closest pre-colored legacy tile flavor, for clients that can't colorize
