@@ -1,7 +1,7 @@
 import { setupAuthStatusChangeListener } from '../common/auth.js';
 import { installGradientTileRecoloring } from '../common/gradient-tiles.js';
 import { parseLayerPresets, setupLayerPresetsChangeListener } from '../common/layers.js';
-import { injectHeatmapColorFilters } from './colors.js';
+import { injectHeatmapColorFilters } from '../common/colors.js';
 import { restoreiDContainer, setupiDCoreContextListener } from './id.js';
 import { applyImagery } from './imagery.js';
 import { setupOverlaysListeners } from './overlays.js';

@@ -4,6 +4,7 @@
   "description": "Integrates the Strava Global Heatmap into OpenStreetMap iD, GPX Studio, CalTopo, Geotab, and BRouter.",
   "scripts": {
     "build": "node scripts/build.js",
+    "test": "node --test",
     "palettes": "node scripts/palettes.js"
   },
   "author": "Julien Etienne <etienne.julien@gmail.com>",

@@ -1,4 +1,4 @@
-import { PALETTES } from '../common/palettes.js';
+import { PALETTES } from './palettes.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 

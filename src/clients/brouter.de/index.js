@@ -1,4 +1,5 @@
 import { setupAuthStatusChangeListener } from '../common/auth.js';
+import { injectHeatmapColorFilters } from '../common/colors.js';
 import { installGradientTileRecoloring } from '../common/gradient-tiles.js';
 import {
   getLayerConfigs,
@@ -24,6 +25,7 @@ async function waitForBrouter() {
 }
 
 async function main() {
+  injectHeatmapColorFilters();
   const script = document.querySelector('script#strava-heatmap-client');
   const version = script.dataset.version;
   let authenticated = script.dataset.authenticated === 'true';

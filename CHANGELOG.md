@@ -2,6 +2,10 @@
 
 ## Versions
 
+### Unreleased
+
+- [CalTopo, Geotab, BRouter] Fix built-in palette colors (including Sunset) on grayscale tiles by sharing iD's palette filters. Custom gradients are unchanged.
+
 ### `0.14.0` (2026-10-12)
 
 - [iD] Switch to Strava's new `grayscale` heatmap tiles (`v=20`), colorized in the browser with Strava's exact color palettes (#41)
