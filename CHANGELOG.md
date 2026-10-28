@@ -2,6 +2,10 @@
 
 ## Versions
 
+### `0.15.0.0` (2026-10-28)
+
+- [Caltopo] Add Caltopo.com client, with Strava Slide support.
+
 ### `0.15.0` (2026-10-26)
 
 - [iD] New **Strava Slide**: press Shift+S, or right-click a line and choose Slide, to snap a roughly drawn line onto the heatmap trail. One Undo restores it. By @rene78 (#43, #45):
