@@ -2,6 +2,14 @@
 
 Strava Heatmap for CalTopo does not collect analytics or send user data to the extension developer.
 
+## Firefox data consent
+
+Firefox asks for consent to transmit authentication information (Strava cookies)
+and location information (requested map tile coordinates). These are declared as
+required data permissions because they support the extension's heatmap functionality.
+The extension uses Firefox's built-in consent on desktop version 140 and later
+and Android version 142 and later; older Firefox versions are not supported.
+
 ## Local storage and authentication
 
 The extension reads Strava authentication cookies and stores a local copy in your browser to authenticate requests for protected Strava Global Heatmap tiles. These credentials are sent to Strava for heatmap access, not to the extension developer.

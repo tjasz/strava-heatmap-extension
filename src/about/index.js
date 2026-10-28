@@ -28,15 +28,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('page-heading').textContent = name;
 
   // Set message
-  let message = '';
-  if (reason === 'install') {
-    message = `${MESSAGES.install}<div class="version">v${version}</div>`;
-  } else if (reason === 'update') {
-    message = `${MESSAGES.update}<div class="version">v${version}</div>`;
-  } else {
-    message = `<div class="version">v${version}</div>`;
-  }
-  document.getElementById('message').innerHTML = message;
+  const message = document.getElementById('message');
+  message.textContent =
+    reason === 'install' || reason === 'update' ? MESSAGES[reason] : '';
+  const versionElement = document.createElement('div');
+  versionElement.className = 'version';
+  versionElement.textContent = `v${version}`;
+  message.appendChild(versionElement);
 
   // Update version-dependent links
   const readmeLink = document.querySelector('a[href*="#readme"]');

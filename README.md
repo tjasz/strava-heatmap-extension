@@ -27,6 +27,10 @@ Open the [Chrome extension page](https://chrome.google.com/webstore/detail/eglbc
 
 ### Firefox
 
+Requires Firefox 140 or later on desktop, or Firefox 142 or later on Android.
+Firefox requests consent to transmit Strava authentication information and map
+tile coordinates for heatmap access. See the [privacy policy](PRIVACY.md).
+
 Open the [Firefox add-on](https://addons.mozilla.org/en-US/firefox/addon/strava-heatmap/) for the extension.
 
 1. Click `Add to Firefox`.

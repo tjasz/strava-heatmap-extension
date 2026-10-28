@@ -17,11 +17,14 @@ test('builds both packages and replaces unpacked output without shell tools', (t
     minimum_chrome_version: '88',
     background: { service_worker: 'src/background/index.js', type: 'module' },
   };
-  const firefox = {
-    background: { scripts: ['src/background/index.js'], type: 'module' },
-    browser_specific_settings: { gecko: { id: 'test@example.com' } },
-    minimum_chrome_version: null,
-  };
+  const firefox = JSON.parse(fs.readFileSync(
+    path.resolve(__dirname, '..', 'manifest-firefox.json'), 'utf8'
+  ));
+  assert.equal(firefox.browser_specific_settings.gecko.strict_min_version, '140.0');
+  assert.equal(firefox.browser_specific_settings.gecko_android.strict_min_version, '142.0');
+  assert.deepEqual(firefox.browser_specific_settings.gecko.data_collection_permissions, {
+    required: ['authenticationInfo', 'locationInfo'],
+  });
   fs.writeFileSync(path.join(root, 'manifest.json'), JSON.stringify(manifest));
   fs.writeFileSync(path.join(root, 'manifest-firefox.json'), JSON.stringify(firefox));
   const files = {

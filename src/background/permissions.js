@@ -29,7 +29,6 @@ export async function checkPermissions(showSuccess = false) {
         'Please enable access to all sites in the extension settings to allow the extension to function properly.',
       iconGray: true,
       autoClose: false,
-      // onClick: () => requestPermissions(),
     });
     console.log('[StravaHeatmapExt] Notification displayed.');
   } else {
@@ -42,17 +41,4 @@ export async function checkPermissions(showSuccess = false) {
   }
 
   return has;
-}
-
-async function requestPermissions() {
-  try {
-    const granted = await browser.permissions.request({
-      origins: REQUIRED_ORIGINS,
-    });
-    console.log('[StravaHeatmapExt] Host permissions request result:', granted);
-    return granted;
-  } catch (e) {
-    console.error('[StravaHeatmapExt] Host permissions request failed:', e);
-    return false;
-  }
 }
