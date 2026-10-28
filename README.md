@@ -116,14 +116,14 @@ To enable the Strava Heatmap in GPX.studio:
 To enable the Strava Heatmap in CalTopo:
 
 1. Open a map at https://caltopo.com/.
-2. Use the Strava heatmap ribbon at the top of the map to select a configured layer, toggle it, or adjust its opacity.
+2. In the Map Layers panel to the right of the map, under "Route Discovery", toggle the Strava Heatmap layer. Select a configured layer, toggle it, or adjust its opacity.
 3. Use the extension icon to log into Strava and configure the available heatmap layers.
 
 #### Snap lines to Strava
 
 1. Sign into Strava using the extension and select the activity layer in the Strava heatmap controls.
 2. Choose **Add > Line**, then select **Strava** in the map's **Snap To** dropdown.
-3. Click along the heatmap trail in short sections. After each click, wait for the segment to finish tracing before adding the next point. The clicked endpoints stay in place; the segment between them follows the heat centerline using the same engine as iD's Slide.
+3. Click along the heatmap trail in short sections. After each click, wait for the segment to finish tracing before adding the next point. The clicked endpoints stay in place; the segment between them follows the heat centerline.
 4. Use CalTopo's normal **Undo** (or **Esc**) to remove a segment, and **Save** to keep the line.
 
 Snapping uses the selected Strava activity and palette, even if the overlay is hidden.
