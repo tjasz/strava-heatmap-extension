@@ -4,6 +4,7 @@
   "description": "Integrates the Strava Global Heatmap into CalTopo.",
   "scripts": {
     "build": "node scripts/build.js",
+    "icons": "node scripts/icons.js",
     "palettes": "node scripts/palettes.js",
     "test": "node --test tests/*.test.mjs tests/*.test.cjs",
     "slide-lab": "node scripts/slide-lab.mjs",
@@ -15,6 +16,7 @@
   "devDependencies": {
     "adm-zip": "^0.5.16",
     "axios": "^1.8.4",
-    "commander": "^13.1.0"
+    "commander": "^13.1.0",
+    "sharp": "^0.34.5"
   }
 }

@@ -75,8 +75,16 @@ by CalTopo.
 The CalTopo fork's source icon is [icons/icon.svg](./icons/icon.svg): a flaming
 compass designed for 48 x 48 and 128 x 128 pixels, in color or grayscale.
 It is a self-contained SVG with a transparent background and no external fonts
-or images. The existing PNG icons remain unchanged; SVG-to-PNG generation will
-be added separately.
+or images. After editing the SVG, regenerate all four PNG icons with:
+
+```sh
+npm run icons
+```
+
+This replaces `icons/icon-48.png`, `icons/icon-128.png`, and their
+`-grayscale.png` variants, preserving transparency. It uses Sharp on Windows,
+macOS, and Linux without external image tools. PNG generation is separate from
+`npm run build`; regenerate and commit the icons when the source artwork changes.
 
 ### Instructions
 
