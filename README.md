@@ -57,6 +57,19 @@ It creates Chrome and Firefox ZIP packages in `dist/` and an unpacked Chrome
 extension in `dist/<version>-chrome/`. In Chrome's extension manager, enable
 Developer mode and use **Load unpacked** to select that folder.
 
+To build only the CalTopo integration, run:
+
+```sh
+npm run build -- --caltopo-only
+```
+
+This creates `dist/<version>-caltopo-only-chrome.zip`,
+`dist/<version>-caltopo-only-firefox.zip`, and the unpacked Chrome extension in
+`dist/<version>-caltopo-only-chrome/`, without replacing the full builds.
+These packages omit the iD and GPX.studio integrations and their site permissions,
+but retain Strava authentication, settings, and the shared snapping modules needed
+by CalTopo.
+
 ### Instructions
 
 ## OpenStreetMap iD editor
