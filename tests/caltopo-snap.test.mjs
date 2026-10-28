@@ -102,32 +102,35 @@ test('Strava is installed once, never fetched as a CalTopo vector source', (t) =
   assert.equal(manager.autoDrawOverlay.fetches, 1);
 });
 
-test('traced segments replace only the cursor and use native undo boundaries', async (t) => {
-  const { manager, event, getLayer } = setup(t, async ([start, end], layer) => {
-    assert.equal(layer, getLayer());
-    return [start, [(start[0] + end[0]) / 2, 0.1], end];
+for (const mode of ['polyline', 'polygon']) {
+  test(`${mode} segments replace only the cursor and use native undo boundaries`, async (t) => {
+    const { manager, event, getLayer } = setup(t, async ([start, end], layer) => {
+      assert.equal(layer, getLayer());
+      return [start, [(start[0] + end[0]) / 2, 0.1], end];
+    });
+    manager.handler.mode = mode;
+    await manager.handleClick(event());
+    assert.deepEqual(manager.polyline.slice(0, -1), [[0, 0], [1, 0.1], [2, 0]]);
+    assert.deepEqual(manager.actions, [1]);
+    await manager.handleClick(event(4));
+    assert.deepEqual(manager.polyline.slice(0, -1), [
+      [0, 0], [1, 0.1], [2, 0], [3, 0.1], [4, 0],
+    ]);
+    assert.deepEqual(manager.actions, [1, 3]);
+    manager.undo();
+    assert.deepEqual(manager.polyline.slice(0, -1), [[0, 0], [1, 0.1], [2, 0]]);
+    manager.handleMouseMove();
+    await manager.handleClick(event(5));
+    assert.deepEqual(manager.polyline.slice(0, -1), [
+      [0, 0], [1, 0.1], [2, 0], [3.5, 0.1], [5, 0],
+    ]);
+    manager.undo();
+    manager.undo();
+    assert.deepEqual(manager.polyline.slice(0, -1), [[0, 0]]);
   });
-  await manager.handleClick(event());
-  assert.deepEqual(manager.polyline.slice(0, -1), [[0, 0], [1, 0.1], [2, 0]]);
-  assert.deepEqual(manager.actions, [1]);
-  await manager.handleClick(event(4));
-  assert.deepEqual(manager.polyline.slice(0, -1), [
-    [0, 0], [1, 0.1], [2, 0], [3, 0.1], [4, 0],
-  ]);
-  assert.deepEqual(manager.actions, [1, 3]);
-  manager.undo();
-  assert.deepEqual(manager.polyline.slice(0, -1), [[0, 0], [1, 0.1], [2, 0]]);
-  manager.handleMouseMove();
-  await manager.handleClick(event(5));
-  assert.deepEqual(manager.polyline.slice(0, -1), [
-    [0, 0], [1, 0.1], [2, 0], [3.5, 0.1], [5, 0],
-  ]);
-  manager.undo();
-  manager.undo();
-  assert.deepEqual(manager.polyline.slice(0, -1), [[0, 0]]);
-});
+}
 
-test('first point, other snap modes, polygons, and post-drag clicks remain native', async (t) => {
+test('first point, other snap modes, inactive drawing, and post-drag clicks remain native', async (t) => {
   let traces = 0;
   const { manager, event } = setup(t, () => { traces++; });
   manager.polyline = undefined;
@@ -137,10 +140,26 @@ test('first point, other snap modes, polygons, and post-drag clicks remain nativ
   manager.autoDrawOverlay.source = 'osm';
   await manager.handleClick(event());
   manager.autoDrawOverlay.source = 'strava';
-  manager.handler.mode = 'polygon';
+  manager.handler = undefined;
   await manager.handleClick(event());
   assert.equal(traces, 0);
   assert.equal(manager.clicks, 4);
+});
+
+test('polygon and buffer mode traces a closing edge and delegates finishing to CalTopo', async (t) => {
+  const { manager, event } = setup(t, async ([start, end]) =>
+    [start, [(start[0] + end[0]) / 2, (start[1] + end[1]) / 2 + 0.1], end]);
+  manager.handler.mode = 'polygon';
+  const handler = manager.handler;
+  await manager.handleClick(event(2, 0));
+  await manager.handleClick(event(2, 2));
+  await manager.handleClick(event(0, 0));
+  assert.deepEqual(manager.polyline.slice(0, -1), [
+    [0, 0], [1, 0.1], [2, 0], [2, 1.1], [2, 2], [1, 1.1], [0, 0],
+  ]);
+  assert.equal(manager.handler, handler);
+  manager.finish();
+  assert.equal(manager.finished, true);
 });
 
 test('pending tracing blocks extra commits, cursor edits, and double-click finish', async (t) => {
@@ -163,26 +182,29 @@ test('pending tracing blocks extra commits, cursor edits, and double-click finis
   assert.equal(manager.doubles, 1);
 });
 
-for (const action of ['undo', 'cancel', 'release', 'finish', 'source', 'invalidate']) {
-  test(`${action} aborts a pending trace and rejects its late result`, async (t) => {
-    const job = deferred();
-    let signal;
-    const context = setup(t, (locations, layer, value) => {
-      signal = value;
-      return job.promise;
+for (const mode of ['polyline', 'polygon']) {
+  for (const action of ['undo', 'cancel', 'release', 'finish', 'source', 'invalidate']) {
+    test(`${mode} ${action} aborts a pending trace and rejects its late result`, async (t) => {
+      const job = deferred();
+      let signal;
+      const context = setup(t, (locations, layer, value) => {
+        signal = value;
+        return job.promise;
+      });
+      const { manager, event, status } = context;
+      manager.handler.mode = mode;
+      manager.actions.push(0);
+      const work = manager.handleClick(event());
+      if (action === 'source') context.changeSource('osm');
+      else if (action === 'invalidate') context.integration.invalidate();
+      else manager[action]();
+      assert.equal(signal.aborted, true);
+      job.resolve([[0, 0], [2, 0]]);
+      await work;
+      assert.equal(manager.clicks, undefined);
+      assert.equal(status.textContent, '');
     });
-    const { manager, event, status } = context;
-    manager.actions.push(0);
-    const work = manager.handleClick(event());
-    if (action === 'source') context.changeSource('osm');
-    else if (action === 'invalidate') context.integration.invalidate();
-    else manager[action]();
-    assert.equal(signal.aborted, true);
-    job.resolve([[0, 0], [2, 0]]);
-    await work;
-    assert.equal(manager.clicks, undefined);
-    assert.equal(status.textContent, '');
-  });
+  }
 }
 
 for (const change of ['layer', 'session', 'geometry']) {

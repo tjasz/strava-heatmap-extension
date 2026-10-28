@@ -60,7 +60,8 @@ export function installCalTopoSnap(manager, getLayer, trace = traceHeatmap) {
   // supplying only the traced path in place of its OSM network route.
   const click = manager.handleClick;
   manager.handleClick = async function (event) {
-    if (auto.source !== SOURCE || this.handler?.mode !== 'polyline') {
+    if (auto.source !== SOURCE ||
+        !['polyline', 'polygon'].includes(this.handler?.mode)) {
       return click.call(this, event);
     }
     if (pending) return;
