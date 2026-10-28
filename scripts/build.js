@@ -1,32 +1,21 @@
 const fs = require('fs');
 const path = require('path');
 const { program } = require('commander');
-const { execSync } = require('child_process');
+const AdmZip = require('adm-zip');
 
 const DIST = path.join(process.cwd(), 'dist');
 const MANIFEST = 'manifest.json';
 const FOLDERS = ['icons', 'lib', 'src'];
 
-// Function to copy shared files
-function copySharedFiles() {
-  const folders = FOLDERS.map((folder) => path.join('..', folder)).join(' ');
-  execSync(`cd ${DIST} && cp -r ${folders} .`, { stdio: 'ignore' });
-}
-
 // Function to create a zip file
 function createZip(zipFileName, manifest) {
-  fs.writeFileSync(path.join(DIST, MANIFEST), JSON.stringify(manifest, null, 2));
+  const zip = new AdmZip();
+  zip.addFile(MANIFEST, Buffer.from(JSON.stringify(manifest, null, 2)));
 
-  const folders = FOLDERS.map((folder) => path.join(folder, '*')).join(' ');
-  execSync(`cd ${DIST} && zip -r ${zipFileName} ${MANIFEST} ${folders}`, {
-    stdio: 'ignore',
-  });
-}
-
-// Function to clean up the dist folder
-function cleanUp() {
-  const folders = FOLDERS.map((folder) => path.join(DIST, folder)).join(' ');
-  execSync(`cd ${DIST} && rm -rf ${MANIFEST} ${folders}`, { stdio: 'ignore' });
+  for (const folder of FOLDERS) {
+    zip.addLocalFolder(path.join(process.cwd(), folder), folder);
+  }
+  zip.writeZip(path.join(DIST, zipFileName));
 }
 
 // Function to remove [DEV] suffix from name if present
@@ -65,9 +54,6 @@ if (fs.existsSync(chromeUnzipped)) {
   fs.rmSync(chromeUnzipped, { recursive: true, force: true });
 }
 
-// Copy shared files to dist folder
-copySharedFiles();
-
 // Create Chrome build (remove [DEV] from name)
 const manifestChrome = {
   ...manifest,
@@ -86,12 +72,7 @@ manifestFirefox.name = getProductionName(manifest.name);
 createZip(firefoxZip, manifestFirefox);
 
 // Unzip Chrome version
-execSync(`cd ${DIST} && unzip -q ${chromeZip} -d ${version}-chrome`, {
-  stdio: 'ignore',
-});
-
-// Clean up dist folder
-cleanUp();
+new AdmZip(path.join(DIST, chromeZip)).extractAllTo(chromeUnzipped, true);
 
 console.log(`Chrome and Firefox v${version} builds created successfully!`);
 console.log(`Chrome build unzipped to: dist/${version}-chrome`);

@@ -39,6 +39,20 @@ Open the [Firefox add-on](https://addons.mozilla.org/en-US/firefox/addon/strava-
 
 See the [Changelog](./CHANGELOG.md) for details.
 
+### Building from source
+
+With Node.js 20 or newer installed, run:
+
+```sh
+npm install
+npm run build
+```
+
+The build works on Windows, macOS, and Linux without external shell or ZIP tools.
+It creates Chrome and Firefox ZIP packages in `dist/` and an unpacked Chrome
+extension in `dist/<version>-chrome/`. In Chrome's extension manager, enable
+Developer mode and use **Load unpacked** to select that folder.
+
 ### Instructions
 
 ## OpenStreetMap iD editor
