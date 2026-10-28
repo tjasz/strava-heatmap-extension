@@ -5,6 +5,7 @@
   "scripts": {
     "build": "node scripts/build.js",
     "icons": "node scripts/icons.js",
+    "promo": "node scripts/promo.js",
     "palettes": "node scripts/palettes.js",
     "test": "node --test tests/*.test.mjs tests/*.test.cjs",
     "slide-lab": "node scripts/slide-lab.mjs",

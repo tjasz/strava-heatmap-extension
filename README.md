@@ -86,6 +86,17 @@ This replaces `icons/icon-48.png`, `icons/icon-128.png`, and their
 macOS, and Linux without external image tools. PNG generation is separate from
 `npm run build`; regenerate and commit the icons when the source artwork changes.
 
+### Store promotional image
+
+[images/promo-small.png](./images/promo-small.png) is the store's 440 x 280
+small promo tile: a 24-bit RGB PNG without alpha. It pairs the source icon with
+original illustrated contours and heatmap trails, not copied map imagery.
+
+Run `npm run promo` to regenerate the PNG and its self-contained
+[SVG](./images/promo-small.svg) from [scripts/promo.js](./scripts/promo.js)
+and the current source icon. The SVG is also suitable for editing in a vector
+editor; regeneration replaces both outputs.
+
 ### Instructions
 
 ## OpenStreetMap iD editor
