@@ -1,6 +1,6 @@
 # Strava Heatmap extension
 
-This browser extension seamlessly integrates the [Strava Global Heatmap](https://www.strava.com/maps/global-heatmap) into popular mapping editors, including the OpenStreetMap [iD editor](https://www.openstreetmap.org/edit?editor=id), [GPX Studio](https://gpx.studio/app), and [CalTopo](https://caltopo.com/), enhancing your mapping and route analysis capabilities. In iD and Caltopo, [Strava Slide](#strava-slide-id) snaps a roughly drawn line onto the heatmap trail.
+This browser extension seamlessly integrates the [Strava Global Heatmap](https://www.strava.com/maps/global-heatmap) into popular mapping editors, including the OpenStreetMap [iD editor](https://www.openstreetmap.org/edit?editor=id), [GPX Studio](https://gpx.studio/app), and [CalTopo](https://caltopo.com/), enhancing your mapping and route analysis capabilities. In iD and CalTopo, [Strava Slide](#strava-slide-id) snaps a roughly drawn line onto the heatmap trail.
 
 <img src="./images/screenshot1.png" width="48%"/>&nbsp;<img src="./images/screenshot2.png" width="48%"/>
 

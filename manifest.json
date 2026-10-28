@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Strava Heatmap for Caltopo [DEV]",
+  "name": "Strava Heatmap for CalTopo [DEV]",
   "description": "Overlay Strava Global Heatmap in iD, GPX.studio, and CalTopo to reveal popular routes and patterns.",
   "version": "0.15.0.0",
   "homepage_url": "https://github.com/tjasz/strava-heatmap-extension",

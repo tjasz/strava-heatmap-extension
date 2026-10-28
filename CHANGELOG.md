@@ -4,7 +4,7 @@
 
 ### `0.15.0.0` (2026-10-28)
 
-- [Caltopo] Add Caltopo.com client, with Strava Slide support.
+- [CalTopo] Add CalTopo.com client, with Strava Slide support.
 
 ### `0.15.0` (2026-10-26)
 
