@@ -5,6 +5,7 @@ const MESSAGES = {
   update: 'Successfully updated!',
 };
 
+// TODO edit after release
 const STORE_URLS = {
   chrome:
     'https://chromewebstore.google.com/detail/strava-heatmap/eglbcifjafncknmpmnelckombmgddlco/reviews',
