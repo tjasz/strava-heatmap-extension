@@ -40,12 +40,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // Update version-dependent links
   const readmeLink = document.querySelector('a[href*="#readme"]');
   if (readmeLink) {
-    readmeLink.href = `https://github.com/julcnx/strava-heatmap-extension/blob/v${version}/README.md`;
+    // TODO make version-aware
+    readmeLink.href = `https://github.com/tjasz/strava-heatmap-extension/blob/caltopo-only/README.md`;
   }
 
   const changelogLink = document.querySelector('a[href*="#changelog"]');
   if (changelogLink) {
-    changelogLink.href = `https://github.com/julcnx/strava-heatmap-extension/blob/v${version}/CHANGELOG.md`;
+    // TODO make version-aware
+    changelogLink.href = `https://github.com/tjasz/strava-heatmap-extension/blob/caltopo-only/CHANGELOG.md`;
   }
 
   // Set store URL based on browser

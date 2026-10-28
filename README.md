@@ -153,7 +153,7 @@ draw across a gap, or choose **OSM** to return to CalTopo's normal routing.
 
 ### Feature and Bug Requests
 
-Submit issues and feature requests in the [Issues](https://github.com/julcnx/strava-heatmap-extension/issues) section above.
+Submit issues and feature requests in the [Issues](https://github.com/tjasz/strava-heatmap-extension/issues) section above.
 
 ## Extension Background
 

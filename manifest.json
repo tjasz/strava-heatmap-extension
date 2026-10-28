@@ -3,7 +3,7 @@
   "name": "Strava Heatmap [DEV]",
   "description": "Overlay Strava Global Heatmap in iD, GPX.studio, and CalTopo to reveal popular routes and patterns.",
   "version": "0.15.0",
-  "homepage_url": "https://github.com/julcnx/strava-heatmap-extension",
+  "homepage_url": "https://github.com/tjasz/strava-heatmap-extension",
   "permissions": [
     "cookies",
     "contextMenus",
