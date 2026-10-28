@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Flaming compass</title>
+  <desc id="desc">An ivory compass with a northeast-pointing needle, surrounded by orange and gold flames.</desc>
+  <path fill="#ed6425" stroke="#202b35" stroke-width="5" stroke-linejoin="round"
+    d="M64 121C35 121 13 103 13 78C13 63 23 54 21 38C31 41 38 49 40 56C41 34 61 28 59 7C79 18 88 34 85 51C95 46 102 37 103 27C118 44 117 64 111 75C120 101 97 121 64 121Z"/>
+  <path fill="#ffc857"
+    d="M30 78C27 65 34 58 34 58C35 68 42 71 47 71C44 48 62 43 66 27C78 42 70 56 76 65C82 72 96 65 104 52C105 69 96 74 99 85L64 110Z"/>
+  <circle cx="64" cy="82" r="35" fill="#fff5df" stroke="#202b35" stroke-width="6"/>
+  <path fill="none" stroke="#202b35" stroke-width="4" stroke-linecap="round"
+    d="M64 53V57M89 82H93M64 107V111M35 82H39"/>
+  <path fill="#202b35" d="M49 108L57 78L71 86Z"/>
+  <path fill="#c33d20" d="M79 56L71 86L57 78Z"/>
+  <path fill="#202b35" fill-opacity=".2" d="M79 56L64 82L71 86ZM49 108L64 82L57 78Z"/>
+  <circle cx="64" cy="82" r="3" fill="#fff5df" stroke="#202b35" stroke-width="2"/>
+</svg>

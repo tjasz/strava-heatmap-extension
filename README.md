@@ -70,6 +70,14 @@ These packages omit the iD and GPX.studio integrations and their site permission
 but retain Strava authentication, settings, and the shared snapping modules needed
 by CalTopo.
 
+### Icon artwork
+
+The CalTopo fork's source icon is [icons/icon.svg](./icons/icon.svg): a flaming
+compass designed for 48 x 48 and 128 x 128 pixels, in color or grayscale.
+It is a self-contained SVG with a transparent background and no external fonts
+or images. The existing PNG icons remain unchanged; SVG-to-PNG generation will
+be added separately.
+
 ### Instructions
 
 ## OpenStreetMap iD editor
