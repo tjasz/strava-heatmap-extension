@@ -13,6 +13,7 @@
   "author": "Julien Etienne <etienne.julien@gmail.com>",
   "license": "MIT",
   "devDependencies": {
+    "adm-zip": "^0.5.16",
     "axios": "^1.8.4",
     "commander": "^13.1.0"
   }
