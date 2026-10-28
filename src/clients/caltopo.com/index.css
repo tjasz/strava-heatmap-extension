@@ -5,6 +5,20 @@
   flex-direction: column;
 }
 
+.strava-heatmap-snap-status {
+  display: inline-block;
+  max-width: 28em;
+  white-space: normal;
+}
+
+.strava-heatmap-snap-status:not(:empty) {
+  margin-left: 0.5em;
+}
+
+.strava-heatmap-snap-status[role="alert"] {
+  color: #b3261e;
+}
+
 .strava-heatmap-layer-active {
     display: flex;
     flex-direction: column;
