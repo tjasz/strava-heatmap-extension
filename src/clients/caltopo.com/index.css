@@ -1,3 +1,5 @@
+@import url('../common/colors.css');
+
 .strava-heatmap-controls {
   display: flex;
   flex-direction: column;

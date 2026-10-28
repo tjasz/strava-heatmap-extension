@@ -165,7 +165,7 @@ function getLayerConfig(
 }
 
 // Grayscale tiles are colorized client-side; the color param is ignored by Strava
-// and lets the client match tiles to their palette (see www.openstreetmap.org/index.css)
+// and lets the client match tiles to their palette (see colors.css)
 function getTileTemplate(activity, color, timestamp, authenticated, version, legacy) {
   if (!authenticated) {
     return `https://raw.githubusercontent.com/julcnx/strava-heatmap-extension/refs/heads/v${version}/assets/heatmap-fallback.png?v=1&z={z}&x={x}&y={y}`;

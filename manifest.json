@@ -78,6 +78,8 @@
     {
       "resources": [
         "src/clients/common/auth.js",
+        "src/clients/common/colors.js",
+        "src/clients/common/colors.css",
         "src/clients/common/hash.js",
         "src/clients/common/layers.js",
         "src/clients/common/palettes.js"
@@ -91,7 +93,6 @@
     },
     {
       "resources": [
-        "src/clients/www.openstreetmap.org/colors.js",
         "src/clients/www.openstreetmap.org/id.js",
         "src/clients/www.openstreetmap.org/imagery.js",
         "src/clients/www.openstreetmap.org/index.css",

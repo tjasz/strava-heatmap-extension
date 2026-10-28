@@ -1,4 +1,5 @@
 import { setupAuthStatusChangeListener } from '../common/auth.js';
+import { injectHeatmapColorFilters } from '../common/colors.js';
 import { installCalTopoSnap } from './snap.js';
 import {
   getLayerConfigs,
@@ -418,6 +419,7 @@ async function main() {
   let authenticated = script.dataset.authenticated === 'true';
   let layerPresets = parseLayerPresets(script.dataset.layers);
 
+  injectHeatmapColorFilters();
   loadState();
   applyLayerConfigs(layerPresets, authenticated, version);
   setupRibbonObserver();
