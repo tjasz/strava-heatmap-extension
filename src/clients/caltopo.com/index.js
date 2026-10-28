@@ -1,4 +1,5 @@
 import { setupAuthStatusChangeListener } from '../common/auth.js';
+import { installCalTopoSnap } from './snap.js';
 import {
   getLayerConfigs,
   parseLayerPresets,
@@ -25,6 +26,7 @@ let observedOverlayMapTypes;
 let overlayMapTypeListeners = [];
 let restoreOverlayTimer;
 let ribbonObserver;
+let snapIntegration;
 
 function loadState() {
   try {
@@ -241,6 +243,7 @@ function addOverlay() {
 }
 
 function refreshOverlay() {
+  snapIntegration?.invalidate();
   detachOverlay();
   if (enabled) addOverlay();
   updateControls();
@@ -432,10 +435,19 @@ async function main() {
   let attempts = 0;
   const timer = window.setInterval(() => {
     attempts += 1;
-    if (!enabled || addOverlay() || attempts >= MAX_ATTEMPTS) {
+    const manager = window.imap?.drawingManager;
+    if (!snapIntegration && manager) {
+      snapIntegration = installCalTopoSnap(manager, () =>
+        layerConfigs.find(({ id }) => id === selectedLayerId));
+    }
+    const overlayReady = !enabled || addOverlay();
+    if ((overlayReady && snapIntegration) || attempts >= MAX_ATTEMPTS) {
       window.clearInterval(timer);
       if (attempts >= MAX_ATTEMPTS && !window[OVERLAY_KEY]) {
         console.warn('[StravaHeatmapExt] CalTopo map was not found.');
+      }
+      if (!snapIntegration) {
+        console.warn('[StravaHeatmapExt] CalTopo drawing manager was not found.');
       }
     }
   }, RETRY_INTERVAL_MS);

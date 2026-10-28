@@ -119,6 +119,20 @@ To enable the Strava Heatmap in CalTopo:
 2. Use the Strava heatmap ribbon at the top of the map to select a configured layer, toggle it, or adjust its opacity.
 3. Use the extension icon to log into Strava and configure the available heatmap layers.
 
+#### Snap lines to Strava
+
+1. Sign into Strava using the extension and select the activity layer in the Strava heatmap controls.
+2. Choose **Add > Line**, then select **Strava** in the map's **Snap To** dropdown.
+3. Click along the heatmap trail in short sections. After each click, wait for the segment to finish tracing before adding the next point. The clicked endpoints stay in place; the segment between them follows the heat centerline using the same engine as iD's Slide.
+4. Use CalTopo's normal **Undo** (or **Esc**) to remove a segment, and **Save** to keep the line.
+
+Snapping uses the selected Strava activity and palette, even if the overlay is hidden.
+Keep clicks close to the desired trail, with extra points around bends and forks.
+This follows nearby heat, not a routable trail network: it cannot plan long routes
+across gaps or distant turns. Missing heat, expired login, or an oversized segment
+shows an error beside **Snap To** and leaves the line unchanged. Select **None** to
+draw across a gap, or choose **OSM** to return to CalTopo's normal routing.
+
 ### Troubleshooting
 
 **Q: “Click the Strava Heatmap extension icon to log into Strava and enable the heatmap.” — What does this mean?**  
