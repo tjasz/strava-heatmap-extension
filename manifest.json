@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Strava Heatmap [DEV]",
   "description": "Overlay Strava Global Heatmap in iD, GPX.studio, CalTopo, Geotab, and BRouter for route planning.",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "homepage_url": "https://github.com/julcnx/strava-heatmap-extension",
   "permissions": [
     "cookies",
@@ -122,8 +122,16 @@
         "src/clients/www.openstreetmap.org/imagery.js",
         "src/clients/www.openstreetmap.org/index.css",
         "src/clients/www.openstreetmap.org/index.js",
+        "src/clients/www.openstreetmap.org/notice.js",
         "src/clients/www.openstreetmap.org/overlays.js",
-        "src/clients/www.openstreetmap.org/start.js"
+        "src/clients/www.openstreetmap.org/shortcuts.js",
+        "src/clients/www.openstreetmap.org/start.js",
+        "src/clients/www.openstreetmap.org/slide/index.js",
+        "src/clients/www.openstreetmap.org/slide/algorithm.js",
+        "src/clients/www.openstreetmap.org/slide/png.js",
+        "src/clients/www.openstreetmap.org/slide/action.js",
+        "src/clients/www.openstreetmap.org/slide/tiles.js",
+        "icons/slide.svg"
       ],
       "matches": ["*://www.openstreetmap.org/*"]
     },
