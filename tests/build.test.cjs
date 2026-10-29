@@ -114,6 +114,7 @@ test('CalTopo-only packages retain their dependencies without other client integ
     'src/clients/caltopo.com/index.js',
     'src/clients/caltopo.com/index.css',
     'src/clients/caltopo.com/snap.js',
+    'src/clients/caltopo.com/snap-network.js',
     ...['auth.js', 'colors.js', 'colors.css', 'layers.js', 'palettes.js']
       .map((file) => `src/clients/common/${file}`),
     ...sharedSlideFiles,

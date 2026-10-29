@@ -1,34 +1,14 @@
-import {
-  createHeatmapRaster,
-  slideLineTwice,
-} from '../www.openstreetmap.org/slide/algorithm.js';
-import { loadSlideTiles } from '../www.openstreetmap.org/slide/tiles.js';
+import { loadHeatmapNetwork } from './snap-network.js';
 
 const SOURCE = 'strava';
+const NORMAL = { stroke: '#F0F000', 'stroke-opacity': 0.4, 'stroke-width': 7 };
+const HOVER = { stroke: '#FFFF00', 'stroke-opacity': 0.8, 'stroke-width': 10 };
 
-export async function traceHeatmap(locations, layer, signal, onProgress) {
-  const source = {
-    url: ([x, y, z]) => layer.template
-      .replace('{z}', z).replace('{x}', x).replace('{y}', y),
-  };
-  const loaded = await loadSlideTiles(locations, source, signal, () =>
-    onProgress('Loading Strava heatmap...'));
-  onProgress('Following Strava heat centerline...');
-  const raster = createHeatmapRaster(loaded.tiles, loaded.zoom, loaded.bounds);
-  const result = await slideLineTwice(locations, raster, {
-    fixedIndices: [0, locations.length - 1],
-    signal,
-  });
-  return result.map(({ loc }) => loc);
-}
-
-export function installCalTopoSnap(manager, getLayer, trace = traceHeatmap) {
+export function installCalTopoSnap(manager, getLayer, loadNetwork = loadHeatmapNetwork) {
   const auto = manager.autoDrawOverlay;
   const select = auto?.dropMenu?.container?.[0];
-  if (!select || typeof manager.handleClick !== 'function' ||
-      typeof manager.addPath !== 'function' || typeof auto.fetch !== 'function') {
-    return null;
-  }
+  if (!select || !['fetch', 'postFetch', 'add', 'select', 'unselect'].every(
+    (name) => typeof auto[name] === 'function')) return null;
   if (manager.__stravaHeatmapSnap) return manager.__stravaHeatmapSnap;
 
   auto.data[SOURCE] = { tiles: {}, features: {}, nodes: {} };
@@ -38,136 +18,132 @@ export function installCalTopoSnap(manager, getLayer, trace = traceHeatmap) {
   status.className = 'strava-heatmap-snap-status';
   status.setAttribute('role', 'status');
   select.after(status);
-
-  let pending;
-  let pendingFinish;
   const showStatus = (message, error = false) => {
     status.setAttribute('role', error ? 'alert' : 'status');
     status.textContent = message;
   };
-  const invalidate = () => {
-    pending?.abort();
-    pending = undefined;
-    pendingFinish = undefined;
+  let controller = new AbortController();
+  let template;
+  let queue = [];
+  let running = 0;
+  let hovered;
+  let failed = false;
+  const invalidate = (reload = true) => {
+    controller.abort();
+    controller = new AbortController();
+    queue = [];
+    template = undefined;
+    hovered = undefined;
+    failed = false;
     showStatus('');
+    if (auto.source !== SOURCE) return;
+    auto.unselect();
+    auto.coordinates = undefined;
+    auto.clear(true);
+    auto.data[SOURCE] = { tiles: {}, features: {}, nodes: {} };
+    Object.assign(auto, auto.data[SOURCE]);
+    auto.rebuildGlobalNodeGrid();
+    if (reload && auto.map) auto.fetch();
   };
-  select.addEventListener('change', invalidate);
+  select.addEventListener('change', () => invalidate());
 
   const fetch = auto.fetch;
+  const pump = () => {
+    while (running < 2 && queue.length) {
+      const job = queue.shift();
+      running++;
+      const { signal, layer, x, y, key } = job;
+      Promise.resolve().then(() => {
+        if (signal.aborted) return;
+        return loadNetwork(x, y, auto.targetZoom, layer, signal);
+      }).then((features) => {
+        if (signal.aborted || auto.source !== SOURCE ||
+            getLayer()?.template !== layer.template || !auto.map) return;
+        auto.postFetch(key, features);
+        if (!failed && !queue.length && running === 1) showStatus('');
+      }).catch((error) => {
+        if (signal.aborted) return;
+        failed = true;
+        delete auto.data[SOURCE].tiles[key];
+        console.warn('[StravaHeatmapExt] CalTopo snap network failed.', error);
+        showStatus(`Strava: ${error.message}`, true);
+      }).finally(() => {
+        running--;
+        pump();
+      });
+    }
+  };
   auto.fetch = function (...args) {
     if (this.source !== SOURCE) return fetch.apply(this, args);
-  };
-
-  // CalTopo binds handlers through these methods. Keep its commit/undo logic,
-  // supplying only the traced path in place of its OSM network route.
-  const click = manager.handleClick;
-  const commit = (drawing, event, path) => {
-    drawing.setOverride(false);
-    drawing.lastAdditionPoint = false;
-    auto.coordinates = path;
-    return click.call(drawing, event);
-  };
-  manager.handleClick = async function (event) {
-    if (auto.source !== SOURCE ||
-        !['polyline', 'polygon'].includes(this.handler?.mode)) {
-      return click.call(this, event);
-    }
-    if (this.ignoreNextClick || !this.polyline ||
-        event.target?.closest('form, button, .leaflet-control')) {
-      return click.call(this, event);
-    }
-    if ((event.detail ?? event.originalEvent?.detail) > 1) return;
-    if (event.shiftKey) invalidate();
-    else if (pending) return;
-
-    const coordinates = this.map.getCoordinates(this.polyline);
-    if (coordinates.length < 2) return click.call(this, event);
-    const offset = this.$div.offset();
-    if (!offset) {
-      showStatus('Could not locate the CalTopo drawing canvas.', true);
+    if (!this.map) return;
+    const layer = getLayer();
+    if (template && template !== layer?.template) return invalidate();
+    if (!layer) return showStatus('Choose a Strava heatmap layer first.', true);
+    template = layer.template;
+    if (this.map.getZoom() < this.zoomThreshold) {
+      showStatus('Zoom in to see Strava snap lines.');
       return;
     }
-    const end = this.map.fromContainerPixel([
-      event.pageX - offset.left, event.pageY - offset.top,
-    ]);
-    const start = coordinates[coordinates.length - 2].slice();
-    if (start[0] === end[0] && start[1] === end[1]) return;
-    if (event.shiftKey) {
-      return commit(this, event, [end]);
-    }
-
-    const controller = new AbortController();
-    let committed = false;
-    pending = controller;
-    const polyline = this.polyline;
-    const handler = this.handler;
-    const before = JSON.stringify(coordinates);
-    const layer = getLayer();
-    try {
-      if (!layer) throw new Error('Choose a Strava heatmap layer first.');
-      showStatus('Loading Strava heatmap...');
-      const path = await trace([start, end], layer, controller.signal, showStatus);
-      if (controller.signal.aborted || this.polyline !== polyline ||
-          this.handler !== handler || auto.source !== SOURCE ||
-          getLayer()?.template !== layer.template) {
-        if (pending === controller) showStatus('');
-        return;
-      }
-      if (JSON.stringify(this.map.getCoordinates(polyline)) !== before) {
-        throw new Error('The line changed while snapping. Click again to retry.');
-      }
-      // CalTopo replaces its moving cursor with the first supplied point.
-      // The start is already committed; exclude it to avoid duplicate vertices
-      // and retain the extra cursor coordinate needed by native undo.
-      commit(this, event, path.slice(1));
-      committed = true;
-      showStatus('');
-    } catch (error) {
-      if (!controller.signal.aborted) {
-        console.warn('[StravaHeatmapExt] CalTopo snapping failed.', error);
-        const message = error.code === 'SLIDE_NO_SIGNAL'
-          ? 'No usable heatmap trail found. Click closer to the trail, or Shift-click to add an off-trail point without snapping.'
-          : error.message;
-        showStatus(`Strava: ${message}`, true);
-      }
-    } finally {
-      if (pending === controller) {
-        pending = undefined;
-        const finish = pendingFinish;
-        pendingFinish = undefined;
-        if (committed) finish?.();
+    const bounds = this.getTileBounds(this.getMapBounds());
+    const count = (bounds[1][0] - bounds[0][0] + 1) * (bounds[0][1] - bounds[1][1] + 1);
+    if (count > 16) return showStatus('Zoom in to load Strava snap lines.', true);
+    for (let x = bounds[0][0]; x <= bounds[1][0]; x++) {
+      for (let y = bounds[1][1]; y <= bounds[0][1]; y++) {
+        const key = `${x}-${y}`;
+        if (this.tiles[key]) continue;
+        this.tiles[key] = true;
+        queue.push({ x, y, key, layer, signal: controller.signal });
       }
     }
+    if (queue.length && running === 0) {
+      failed = false;
+      showStatus('Loading Strava snap lines...');
+    }
+    this.draw();
+    pump();
   };
 
-  const move = manager.handleMouseMove;
-  manager.handleMouseMove = function (...args) {
-    if (!pending) return move.apply(this, args);
+  const add = auto.add;
+  auto.add = function (id) {
+    const result = add.call(this, id);
+    if (this.source === SOURCE && this.mapObjs[id]) this.map.setStyle(this.mapObjs[id], NORMAL);
+    return result;
   };
-  const doubleClick = manager.handleDblClick;
-  manager.handleDblClick = function (...args) {
-    const finish = () => {
-      if (auto.source === SOURCE && this.polyline) {
-        const coordinates = this.map.getCoordinates(this.polyline).slice();
-        if (coordinates.length >= 2) {
-          // Mouse movement is frozen during tracing. Do not save its stale cursor.
-          coordinates[coordinates.length - 1] = coordinates[coordinates.length - 2].slice();
-          this.map.setCoordinates(this.polyline, coordinates);
-        }
-      }
-      return doubleClick.apply(this, args);
-    };
-    if (!pending) return finish();
-    pendingFinish = finish;
+  const selectLine = auto.select;
+  const unselectLine = auto.unselect;
+  const restoreHover = () => {
+    if (hovered && auto.mapObjs[hovered]) auto.map?.setStyle(auto.mapObjs[hovered], NORMAL);
+    hovered = undefined;
   };
-  for (const name of ['undo', 'cancel', 'release', 'finish']) {
+  auto.select = function (point, id) {
+    if (this.source !== SOURCE) return selectLine.call(this, point, id);
+    restoreHover();
+    const feature = this.features[id];
+    if (this.reference && (!this.routing ||
+        !this.routing.solution[feature?.startNodeId] || !this.routing.solution[feature?.endNodeId])) {
+      if (this.selected) this.map.removeOverlay(this.selected);
+      this.selected = undefined;
+      this.coordinates = undefined;
+      manager.setOverride(false);
+    }
+    const result = selectLine.call(this, point, id);
+    hovered = id;
+    if (id && this.mapObjs[id]) this.map.setStyle(this.mapObjs[id], HOVER);
+    return result;
+  };
+  auto.unselect = function (...args) {
+    const result = unselectLine.apply(this, args);
+    if (this.source === SOURCE) restoreHover();
+    return result;
+  };
+  for (const name of ['cancel', 'release', 'finish']) {
     const original = manager[name];
     manager[name] = function (...args) {
-      invalidate();
-      return original.apply(this, args);
+      const result = original.apply(this, args);
+      if (auto.source === SOURCE) invalidate(false);
+      return result;
     };
   }
-
   manager.__stravaHeatmapSnap = { invalidate };
   return manager.__stravaHeatmapSnap;
 }
