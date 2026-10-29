@@ -51,6 +51,7 @@ async function main() {
       const layer = window.L.tileLayer(config.template, {
         pane: HEATMAP_PANE,
         maxNativeZoom: config.zoomExtent[1],
+        maxZoom: 19,
         opacity: previous?.layer.options.opacity ?? 1,
       });
       control.addOverlay(layer, config.name);
