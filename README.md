@@ -123,17 +123,17 @@ To enable the Strava Heatmap in CalTopo:
 
 1. Sign into Strava using the extension and select the activity layer in the Strava heatmap controls.
 2. Choose **Add > Line**, **Polygon**, or **Buffer** (and enter its radius), then select **Strava** in the map's **Snap To** dropdown. The measure tool also supports Strava snapping.
-3. Click along the heatmap trail in short sections. After each click, wait for the segment to finish tracing before adding the next point. The clicked endpoints stay in place; the segment between them follows the heat centerline.
-   **Shift-click** to add an exact, unsnapped point across a gap or off trail without changing **Snap To**. Subsequent ordinary clicks resume Strava snapping.
+3. Zoom in until snap-eligible heatmap lines appear in semitransparent yellow. They should appear at `z=15` or higher. A hovered line becomes wider and brighter. Click a yellow line to start snapping; hover farther along the connected lines to preview a draft, then click to confirm it.
+   Click away from the highlighted lines to add a straight segment, just as with CalTopo's other snap sources.
 4. Use CalTopo's normal **Undo** (or **Esc**) to remove a segment, and finish or save normally. CalTopo still handles polygon closing and buffer geometry. To snap a polygon's final edge too, click back on its starting point before finishing.
-   Double-click to finish; if a segment is still tracing, finishing waits for it to succeed.
+   Double-click to finish.
 
 Snapping uses the selected Strava activity and palette, even if the overlay is hidden.
-Keep clicks close to the desired trail, with extra points around bends and forks.
-This follows nearby heat, not a routable trail network: it cannot plan long routes
-across gaps or distant turns. Missing heat, expired login, or an oversized segment
-shows an error beside **Snap To** and leaves the line unchanged. Shift-click to
-draw across a gap, or choose **OSM** to return to CalTopo's normal routing.
+The snap network is derived from heatmap imagery, not mapped trail data.
+Only highlighted lines are eligible; disconnected heat traces cannot route across
+gaps. Review drafts at forks before confirming. Missing tiles, expired login, or
+an oversized view shows an error beside **Snap To**. Zoom in or click off the
+network to draw across a gap, or choose **OSM** for mapped-trail routing.
 
 ### Geotab
 

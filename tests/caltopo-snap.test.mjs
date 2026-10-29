@@ -1,373 +1,308 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { deflateSync } from 'node:zlib';
-import { project, unproject } from '../src/clients/www.openstreetmap.org/slide/algorithm.js';
-import {
-  installCalTopoSnap,
-  traceHeatmap,
-} from '../src/clients/caltopo.com/snap.js';
+import { project } from '../src/clients/www.openstreetmap.org/slide/algorithm.js';
+import { heatmapNetwork, loadHeatmapNetwork } from '../src/clients/caltopo.com/snap-network.js';
+import { installCalTopoSnap } from '../src/clients/caltopo.com/snap.js';
 
-function setup(t, trace) {
-  const status = { setAttribute(key, value) { this[key] = value; } };
-  const previousDocument = globalThis.document;
-  globalThis.document = { createElement: () => status };
-  t.after(() => { globalThis.document = previousDocument; });
-  const listeners = {};
-  const select = {
-    style: {},
-    after() {},
-    addEventListener(name, fn) { listeners[name] = fn; },
-  };
-  let layer = { template: 'https://content-a.strava.com/identified/globalheat/run/blue/{z}/{x}/{y}.png' };
-  const manager = {
-    handler: { mode: 'polyline' },
-    polyline: [[0, 0], [1, 0]],
-    actions: [],
-    lastAdditionPoint: true,
-    override: false,
-    $div: { offset: () => ({ left: 10, top: 20 }) },
-    map: {
-      getCoordinates: (line) => line,
-      setCoordinates(line, coordinates) { line.splice(0, line.length, ...coordinates); },
-      fromContainerPixel: (pixel) => pixel,
-    },
-    autoDrawOverlay: {
-      source: 'strava',
-      data: {},
-      dropMenu: {
-        container: [select],
-        addItem(label, value) { this.item = { label, value }; },
-      },
-      fetch() { this.fetches = (this.fetches || 0) + 1; },
-    },
-    addPath(path, freehand, replacePreview) {
-      const line = this.polyline;
-      if (replacePreview) line.pop();
-      const cursor = line[line.length - 1];
-      line[line.length - 1] = path[0];
-      this.actions.push(line.length - 1);
-      line.push(...path.slice(1), cursor);
-    },
-    handleClick(event) {
-      this.clicks = (this.clicks || 0) + 1;
-      if (this.ignoreNextClick) { this.ignoreNextClick = false; return; }
-      if (event.target.closest()) return;
-      const auto = this.autoDrawOverlay;
-      if (!this.polyline) {
-        this.polyline = [[0, 0], [0, 0]];
-      } else if (auto.coordinates) {
-        this.addPath(auto.coordinates, false, this.lastAdditionPoint);
-        auto.coordinates = undefined;
-        this.lastAdditionPoint = false;
-      }
-    },
-    setOverride(value) { this.override = value; },
-    handleMouseMove() { this.moves = (this.moves || 0) + 1; },
-    handleDblClick() {
-      this.doubles = (this.doubles || 0) + 1;
-      this.finish(this.autoDrawOverlay.reference?.snap != null);
-    },
-    undo() { this.polyline.splice(this.actions.pop() + 1); },
-    cancel() { this.polyline = undefined; this.handler = undefined; },
-    release() { this.handler = undefined; },
-    finish(removeCursor) {
-      this.finished = true;
-      const coordinates = this.polyline?.slice() ?? [];
-      if (removeCursor) coordinates.pop();
-      while (coordinates.length > 1 &&
-          JSON.stringify(coordinates.at(-1)) === JSON.stringify(coordinates.at(-2))) {
-        coordinates.pop();
-      }
-      this.finishedCoordinates = coordinates;
-    },
-  };
-  const getLayer = () => layer;
-  const integration = installCalTopoSnap(manager, getLayer, trace);
-  const event = (x = 2, y = 0) => ({
-    pageX: x + 10, pageY: y + 20, target: { closest: () => false },
-  });
-  return {
-    manager, status, select, integration, getLayer, event,
-    changeSource(source) {
-      manager.autoDrawOverlay.source = source;
-      listeners.change();
-    },
-    changeLayer(value) { layer = value; },
-  };
-}
-
+const layer = { template: 'https://content-a.strava.com/identified/globalheat/run/blue/{z}/{x}/{y}.png' };
+const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 function deferred() {
   let resolve;
   const promise = new Promise((done) => { resolve = done; });
   return { promise, resolve };
 }
+function setup(t, loader = async () => []) {
+  const status = { setAttribute(key, value) { this[key] = value; } };
+  const previous = globalThis.document;
+  globalThis.document = { createElement: () => status };
+  t.after(() => { globalThis.document = previous; });
+  let change;
+  const select = {
+    style: {}, after() {},
+    addEventListener(name, fn) { change = fn; },
+  };
+  let currentLayer = layer;
+  const nativeClick = () => {};
+  const nativeMove = () => {};
+  const auto = {
+    source: 'strava', data: {}, mapObjs: {}, zoomThreshold: 13, targetZoom: 14,
+    map: {
+      getZoom: () => 15,
+      setStyle(object, style) { Object.assign(object, style); },
+      removeOverlay() {},
+    },
+    getMapBounds: () => [],
+    getTileBounds: () => [[1, 2], [1, 2]],
+    dropMenu: { container: [select], addItem(label, value) { this.item = { label, value }; } },
+    fetch() { this.nativeFetches = (this.nativeFetches || 0) + 1; },
+    postFetch(key, features) { (this.results ??= []).push({ key, features }); },
+    draw() {},
+    clear() { this.mapObjs = {}; this.reference = undefined; this.routing = undefined; },
+    rebuildGlobalNodeGrid() {},
+    add(id) { this.mapObjs[id] = {}; },
+    select(point, id) {
+      this.id = id;
+      const feature = this.features[id];
+      if (this.reference && (!this.routing ||
+          !this.routing.solution[feature?.startNodeId] || !this.routing.solution[feature?.endNodeId])) return;
+      this.coordinates = [point];
+    },
+    unselect() { this.id = undefined; },
+  };
+  const manager = {
+    autoDrawOverlay: auto, handleClick: nativeClick, handleMouseMove: nativeMove,
+    setOverride(value) { this.override = value; },
+    cancel() {}, release() {}, finish() {},
+  };
+  const integration = installCalTopoSnap(manager, () => currentLayer, loader);
+  Object.assign(auto, auto.data.strava);
+  return {
+    auto, manager, status, select, integration, nativeClick, nativeMove,
+    changeSource(source) { auto.source = source; change(); },
+    changeLayer(value) { currentLayer = value; },
+  };
+}
 
-test('Strava is installed once, never fetched as a CalTopo vector source', (t) => {
-  const { manager, integration, getLayer, select } = setup(t);
-  assert.equal(installCalTopoSnap(manager, getLayer), integration);
-  assert.deepEqual(manager.autoDrawOverlay.dropMenu.item, { label: 'Strava', value: 'strava' });
+test('installs once and preserves native drawing, previews, commits and undo', (t) => {
+  const { auto, manager, select, integration, nativeClick, nativeMove } = setup(t);
+  assert.equal(installCalTopoSnap(manager, () => layer), integration);
+  assert.deepEqual(auto.dropMenu.item, { label: 'Strava', value: 'strava' });
   assert.equal(select.style.width, 'auto');
-  manager.autoDrawOverlay.fetch();
-  assert.equal(manager.autoDrawOverlay.fetches, undefined);
-  manager.autoDrawOverlay.source = 'osm';
-  manager.autoDrawOverlay.fetch();
-  assert.equal(manager.autoDrawOverlay.fetches, 1);
+  assert.equal(manager.handleClick, nativeClick);
+  assert.equal(manager.handleMouseMove, nativeMove);
 });
 
-for (const mode of ['polyline', 'polygon']) {
-  test(`${mode} segments replace only the cursor and use native undo boundaries`, async (t) => {
-    const { manager, event, getLayer } = setup(t, async ([start, end], layer) => {
-      assert.equal(layer, getLayer());
-      return [start, [(start[0] + end[0]) / 2, 0.1], end];
-    });
-    manager.handler.mode = mode;
-    await manager.handleClick(event());
-    assert.deepEqual(manager.polyline.slice(0, -1), [[0, 0], [1, 0.1], [2, 0]]);
-    assert.deepEqual(manager.actions, [1]);
-    await manager.handleClick(event(4));
-    assert.deepEqual(manager.polyline.slice(0, -1), [
-      [0, 0], [1, 0.1], [2, 0], [3, 0.1], [4, 0],
-    ]);
-    assert.deepEqual(manager.actions, [1, 3]);
-    manager.undo();
-    assert.deepEqual(manager.polyline.slice(0, -1), [[0, 0], [1, 0.1], [2, 0]]);
-    manager.handleMouseMove();
-    await manager.handleClick(event(5));
-    assert.deepEqual(manager.polyline.slice(0, -1), [
-      [0, 0], [1, 0.1], [2, 0], [3.5, 0.1], [5, 0],
-    ]);
-    manager.undo();
-    manager.undo();
-    assert.deepEqual(manager.polyline.slice(0, -1), [[0, 0]]);
-  });
-}
-
-test('first point, other snap modes, inactive drawing, and post-drag clicks remain native', async (t) => {
-  let traces = 0;
-  const { manager, event } = setup(t, () => { traces++; });
-  manager.polyline = undefined;
-  await manager.handleClick(event());
-  manager.ignoreNextClick = true;
-  await manager.handleClick(event());
-  manager.autoDrawOverlay.source = 'osm';
-  await manager.handleClick(event());
-  manager.autoDrawOverlay.source = 'strava';
-  manager.handler = undefined;
-  await manager.handleClick(event());
-  assert.equal(traces, 0);
-  assert.equal(manager.clicks, 4);
-});
-
-test('polygon and buffer mode traces a closing edge and delegates finishing to CalTopo', async (t) => {
-  const { manager, event } = setup(t, async ([start, end]) =>
-    [start, [(start[0] + end[0]) / 2, (start[1] + end[1]) / 2 + 0.1], end]);
-  manager.handler.mode = 'polygon';
-  const handler = manager.handler;
-  await manager.handleClick(event(2, 0));
-  await manager.handleClick(event(2, 2));
-  await manager.handleClick(event(0, 0));
-  assert.deepEqual(manager.polyline.slice(0, -1), [
-    [0, 0], [1, 0.1], [2, 0], [2, 1.1], [2, 2], [1, 1.1], [0, 0],
-  ]);
-  assert.equal(manager.handler, handler);
-  manager.finish();
-  assert.equal(manager.finished, true);
-});
-
-test('pending tracing blocks extra commits and cursor edits, but queues double-click finish', async (t) => {
-  const job = deferred();
-  const { manager, event, status } = setup(t, () => job.promise);
-  const first = manager.handleClick(event());
-  await manager.handleClick(event(4));
-  manager.handleMouseMove();
-  manager.handleDblClick();
-  assert.equal(manager.clicks, undefined);
-  assert.equal(manager.moves, undefined);
-  assert.equal(manager.doubles, undefined);
-  assert.match(status.textContent, /Loading/);
-  job.resolve([[0, 0], [2, 0]]);
-  await first;
-  assert.equal(manager.clicks, 1);
-  assert.equal(manager.doubles, 1);
-  assert.deepEqual(manager.finishedCoordinates, [[0, 0], [2, 0]]);
-  manager.handleMouseMove();
-  manager.handleDblClick();
-  assert.equal(manager.moves, 1);
-  assert.equal(manager.doubles, 2);
-});
-
-for (const mode of ['polyline', 'polygon']) {
-  test(`${mode} Shift-click adds an unsnapped point, supports undo, and resumes snapping`, async (t) => {
-    let traces = 0;
-    const { manager, event } = setup(t, async ([start, end]) => {
-      traces++;
-      return [start, [3, 0.1], end];
-    });
-    manager.handler.mode = mode;
-    manager.autoDrawOverlay.coordinates = [[99, 99]];
-    await manager.handleClick({ ...event(), shiftKey: true });
-    assert.deepEqual(manager.polyline.slice(0, -1), [[0, 0], [2, 0]]);
-    assert.equal(manager.autoDrawOverlay.source, 'strava');
-    assert.equal(traces, 0);
-    await manager.handleClick(event(4));
-    assert.equal(traces, 1);
-    assert.deepEqual(manager.polyline.slice(0, -1), [[0, 0], [2, 0], [3, 0.1], [4, 0]]);
-    manager.undo();
-    assert.deepEqual(manager.polyline.slice(0, -1), [[0, 0], [2, 0]]);
-    manager.undo();
-    assert.deepEqual(manager.polyline.slice(0, -1), [[0, 0]]);
-  });
-}
-
-test('Shift-click aborts an in-flight snap and discards its route and queued finish', async (t) => {
-  const job = deferred();
-  let signal;
-  const { manager, event, status } = setup(t, (locations, layer, value) => {
-    signal = value;
-    return job.promise;
-  });
-  const work = manager.handleClick(event());
-  manager.handleDblClick(event());
-  await manager.handleClick({ ...event(4), shiftKey: true });
-  assert.equal(signal.aborted, true);
-  job.resolve([[0, 0], [2, 0]]);
-  await work;
-  assert.deepEqual(manager.polyline.slice(0, -1), [[0, 0], [4, 0]]);
-  assert.equal(manager.clicks, 1);
-  assert.equal(manager.doubles, undefined);
+test('loads visible heat network tiles into the native router without fetching vector data', async (t) => {
+  const features = [{ geometry: { type: 'LineString', coordinates: [[0, 0], [1, 1]] } }];
+  const calls = [];
+  const { auto, status } = setup(t, async (...args) => { calls.push(args); return features; });
+  auto.fetch();
+  auto.fetch();
+  await tick();
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].slice(0, 4), [1, 2, 14, layer]);
+  assert.deepEqual(auto.results, [{ key: '1-2', features }]);
+  assert.equal(auto.nativeFetches, undefined);
   assert.equal(status.textContent, '');
+  auto.source = 'osm';
+  auto.fetch();
+  assert.equal(auto.nativeFetches, 1);
 });
 
-for (const timing of ['pending', 'completed']) {
-  test(`second click of a double-click does not trace again when first snap is ${timing}`, async (t) => {
-    const job = deferred();
-    let traces = 0;
-    const { manager, event } = setup(t, () => { traces++; return job.promise; });
-    const work = manager.handleClick({ ...event(), detail: 1 });
-    if (timing === 'completed') {
-      job.resolve([[0, 0], [2, 0]]);
-      await work;
-    }
-    await manager.handleClick({ ...event(2.1), originalEvent: { detail: 2 } });
-    manager.handleDblClick(event(2.1));
-    job.resolve([[0, 0], [2, 0]]);
-    await work;
-    assert.equal(traces, 1);
-    assert.equal(manager.clicks, 1);
-    assert.equal(manager.doubles, 1);
-    assert.deepEqual(manager.finishedCoordinates, [[0, 0], [2, 0]]);
-  });
-}
-
-test('no-heat errors give CalTopo guidance, do not finish, and allow explicit off-trail points', async (t) => {
-  const warn = console.warn;
-  console.warn = () => {};
-  t.after(() => { console.warn = warn; });
-  const job = deferred();
-  const { manager, event, status } = setup(t, async () => {
-    await job.promise;
-    throw Object.assign(new Error('double-click the line to add a point'), { code: 'SLIDE_NO_SIGNAL' });
-  });
-  const work = manager.handleClick(event());
-  manager.handleDblClick(event());
-  job.resolve();
-  await work;
-  assert.equal(manager.doubles, undefined);
-  assert.equal(manager.clicks, undefined);
-  assert.equal(status.role, 'alert');
-  assert.match(status.textContent, /Shift-click/);
-  assert.doesNotMatch(status.textContent, /double-click/);
-  await manager.handleClick({ ...event(), shiftKey: true });
-  assert.deepEqual(manager.polyline.slice(0, -1), [[0, 0], [2, 0]]);
-  assert.equal(status.textContent, '');
+test('yellow highlights become wider and brighter on hover and restore on exit', (t) => {
+  const { auto } = setup(t);
+  auto.add('a');
+  auto.add('b');
+  assert.deepEqual(auto.mapObjs.a, { stroke: '#F0F000', 'stroke-opacity': 0.4, 'stroke-width': 7 });
+  auto.select([1, 2], 'a');
+  assert.deepEqual(auto.coordinates, [[1, 2]]);
+  assert.deepEqual(auto.mapObjs.a, { stroke: '#FFFF00', 'stroke-opacity': 0.8, 'stroke-width': 10 });
+  auto.select([2, 3], 'b');
+  assert.equal(auto.mapObjs.a['stroke-width'], 7);
+  auto.unselect('b');
+  assert.equal(auto.mapObjs.b['stroke-width'], 7);
+  auto.source = 'osm';
+  auto.select([1, 2], 'a');
+  assert.equal(auto.mapObjs.a['stroke-width'], 7);
 });
 
-for (const mode of ['polyline', 'polygon']) {
-  for (const action of ['undo', 'cancel', 'release', 'finish', 'source', 'invalidate']) {
-    test(`${mode} ${action} aborts a pending trace and rejects its late result`, async (t) => {
-      const job = deferred();
-      let signal;
-      const context = setup(t, (locations, layer, value) => {
-        signal = value;
-        return job.promise;
-      });
-      const { manager, event, status } = context;
-      manager.handler.mode = mode;
-      manager.actions.push(0);
-      const work = manager.handleClick(event());
-      if (action === 'source') context.changeSource('osm');
-      else if (action === 'invalidate') context.integration.invalidate();
-      else manager[action]();
-      assert.equal(signal.aborted, true);
-      job.resolve([[0, 0], [2, 0]]);
-      await work;
-      assert.equal(manager.clicks, undefined);
-      assert.equal(status.textContent, '');
-    });
-  }
-}
+test('hovering a disconnected trail clears the previous draft instead of committing it', (t) => {
+  const { auto, manager } = setup(t);
+  auto.add('disconnected');
+  auto.features.disconnected = { startNodeId: 'c', endNodeId: 'd' };
+  auto.reference = { id: 'connected' };
+  auto.routing = { solution: { a: {}, b: {} } };
+  auto.coordinates = [[1, 1], [2, 2]];
+  auto.selected = {};
+  manager.override = true;
+  auto.select([9, 9], 'disconnected');
+  assert.equal(auto.coordinates, undefined);
+  assert.equal(auto.selected, undefined);
+  assert.equal(manager.override, false);
+  assert.equal(auto.mapObjs.disconnected['stroke-width'], 10);
+});
 
-for (const change of ['layer', 'session', 'geometry']) {
-  test(`changed ${change} cannot receive a stale route`, async (t) => {
+for (const action of ['source', 'layer', 'invalidate', 'cancel', 'release', 'finish']) {
+  test(`${action} discards a late network response`, async (t) => {
     const job = deferred();
-    const { manager, event, changeLayer, status } = setup(t, () => job.promise);
-    const warn = console.warn;
-    const warnings = [];
-    console.warn = (...args) => warnings.push(args);
-    t.after(() => { console.warn = warn; });
-    const work = manager.handleClick(event());
-    if (change === 'layer') changeLayer({ template: 'different' });
-    else if (change === 'session') manager.handler = { mode: 'polyline' };
-    else manager.polyline[0] = [1, 1];
-    job.resolve([[0, 0], [2, 0]]);
-    await work;
-    assert.equal(manager.clicks, undefined);
-    if (change === 'geometry') {
-      assert.match(status.textContent, /line changed/);
-      assert.equal(warnings.length, 1);
-    } else assert.equal(status.textContent, '');
+    let signal;
+    const context = setup(t, (...args) => { signal = args[4]; return job.promise; });
+    const { auto, manager, integration } = context;
+    auto.fetch();
+    await tick();
+    if (action === 'source') context.changeSource('osm');
+    else if (action === 'layer') context.changeLayer({ template: 'different' });
+    else if (action === 'invalidate') integration.invalidate(false);
+    else manager[action]();
+    if (action !== 'layer') assert.equal(signal.aborted, true);
+    job.resolve([]);
+    await tick();
+    assert.equal(auto.results, undefined);
   });
 }
 
-test('errors are visible and never commit a straight-line fallback', async (t) => {
-  const warn = console.warn;
+test('layer refresh clears the old network and draft before reloading', async (t) => {
+  const { auto, integration } = setup(t);
+  auto.reference = { id: 'old' };
+  auto.coordinates = [[1, 1], [2, 2]];
+  auto.add('old');
+  integration.invalidate();
+  assert.deepEqual(auto.mapObjs, {});
+  assert.equal(auto.reference, undefined);
+  assert.equal(auto.coordinates, undefined);
+  await tick();
+  assert.equal(auto.results.length, 1);
+});
+
+test('network failures are visible and can be retried', async (t) => {
+  const previous = console.warn;
   const warnings = [];
   console.warn = (...args) => warnings.push(args);
-  t.after(() => { console.warn = warn; });
-  const { manager, event, status } = setup(t, async () => {
-    throw new Error('Strava access expired.');
-  });
-  const before = structuredClone(manager.polyline);
-  await manager.handleClick(event());
-  assert.deepEqual(manager.polyline, before);
-  assert.equal(manager.clicks, undefined);
+  t.after(() => { console.warn = previous; });
+  const { auto, status } = setup(t, async () => { throw new Error('Strava access expired.'); });
+  auto.fetch();
+  await tick();
   assert.equal(status.role, 'alert');
   assert.match(status.textContent, /Strava access expired/);
-  assert.equal(warnings.length, 1);
+  assert.equal(auto.tiles['1-2'], undefined);
+  auto.fetch();
+  await tick();
+  assert.equal(warnings.length, 2);
+  assert.equal(auto.results, undefined);
 });
 
-test('logged-out fallback imagery cannot be used as heat data', async () => {
-  await assert.rejects(traceHeatmap([[0, 0], [0.0001, 0]], {
-    template: 'https://example.com/fallback/{z}/{x}/{y}.png',
-  }, new AbortController().signal, () => {}), /Log into Strava/);
-});
-
-for (const [status, message] of [
-  [401, /Strava access expired/],
-  [403, /Strava access expired/],
-  [404, /No heatmap tiles/],
-  [500, /HTTP 500/],
-]) {
-  test(`tile HTTP ${status} is surfaced instead of committing fake heat data`, async (t) => {
-    const fetch = globalThis.fetch;
-    globalThis.fetch = async () => new Response(null, { status });
-    t.after(() => { globalThis.fetch = fetch; });
-    await assert.rejects(traceHeatmap([[0, 0], [0.0001, 0]], {
-      template: 'https://content-a.strava.com/identified/globalheat/run/blue/{z}/{x}/{y}.png',
-    }, new AbortController().signal, () => {}), message);
+test('a successful tile cannot hide another tile failure', async (t) => {
+  const previous = console.warn;
+  console.warn = () => {};
+  t.after(() => { console.warn = previous; });
+  const job = deferred();
+  const { auto, status } = setup(t, (x) => {
+    if (x === 0) throw new Error('Strava access expired.');
+    return job.promise;
   });
+  auto.getTileBounds = () => [[0, 0], [1, 0]];
+  auto.fetch();
+  await tick();
+  job.resolve([]);
+  await tick();
+  assert.equal(status.role, 'alert');
+  assert.match(status.textContent, /Strava access expired/);
+});
+
+test('low zoom and oversized views do not request unbounded imagery', async (t) => {
+  let calls = 0;
+  const { auto, status } = setup(t, async () => { calls++; return []; });
+  auto.map.getZoom = () => 12;
+  auto.fetch();
+  assert.match(status.textContent, /Zoom in/);
+  auto.map.getZoom = () => 15;
+  auto.getTileBounds = () => [[0, 20], [20, 0]];
+  auto.fetch();
+  await tick();
+  assert.equal(calls, 0);
+  assert.match(status.textContent, /Zoom in/);
+});
+
+test('network downloads are limited to two concurrent tiles', async (t) => {
+  const jobs = [];
+  const { auto } = setup(t, () => {
+    const job = deferred();
+    jobs.push(job);
+    return job.promise;
+  });
+  auto.getTileBounds = () => [[0, 0], [3, 0]];
+  auto.fetch();
+  await tick();
+  assert.equal(jobs.length, 2);
+  jobs[0].resolve([]);
+  await tick();
+  assert.equal(jobs.length, 3);
+  jobs[1].resolve([]);
+  await tick();
+  assert.equal(jobs.length, 4);
+  jobs[2].resolve([]);
+  jobs[3].resolve([]);
+  await tick();
+  assert.equal(auto.results.length, 4);
+});
+
+function raster(size, paint) {
+  const density = new Float32Array(size * size);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    density[y * size + x] = paint(x, y);
+  }
+  return {
+    width: size, height: size, x: 10000, y: 10000, zoom: 15,
+    density, coverage: new Uint8Array(density.length).fill(1),
+  };
 }
+function pixelFeatures(features) {
+  return features.map((feature) => feature.geometry.coordinates.map((loc) =>
+    project(loc).map((value) => Math.round(value - 10000))));
+}
+async function network(image, bounds) {
+  return pixelFeatures(await heatmapNetwork(image, bounds ?? {
+    minX: image.x, minY: image.y, maxX: image.x + image.width, maxY: image.y + image.height,
+  }, new AbortController().signal));
+}
+
+test('a broad curved heat band becomes a centerline, not a straight chord', async () => {
+  const curve = (x) => 24 + 9 * Math.sin((x - 5) * Math.PI / 50);
+  const lines = await network(raster(64, (x, y) =>
+    x >= 5 && x <= 55 && Math.abs(y - curve(x)) <= 2 ? 0.8 : 0));
+  assert.equal(lines.length, 1);
+  assert.ok(lines[0].length > 40);
+  for (const [x, y] of lines[0]) assert.ok(Math.abs(y - curve(x)) <= 1.5);
+  assert.ok(lines[0].some(([, y]) => y >= 32));
+});
+
+test('forks share endpoints and disconnected heat stays disconnected', async () => {
+  const lines = await network(raster(32, (x, y) =>
+    (y === 10 && x >= 3 && x <= 25) ||
+    (x === 14 && y >= 10 && y <= 25) ||
+    (y === 28 && x >= 3 && x <= 8) ? 1 : 0));
+  assert.equal(lines.length, 4);
+  assert.equal(lines.filter((line) => [line[0], line.at(-1)].some(
+    ([x, y]) => x === 14 && y === 10)).length, 3);
+});
+
+test('a closed heat loop remains a routable closed line', async () => {
+  const lines = await network(raster(32, (x, y) =>
+    ((x === 8 || x === 24) && y >= 8 && y <= 24) ||
+    ((y === 8 || y === 24) && x >= 8 && x <= 24) ? 1 : 0));
+  assert.equal(lines.length, 1);
+  assert.deepEqual(lines[0][0], lines[0].at(-1));
+});
+
+test('tile boundaries share exact centerline endpoints', async () => {
+  const image = raster(64, (x, y) => y >= 29 && y <= 33 && x > 3 && x < 60 ? 1 : 0);
+  const left = await network(image, { minX: 10000, minY: 10000, maxX: 10032, maxY: 10064 });
+  const right = await network(image, { minX: 10032, minY: 10000, maxX: 10064, maxY: 10064 });
+  const endpoint = (lines) => [lines[0][0], lines[0].at(-1)].find(([x]) => x === 32);
+  assert.deepEqual(endpoint(left), endpoint(right));
+  assert.ok(endpoint(left));
+});
+
+test('empty heat, weak heat, and uncovered pixels create no eligible lines', async () => {
+  assert.deepEqual(await network(raster(32, () => 0)), []);
+  assert.deepEqual(await network(raster(32, () => 0.01)), []);
+  const image = raster(32, (x, y) => y === 10 ? 1 : 0);
+  image.coverage.fill(0);
+  assert.deepEqual(await network(image), []);
+});
+
+test('network extraction respects cancellation', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(heatmapNetwork(raster(32, () => 1), {}, controller.signal), { name: 'AbortError' });
+});
+
+test('logged-out fallback imagery cannot become a snap network', async () => {
+  await assert.rejects(loadHeatmapNetwork(100, 100, 14, {
+    template: 'https://example.com/fallback/{z}/{x}/{y}.png',
+  }, new AbortController().signal), /Log into Strava/);
+});
 
 function pngChunk(type, data) {
   const body = Buffer.concat([Buffer.from(type), data]);
@@ -383,61 +318,56 @@ function pngChunk(type, data) {
   return chunk;
 }
 
-test('real tile decoding and Slide follow a curved centerline, not the clicked chord', async (t) => {
-  const curve = (x) => 256 + 5 * Math.sin((x - 190) * Math.PI / 100);
-  const rows = Buffer.alloc(513 * 512);
-  for (let y = 0; y < 512; y++) {
-    for (let x = 180; x <= 300; x++) {
-      rows[y * 513 + x + 1] = Math.round(
-        255 * Math.exp(-((y - curve(x)) ** 2) / (2 * 1.5 ** 2)));
-    }
-  }
-  const header = Buffer.alloc(13);
-  header.writeUInt32BE(512);
-  header.writeUInt32BE(512, 4);
-  header[8] = 8;
-  const png = Buffer.concat([
-    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-    pngChunk('IHDR', header),
-    pngChunk('IDAT', deflateSync(rows)),
-    pngChunk('IEND', Buffer.alloc(0)),
-  ]);
-  const fetch = globalThis.fetch;
+test('real PNG tiles produce an eligible centerline at the native tile longitude and latitude', async (t) => {
+  const tileX = 3000, tileY = 6000, size = 1024;
+  const left = tileX * size, top = tileY * size;
+  const heatY = top + 500;
+  const previous = globalThis.fetch;
   const requests = [];
-  globalThis.fetch = async (url, options) => {
-    requests.push({ url, options });
-    return new Response(png, { status: 200 });
+  globalThis.fetch = async (url) => {
+    const [, z, tx, ty] = new URL(url).pathname.match(/\/(\d+)\/(\d+)\/(\d+)\.png$/).map(Number);
+    requests.push([z, tx, ty]);
+    const rows = Buffer.alloc(513 * 512);
+    for (let y = 0; y < 512; y++) {
+      if (Math.abs(ty * 512 + y - heatY) > 2) continue;
+      for (let x = 0; x < 512; x++) {
+        const px = tx * 512 + x;
+        if (px >= left + 100 && px <= left + 924) rows[y * 513 + x + 1] = 255;
+      }
+    }
+    const header = Buffer.alloc(13);
+    header.writeUInt32BE(512);
+    header.writeUInt32BE(512, 4);
+    header[8] = 8;
+    return new Response(Buffer.concat([
+      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+      pngChunk('IHDR', header),
+      pngChunk('IDAT', deflateSync(rows)),
+      pngChunk('IEND', Buffer.alloc(0)),
+    ]));
   };
-  t.after(() => { globalThis.fetch = fetch; });
-  const [x, y] = project([-105.29, 39.97]).map((v) => Math.floor(v / 512) * 512);
-  const locations = [[190, 256], [290, 256]].map(([dx, dy]) => unproject([x + dx, y + dy]));
-  const progress = [];
-  const result = await traceHeatmap(locations, {
-    template: 'https://content-a.strava.com/identified/globalheat/run/gray/{z}/{x}/{y}.png?v=20#strava-gradient=000000-ffffff',
-  }, new AbortController().signal, (message) => progress.push(message));
-  assert.deepEqual(result[0], locations[0]);
-  assert.deepEqual(result.at(-1), locations[1]);
-  assert.ok(result.length > 2);
-  const pixels = result.map((loc) => project(loc).map((v, i) => v - [x, y][i]));
-  assert.ok(Math.max(...pixels.map((p) => p[1])) > 259, 'must follow the curved heat ridge');
-  for (const [px, py] of pixels) {
-    assert.ok(Math.abs(py - curve(px)) < 2, 'vertices stay within two pixels of centerline');
+  t.after(() => { globalThis.fetch = previous; });
+  const features = await loadHeatmapNetwork(tileX, tileY, 14, layer, new AbortController().signal);
+  assert.equal(features.length, 1);
+  const points = features[0].geometry.coordinates.map((loc) => project(loc));
+  assert.ok(points.length > 800);
+  for (const [x, y] of points) {
+    assert.ok(x >= left + 99 && x <= left + 925);
+    assert.ok(Math.abs(y - heatY) <= 1);
   }
-  assert.ok(progress.includes('Following Strava heat centerline...'));
-  assert.ok(requests.length > 0);
-  assert.ok(requests.every(({ url, options }) =>
-    url.includes('/run/gray/15/') && options.credentials === 'omit'));
+  assert.ok(requests.every(([z, x, y]) =>
+    z === 15 && Math.abs(x - tileX * 2) <= 2 && Math.abs(y - tileY * 2) <= 2));
 });
 
-test('CalTopo can load all transitive Slide modules in packaged extensions', async () => {
-  const manifest = JSON.parse(await readFile(new URL('../manifest.json', import.meta.url)));
-  const resources = manifest.web_accessible_resources
-    .filter(({ matches }) => matches.includes('*://caltopo.com/*') &&
-      matches.includes('*://www.caltopo.com/*'))
-    .flatMap(({ resources }) => resources);
-  for (const file of [
-    'src/clients/caltopo.com/snap.js',
-    ...['algorithm', 'tiles', 'png'].map((name) =>
-      `src/clients/www.openstreetmap.org/slide/${name}.js`),
-  ]) assert.ok(resources.includes(file), `${file} must be accessible on CalTopo`);
-});
+for (const [status, message] of [
+  [401, /Strava access expired/], [403, /Strava access expired/],
+  [404, /No heatmap tiles/], [500, /HTTP 500/],
+]) {
+  test(`HTTP ${status} is surfaced instead of inventing snap lines`, async (t) => {
+    const previous = globalThis.fetch;
+    globalThis.fetch = async () => new Response(null, { status });
+    t.after(() => { globalThis.fetch = previous; });
+    await assert.rejects(loadHeatmapNetwork(100, 100, 14, layer,
+      new AbortController().signal), message);
+  });
+}
