@@ -179,6 +179,21 @@ draw across a gap, or choose **OSM** to return to CalTopo's normal routing.
 
 ### Troubleshooting
 
+#### Blank or incomplete heatmap at low zoom levels
+
+Strava's tile service has known low-zoom issues:
+
+- **Tile zoom 0:** Strava returns a fully black image for `0/0/0`, with no heatmap data. The effective minimum tile zoom is therefore **1**.
+- **Tile zoom 1:** All four tiles are requested, but Strava returns incomplete global coverage. Parts of Norway, South Africa, and the Pacific show heat, while North America and most of Europe do not.
+
+These are upstream Strava issues, not CalTopo-specific rendering problems. They
+also affect the other clients in the main fork. Zoom in further to view more
+local heatmap data.
+
+The zoom levels above refer to Strava tile URLs (`{z}/{x}/{y}`); a client's
+displayed map zoom may differ if it uses a tile zoom offset. CalTopo uses
+256-pixel display tiles with no offset, so its map and tile zoom levels match.
+
 **Q: “Click the Strava Heatmap extension icon to log into Strava and enable the heatmap.” — What does this mean?**  
 **A:** This message appears if you're not logged in to Strava AND haven’t visited the [Strava Global Heatmap](https://www.strava.com/heatmap). Just click the extension icon to sign in and authorize access.
 

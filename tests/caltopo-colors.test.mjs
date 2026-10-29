@@ -15,7 +15,7 @@ function element(tagName) {
 }
 
 for (const renderer of ['leaflet', 'google']) {
-  test(`CalTopo ${renderer} installs palette filters and keeps them across layer/auth changes`, async (t) => {
+  test(`CalTopo ${renderer} uses unshifted 256px tiles and preserves palettes across layer/auth changes`, async (t) => {
     const body = element('body');
     const document = {
       body,
@@ -58,7 +58,12 @@ for (const renderer of ['leaflet', 'google']) {
         }),
       };
     } else {
-      window.google = { maps: { Size: class {} } };
+      window.google = { maps: { Size: class {
+        constructor(width, height) {
+          this.width = width;
+          this.height = height;
+        }
+      } } };
     }
     const globals = {
       document,
@@ -76,6 +81,67 @@ for (const renderer of ['leaflet', 'google']) {
     }
 
     await import(`../src/clients/caltopo.com/index.js?colors=${renderer}`);
+    function assertTiling(maxNativeZoom) {
+      const overlay = window.__stravaHeatmapCalTopoOverlay;
+      if (renderer === 'leaflet') {
+        assert.equal(overlay.options.tileSize, 256);
+        assert.equal(overlay.options.zoomOffset ?? 0, 0);
+        assert.equal(overlay.options.minZoom, 0);
+        assert.equal(overlay.options.maxNativeZoom, maxNativeZoom);
+        assert.equal(overlay.options.maxZoom, 21);
+        return;
+      }
+
+      assert.equal(overlay.tileSize.width, 256);
+      assert.equal(overlay.tileSize.height, 256);
+      assert.equal(overlay.minZoom, 0);
+      assert.equal(overlay.maxZoom, 21);
+      for (const zoom of [0, 1, 2, maxNativeZoom]) {
+        const count = 2 ** zoom;
+        for (const x of [0, count - 1]) {
+          for (const y of [0, count - 1]) {
+            const tile = overlay.getTile({ x, y }, zoom, document);
+            assert.equal(tile.style.width, '256px');
+            assert.equal(tile.style.height, '256px');
+            assert.equal(tile.children.length, 1);
+            const image = tile.children[0];
+            const url = new URL(image.src);
+            if (maxNativeZoom === 15) {
+              assert.ok(url.pathname.endsWith(`/${zoom}/${x}/${y}.png`));
+            } else {
+              assert.equal(url.searchParams.get('z'), String(zoom));
+              assert.equal(url.searchParams.get('x'), String(x));
+              assert.equal(url.searchParams.get('y'), String(y));
+            }
+            assert.equal(image.style.width, '256px');
+            assert.equal(image.style.height, '256px');
+            assert.equal(image.style.transform, 'scale(1)');
+          }
+        }
+      }
+      assert.equal(overlay.getTile({ x: 0, y: -1 }, 2, document).children.length, 0);
+      assert.equal(overlay.getTile({ x: 0, y: 4 }, 2, document).children.length, 0);
+      assert.equal(overlay.getTile({ x: 0, y: 0 }, -1, document).children.length, 0);
+      for (const x of [-1, 7]) {
+        const image = overlay.getTile({ x, y: 1 }, 2, document).children[0];
+        const url = new URL(image.src);
+        if (maxNativeZoom === 15) assert.ok(url.pathname.endsWith('/2/3/1.png'));
+        else assert.equal(url.searchParams.get('x'), '3');
+      }
+      const image = overlay.getTile({ x: 3, y: 5 }, maxNativeZoom + 1, document).children[0];
+      const url = new URL(image.src);
+      if (maxNativeZoom === 15) {
+        assert.ok(url.pathname.endsWith('/15/1/2.png'));
+      } else {
+        assert.equal(url.searchParams.get('z'), '20');
+        assert.equal(url.searchParams.get('x'), '1');
+        assert.equal(url.searchParams.get('y'), '2');
+      }
+      assert.equal(image.style.transform, 'scale(2)');
+      assert.equal(image.style.marginLeft, '-256px');
+      assert.equal(image.style.marginTop, '-256px');
+    }
+    assertTiling(15);
     const svg = body.children.find(({ id }) => id === 'strava-heatmap-filters');
     assert.ok(svg, 'filters must be installed before rendering the overlay');
     assert.equal(svg.children.length, Object.keys(PALETTES).length);
@@ -110,9 +176,11 @@ for (const renderer of ['leaflet', 'google']) {
     message('layerPresetsChanged', 'ride:purple');
     assert.match(tileURL(), /\/ride\/grayscale\/.*heatmap-color=purple&/);
     message('authStatusChanged', false);
+    assertTiling(20);
     assert.match(tileURL(), /heatmap-fallback\.png/);
     assert.doesNotMatch(tileURL(), /heatmap-color=/);
     message('authStatusChanged', true);
+    assertTiling(15);
     assert.match(tileURL(), /\/ride\/grayscale\/.*heatmap-color=purple&/);
     assert.equal(body.children.filter(({ id }) => id === svg.id).length, 1);
   });
