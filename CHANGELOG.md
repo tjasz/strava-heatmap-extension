@@ -6,6 +6,14 @@
 
 - [CalTopo, Geotab, BRouter] Add support for additional clients.
 - Add custom gradient option.
+- [CalTopo] Prevent Strava heatmap overlay from disappearing at zoom level 18.
+- [CalTopo] Display heatmap tiles at 256 pixels with no zoom offset, including requests at map zoom 0.
+
+### `0.15.0.0` (2026-10-28)
+
+- [CalTopo] Add CalTopo.com client, with Strava Slide support.
+- [Firefox] Declare authentication and map tile location data for built-in consent; require Firefox 140+ on desktop and 142+ on Android.
+- Remove unused permission-request code and render About page messages without HTML assignment to resolve Firefox validation warnings.
 
 ### `0.15.0` (2026-10-26)
 

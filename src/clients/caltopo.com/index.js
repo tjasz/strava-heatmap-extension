@@ -169,12 +169,11 @@ function addOverlay() {
 
     const [minZoom, maxZoom] = config.zoomExtent;
     const overlay = window.L.tileLayer(config.template, {
-      minZoom: minZoom + 1,
-      maxNativeZoom: maxZoom + 1,
+      minZoom,
+      maxNativeZoom: maxZoom,
       maxZoom: 21,
       opacity,
-      tileSize: 512,
-      zoomOffset: -1,
+      tileSize: 256,
       zIndex: 1000,
     });
     overlay.__stravaHeatmapRenderer = 'leaflet';
@@ -192,16 +191,15 @@ function addOverlay() {
   }
 
   const tiles = new Set();
-  const tileSize = 512;
+  const tileSize = 256;
+  const [minZoom, maxZoom] = config.zoomExtent;
   const overlay = {
     tileSize: new window.google.maps.Size(tileSize, tileSize),
-    minZoom: 13,
+    minZoom,
     maxZoom: 21,
     name: config.name,
     opacity,
-    getTile(coord, googleZoom, ownerDocument) {
-      const requestedZoom = googleZoom - 1;
-      const [minZoom, maxZoom] = config.zoomExtent;
+    getTile(coord, requestedZoom, ownerDocument) {
       const tile = ownerDocument.createElement('div');
       tile.style.width = `${tileSize}px`;
       tile.style.height = `${tileSize}px`;
