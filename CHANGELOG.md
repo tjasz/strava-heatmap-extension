@@ -8,6 +8,7 @@
 - Add custom gradient option.
 - [CalTopo] Prevent Strava heatmap overlay from disappearing at zoom level 18.
 - [CalTopo] Display heatmap tiles at 256 pixels with no zoom offset, including requests at map zoom 0.
+- [CalTopo] Use Shift+Click while drawing to add off-trail points without snapping. No longer blocks double-click to finish drawing action.
 
 ### `0.15.0.0` (2026-10-28)
 

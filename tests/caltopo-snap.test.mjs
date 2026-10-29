@@ -29,6 +29,7 @@ function setup(t, trace) {
     $div: { offset: () => ({ left: 10, top: 20 }) },
     map: {
       getCoordinates: (line) => line,
+      setCoordinates(line, coordinates) { line.splice(0, line.length, ...coordinates); },
       fromContainerPixel: (pixel) => pixel,
     },
     autoDrawOverlay: {
@@ -63,11 +64,23 @@ function setup(t, trace) {
     },
     setOverride(value) { this.override = value; },
     handleMouseMove() { this.moves = (this.moves || 0) + 1; },
-    handleDblClick() { this.doubles = (this.doubles || 0) + 1; },
+    handleDblClick() {
+      this.doubles = (this.doubles || 0) + 1;
+      this.finish(this.autoDrawOverlay.reference?.snap != null);
+    },
     undo() { this.polyline.splice(this.actions.pop() + 1); },
     cancel() { this.polyline = undefined; this.handler = undefined; },
     release() { this.handler = undefined; },
-    finish() { this.finished = true; },
+    finish(removeCursor) {
+      this.finished = true;
+      const coordinates = this.polyline?.slice() ?? [];
+      if (removeCursor) coordinates.pop();
+      while (coordinates.length > 1 &&
+          JSON.stringify(coordinates.at(-1)) === JSON.stringify(coordinates.at(-2))) {
+        coordinates.pop();
+      }
+      this.finishedCoordinates = coordinates;
+    },
   };
   const getLayer = () => layer;
   const integration = installCalTopoSnap(manager, getLayer, trace);
@@ -162,7 +175,7 @@ test('polygon and buffer mode traces a closing edge and delegates finishing to C
   assert.equal(manager.finished, true);
 });
 
-test('pending tracing blocks extra commits, cursor edits, and double-click finish', async (t) => {
+test('pending tracing blocks extra commits and cursor edits, but queues double-click finish', async (t) => {
   const job = deferred();
   const { manager, event, status } = setup(t, () => job.promise);
   const first = manager.handleClick(event());
@@ -176,10 +189,98 @@ test('pending tracing blocks extra commits, cursor edits, and double-click finis
   job.resolve([[0, 0], [2, 0]]);
   await first;
   assert.equal(manager.clicks, 1);
+  assert.equal(manager.doubles, 1);
+  assert.deepEqual(manager.finishedCoordinates, [[0, 0], [2, 0]]);
   manager.handleMouseMove();
   manager.handleDblClick();
   assert.equal(manager.moves, 1);
-  assert.equal(manager.doubles, 1);
+  assert.equal(manager.doubles, 2);
+});
+
+for (const mode of ['polyline', 'polygon']) {
+  test(`${mode} Shift-click adds an unsnapped point, supports undo, and resumes snapping`, async (t) => {
+    let traces = 0;
+    const { manager, event } = setup(t, async ([start, end]) => {
+      traces++;
+      return [start, [3, 0.1], end];
+    });
+    manager.handler.mode = mode;
+    manager.autoDrawOverlay.coordinates = [[99, 99]];
+    await manager.handleClick({ ...event(), shiftKey: true });
+    assert.deepEqual(manager.polyline.slice(0, -1), [[0, 0], [2, 0]]);
+    assert.equal(manager.autoDrawOverlay.source, 'strava');
+    assert.equal(traces, 0);
+    await manager.handleClick(event(4));
+    assert.equal(traces, 1);
+    assert.deepEqual(manager.polyline.slice(0, -1), [[0, 0], [2, 0], [3, 0.1], [4, 0]]);
+    manager.undo();
+    assert.deepEqual(manager.polyline.slice(0, -1), [[0, 0], [2, 0]]);
+    manager.undo();
+    assert.deepEqual(manager.polyline.slice(0, -1), [[0, 0]]);
+  });
+}
+
+test('Shift-click aborts an in-flight snap and discards its route and queued finish', async (t) => {
+  const job = deferred();
+  let signal;
+  const { manager, event, status } = setup(t, (locations, layer, value) => {
+    signal = value;
+    return job.promise;
+  });
+  const work = manager.handleClick(event());
+  manager.handleDblClick(event());
+  await manager.handleClick({ ...event(4), shiftKey: true });
+  assert.equal(signal.aborted, true);
+  job.resolve([[0, 0], [2, 0]]);
+  await work;
+  assert.deepEqual(manager.polyline.slice(0, -1), [[0, 0], [4, 0]]);
+  assert.equal(manager.clicks, 1);
+  assert.equal(manager.doubles, undefined);
+  assert.equal(status.textContent, '');
+});
+
+for (const timing of ['pending', 'completed']) {
+  test(`second click of a double-click does not trace again when first snap is ${timing}`, async (t) => {
+    const job = deferred();
+    let traces = 0;
+    const { manager, event } = setup(t, () => { traces++; return job.promise; });
+    const work = manager.handleClick({ ...event(), detail: 1 });
+    if (timing === 'completed') {
+      job.resolve([[0, 0], [2, 0]]);
+      await work;
+    }
+    await manager.handleClick({ ...event(2.1), originalEvent: { detail: 2 } });
+    manager.handleDblClick(event(2.1));
+    job.resolve([[0, 0], [2, 0]]);
+    await work;
+    assert.equal(traces, 1);
+    assert.equal(manager.clicks, 1);
+    assert.equal(manager.doubles, 1);
+    assert.deepEqual(manager.finishedCoordinates, [[0, 0], [2, 0]]);
+  });
+}
+
+test('no-heat errors give CalTopo guidance, do not finish, and allow explicit off-trail points', async (t) => {
+  const warn = console.warn;
+  console.warn = () => {};
+  t.after(() => { console.warn = warn; });
+  const job = deferred();
+  const { manager, event, status } = setup(t, async () => {
+    await job.promise;
+    throw Object.assign(new Error('double-click the line to add a point'), { code: 'SLIDE_NO_SIGNAL' });
+  });
+  const work = manager.handleClick(event());
+  manager.handleDblClick(event());
+  job.resolve();
+  await work;
+  assert.equal(manager.doubles, undefined);
+  assert.equal(manager.clicks, undefined);
+  assert.equal(status.role, 'alert');
+  assert.match(status.textContent, /Shift-click/);
+  assert.doesNotMatch(status.textContent, /double-click/);
+  await manager.handleClick({ ...event(), shiftKey: true });
+  assert.deepEqual(manager.polyline.slice(0, -1), [[0, 0], [2, 0]]);
+  assert.equal(status.textContent, '');
 });
 
 for (const mode of ['polyline', 'polygon']) {
