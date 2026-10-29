@@ -40,6 +40,7 @@ export function installCalTopoSnap(manager, getLayer, trace = traceHeatmap) {
   select.after(status);
 
   let pending;
+  let pendingFinish;
   const showStatus = (message, error = false) => {
     status.setAttribute('role', error ? 'alert' : 'status');
     status.textContent = message;
@@ -47,6 +48,7 @@ export function installCalTopoSnap(manager, getLayer, trace = traceHeatmap) {
   const invalidate = () => {
     pending?.abort();
     pending = undefined;
+    pendingFinish = undefined;
     showStatus('');
   };
   select.addEventListener('change', invalidate);
@@ -59,16 +61,24 @@ export function installCalTopoSnap(manager, getLayer, trace = traceHeatmap) {
   // CalTopo binds handlers through these methods. Keep its commit/undo logic,
   // supplying only the traced path in place of its OSM network route.
   const click = manager.handleClick;
+  const commit = (drawing, event, path) => {
+    drawing.setOverride(false);
+    drawing.lastAdditionPoint = false;
+    auto.coordinates = path;
+    return click.call(drawing, event);
+  };
   manager.handleClick = async function (event) {
     if (auto.source !== SOURCE ||
         !['polyline', 'polygon'].includes(this.handler?.mode)) {
       return click.call(this, event);
     }
-    if (pending) return;
     if (this.ignoreNextClick || !this.polyline ||
         event.target?.closest('form, button, .leaflet-control')) {
       return click.call(this, event);
     }
+    if ((event.detail ?? event.originalEvent?.detail) > 1) return;
+    if (event.shiftKey) invalidate();
+    else if (pending) return;
 
     const coordinates = this.map.getCoordinates(this.polyline);
     if (coordinates.length < 2) return click.call(this, event);
@@ -82,8 +92,12 @@ export function installCalTopoSnap(manager, getLayer, trace = traceHeatmap) {
     ]);
     const start = coordinates[coordinates.length - 2].slice();
     if (start[0] === end[0] && start[1] === end[1]) return;
+    if (event.shiftKey) {
+      return commit(this, event, [end]);
+    }
 
     const controller = new AbortController();
+    let committed = false;
     pending = controller;
     const polyline = this.polyline;
     const handler = this.handler;
@@ -105,18 +119,24 @@ export function installCalTopoSnap(manager, getLayer, trace = traceHeatmap) {
       // CalTopo replaces its moving cursor with the first supplied point.
       // The start is already committed; exclude it to avoid duplicate vertices
       // and retain the extra cursor coordinate needed by native undo.
-      this.setOverride(false);
-      this.lastAdditionPoint = false;
-      auto.coordinates = path.slice(1);
-      click.call(this, event);
+      commit(this, event, path.slice(1));
+      committed = true;
       showStatus('');
     } catch (error) {
       if (!controller.signal.aborted) {
         console.warn('[StravaHeatmapExt] CalTopo snapping failed.', error);
-        showStatus(`Strava: ${error.message}`, true);
+        const message = error.code === 'SLIDE_NO_SIGNAL'
+          ? 'No usable heatmap trail found. Click closer to the trail, or Shift-click to add an off-trail point without snapping.'
+          : error.message;
+        showStatus(`Strava: ${message}`, true);
       }
     } finally {
-      if (pending === controller) pending = undefined;
+      if (pending === controller) {
+        pending = undefined;
+        const finish = pendingFinish;
+        pendingFinish = undefined;
+        if (committed) finish?.();
+      }
     }
   };
 
@@ -126,7 +146,19 @@ export function installCalTopoSnap(manager, getLayer, trace = traceHeatmap) {
   };
   const doubleClick = manager.handleDblClick;
   manager.handleDblClick = function (...args) {
-    if (!pending) return doubleClick.apply(this, args);
+    const finish = () => {
+      if (auto.source === SOURCE && this.polyline) {
+        const coordinates = this.map.getCoordinates(this.polyline).slice();
+        if (coordinates.length >= 2) {
+          // Mouse movement is frozen during tracing. Do not save its stale cursor.
+          coordinates[coordinates.length - 1] = coordinates[coordinates.length - 2].slice();
+          this.map.setCoordinates(this.polyline, coordinates);
+        }
+      }
+      return doubleClick.apply(this, args);
+    };
+    if (!pending) return finish();
+    pendingFinish = finish;
   };
   for (const name of ['undo', 'cancel', 'release', 'finish']) {
     const original = manager[name];
