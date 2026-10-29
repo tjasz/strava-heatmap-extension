@@ -4,6 +4,8 @@
 
 ### `0.15.0.1` (Unreleased)
 
+- [CalTopo] Prevent Strava heatmap overlay from disappearing at zoom level 18.
+
 ### `0.15.0.0` (2026-10-28)
 
 - [CalTopo] Add CalTopo.com client, with Strava Slide support.

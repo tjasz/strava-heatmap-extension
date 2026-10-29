@@ -167,6 +167,7 @@ function addOverlay() {
     const overlay = window.L.tileLayer(config.template, {
       minZoom: minZoom + 1,
       maxNativeZoom: maxZoom + 1,
+      maxZoom: 21,
       opacity,
       tileSize: 512,
       zoomOffset: -1,
@@ -191,6 +192,7 @@ function addOverlay() {
   const overlay = {
     tileSize: new window.google.maps.Size(tileSize, tileSize),
     minZoom: 13,
+    maxZoon: 21,
     name: config.name,
     opacity,
     getTile(coord, googleZoom, ownerDocument) {
