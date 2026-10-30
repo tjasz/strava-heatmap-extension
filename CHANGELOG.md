@@ -7,6 +7,8 @@
 - [CalTopo, Geotab, BRouter] Add support for additional clients.
 - Add custom gradient option.
 
+### `0.15.0.2` (Unreleased)
+
 ### `0.15.0.1` (2026-10-29)
 
 - [CalTopo] Improve display of overlay on the widest and narrowest zoom levels.
