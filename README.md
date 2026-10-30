@@ -108,7 +108,8 @@ editor; regeneration replaces both outputs.
 In the extension's layer settings, choose **Global** (the default) or
 **Weekly (Pro)** for each layer, then choose its sport and color and click
 **Apply changes**. Both types offer the same sport and color options, and
-you can configure a Global and Weekly layer for the same sport. Weekly tiles
+you can configure multiple layers for the same sport, including layers of the
+same heatmap type with different colors. Weekly tiles
 require an active Strava Pro subscription and authentication through the
 extension; the extension does not unlock subscription-only data.
 

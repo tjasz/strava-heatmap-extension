@@ -89,6 +89,35 @@ test('global URLs stay unchanged and weekly layers have distinct names and IDs',
   }
 });
 
+test('duplicate sports retain unique layer IDs across colors, periods and clients', () => {
+  const presets = [
+    globalLayer,
+    { ...globalLayer, color: 'blue' },
+    weeklyLayer,
+    { ...weeklyLayer, color: 'purple' },
+    globalLayer,
+    weeklyLayer,
+  ];
+  const expected = [
+    'strava-heatmap-run',
+    'strava-heatmap-run-2',
+    'strava-heatmap-run-weekly',
+    'strava-heatmap-run-weekly-2',
+    'strava-heatmap-run-3',
+    'strava-heatmap-run-weekly-3',
+  ];
+  assert.equal(validateLayerPresets(presets), true);
+  assert.deepEqual(parseLayerPresets(formatLayerPresets(presets)), presets);
+  for (const authenticated of [false, true]) {
+    for (const short of [false, true]) {
+      for (const legacy of [false, true]) {
+        const layers = getLayerConfigs(presets, authenticated, '0.15.0.2', short, legacy);
+        assert.deepEqual(layers.map((layer) => layer.id), expected);
+      }
+    }
+  }
+});
+
 test('gpx.studio weekly layers use the same pre-colored palettes as global layers', () => {
   for (const [color] of COLOR_OPTIONS) {
     const [global, weekly] = configs([

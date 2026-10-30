@@ -190,9 +190,10 @@ export function getLayerConfigs(
   legacy = false
 ) {
   const timestamp = Date.now().toString();
+  const occurrences = new Map();
 
-  return layerPresets.map(({ activity, color, period = 'global' }, index) =>
-    getLayerConfig(
+  return layerPresets.map(({ activity, color, period = 'global' }, index) => {
+    const config = getLayerConfig(
       index + 1,
       activity,
       color,
@@ -202,8 +203,12 @@ export function getLayerConfigs(
       short,
       legacy,
       period
-    )
-  );
+    );
+    const occurrence = (occurrences.get(config.id) ?? 0) + 1;
+    occurrences.set(config.id, occurrence);
+    if (occurrence > 1) config.id += `-${occurrence}`;
+    return config;
+  });
 }
 
 export function setupLayerPresetsChangeListener(callback) {
