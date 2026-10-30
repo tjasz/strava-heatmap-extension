@@ -276,7 +276,9 @@ class Element {
   cloneNode() { return new Element(this.tagName); }
   closest() { return this.parentElement; }
   setAttribute(name, value) { this.attributes[name] = value; }
+  removeAttribute(name) { delete this.attributes[name]; }
   addEventListener(name, callback) { this.handlers[name] = callback; }
+  click() { this.handlers.click?.({ preventDefault() {}, stopPropagation() {} }); }
   removeEventListener(name) { delete this.handlers[name]; }
   focus() {}
   select() {}
@@ -483,6 +485,11 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   const item = new Element('div');
   const nativeLine = new Element('div');
   const icon = new Element('img');
+  let upgrades = 0;
+  item.querySelector = (selector) => {
+    assert.equal(selector, '.upgradeCtaButton');
+    return { click: () => upgrades++ };
+  };
   group.append(item);
   item.append(nativeLine);
   nativeLine.append(icon);
@@ -521,13 +528,34 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   const button = menu.children[0];
   const title = button.children[0].children[1];
   const description = button.children[1];
-  assert.match(title.textContent, /\(Pro\)$/);
-  assert.equal(button.attributes['aria-disabled'], 'true');
+  const [titleText, badge] = title.children;
+  assert.equal(titleText.textContent.trim(), 'Map Sheet from Strava Heatmap');
+  assert.equal(badge.className, 'upgradeCtaButton');
+  assert.equal(badge.textContent, 'Pro');
+  assert.equal(badge.attributes.role, 'link');
+  assert.equal(badge.hidden, false);
+  assert.equal(badge.style.display, '');
+  assert.equal(badge.tabIndex, 0);
+  assert.doesNotMatch(description.textContent, /Pro required|\(Pro\)/);
+  assert.equal(button.attributes.role, 'group');
+  assert.equal(button.attributes['aria-disabled'], undefined, 'the upgrade link must not inherit a disabled state');
   assert.equal(button.tabIndex, -1);
+  let stopped = false;
+  badge.handlers.click({ preventDefault() {}, stopPropagation() { stopped = true; } });
+  assert.equal(stopped, true, 'upgrade clicks must not activate capture');
+  assert.equal(upgrades, 1, 'forward to the native Map Sheet upgrade badge');
+  badge.handlers.keydown({ key: 'Enter', preventDefault() {}, stopPropagation() {} });
+  assert.equal(upgrades, 2, 'allow keyboard activation of the upgrade link');
+  assert.equal(body.children.length, 0);
+  refresh();
+  assert.equal(title.children.length, 2, 'refresh must not duplicate the badge');
   window.sarsoft.features.pro = true;
   refresh();
   assert.equal(button.attributes['aria-disabled'], 'false');
-  assert.doesNotMatch(title.textContent, /\(Pro\)/);
+  assert.equal(button.attributes.role, 'button');
+  assert.equal(badge.hidden, true);
+  assert.equal(badge.style.display, 'none');
+  assert.equal(badge.tabIndex, -1);
   refresh();
   assert.equal(button.attributes['aria-disabled'], 'false');
   assert.match(description.textContent, /Draw an area/);

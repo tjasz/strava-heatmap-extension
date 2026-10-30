@@ -471,7 +471,7 @@ export async function uploadMapSheet({ region, title, image, accountId, signal, 
 }
 
 export function mapSheetAvailability({ pro, accountId, layer, busy }) {
-  if (!pro || !accountId) return { enabled: false, pro: false, message: 'Save a private heatmap to your CalTopo account (Pro required).' };
+  if (!pro || !accountId) return { enabled: false, pro: false, message: 'Save a private heatmap to your CalTopo account.' };
   if (busy) return { enabled: false, pro: true, message: 'A Strava map sheet is being saved...' };
   if (!layer || !new URL(layer.template).pathname.startsWith('/identified/globalheat/')) {
     return { enabled: false, pro: true, message: 'Sign into Strava using the extension and choose a heatmap layer.' };
@@ -526,7 +526,8 @@ export function installCalTopoMapSheets(getLayer, getMap) {
   let busy = false;
   let menu;
   let line;
-  let title;
+  let titleText;
+  let proBadge;
   let description;
   const availability = () => {
     const pro = !!window.sarsoft?.features?.pro;
@@ -541,11 +542,15 @@ export function installCalTopoMapSheets(getLayer, getMap) {
   const refresh = () => {
     if (!menu?.isConnected) return;
     const state = availability();
-    const text = `Map Sheet from Strava Heatmap${state.pro ? '' : ' (Pro)'}`;
-    if (title.textContent !== text) title.textContent = text;
+    titleText.classList.toggle('disabled', !state.pro);
+    proBadge.hidden = state.pro;
+    proBadge.style.display = state.pro ? 'none' : '';
+    proBadge.tabIndex = state.pro ? -1 : 0;
     if (description.textContent !== state.message) description.textContent = state.message;
     line.classList.toggle('strava-heatmap-map-sheet-disabled', !state.enabled);
-    line.setAttribute('aria-disabled', String(!state.enabled));
+    line.setAttribute('role', state.pro ? 'button' : 'group');
+    if (state.pro) line.setAttribute('aria-disabled', String(!state.enabled));
+    else line.removeAttribute('aria-disabled');
     line.tabIndex = state.enabled ? 0 : -1;
   };
   const save = async () => {
@@ -640,7 +645,30 @@ export function installCalTopoMapSheets(getLayer, getMap) {
     first.className = 'line1';
     const image = icon.cloneNode();
     image.alt = '';
-    title = document.createElement('div');
+    const title = document.createElement('div');
+    titleText = document.createElement('span');
+    titleText.textContent = 'Map Sheet from Strava Heatmap ';
+    proBadge = document.createElement('a');
+    proBadge.className = 'upgradeCtaButton';
+    proBadge.textContent = 'Pro';
+    proBadge.setAttribute('role', 'link');
+    proBadge.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const nativeBadge = item.querySelector('.upgradeCtaButton');
+      if (!nativeBadge) {
+        console.warn('[StravaHeatmapExt] CalTopo Pro upgrade link was not found.');
+        return;
+      }
+      nativeBadge.click();
+    });
+    proBadge.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      event.stopPropagation();
+      proBadge.click();
+    });
+    title.append(titleText, proBadge);
     description = document.createElement('div');
     description.className = 'line2';
     first.append(image, title);
