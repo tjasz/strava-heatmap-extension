@@ -173,14 +173,16 @@ other item you are creating first; CalTopo allows only one new item at a time,
 including heatmap map sheets.
 A square of zoom-15 tiles starts centered on your map view, using the largest
 whole-tile square that fits with room for its handles, from 1-by-1 up to 10-by-10.
-If a single tile exceeds the view, zoom out to see all its handles. Drag its edge or
-corner handles to resize it around the area you want. The **Sheet name** field suggests
+If a single tile exceeds the view, zoom out to see all its handles. Drag the center
+handle to move the box in whole-tile steps without changing its dimensions, or its
+edge and corner handles to resize it. The center handle also supports arrow keys.
+The **Sheet name** field suggests
 a name containing the activity, color, and UTC date; keep it or enter your own
 non-empty name, then choose **Capture**.
 The box stops growing before it would include more than 100 tiles at
 zoom 15. A live tile count shows the selection size. Use CalTopo's
 normal map controls to pan and zoom without changing the selected geographic
-area. Only the resize handles intercept dragging; the map remains draggable
+area. Only the selection handles intercept dragging; the map remains draggable
 inside and outside the box.
 Choose **Cancel** or press **Escape** to exit without downloading or uploading.
 

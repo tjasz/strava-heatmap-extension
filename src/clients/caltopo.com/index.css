@@ -71,6 +71,17 @@
   outline-offset: 2px;
 }
 
+.strava-heatmap-map-sheet-handle-move {
+  width: 26px;
+  height: 26px;
+  background: #cc5d31 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1v14M1 8h14M5 4l3-3 3 3M5 12l3 3 3-3M4 5L1 8l3 3M12 5l3 3-3 3' fill='none' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 16px 16px no-repeat;
+  cursor: move;
+}
+
+.strava-heatmap-map-sheet-handle-move:active {
+  cursor: grabbing;
+}
+
 .strava-heatmap-map-sheet-selection-panel,
 .strava-heatmap-map-sheet-dialog {
   box-sizing: border-box;
