@@ -864,7 +864,13 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   assert.equal(savedFeature.properties.title, expectedTitle);
   assert.deepEqual(added, [['geoimage_image', 1]]);
   assert.equal(fixture.closed(), 1);
-  assert.equal(dialog.children[4].textContent, 'Close');
+  const actions = dialog.children[4];
+  const close = actions.children[0];
+  assert.equal(actions.className, 'strava-heatmap-map-sheet-actions');
+  assert.equal(close.textContent, 'Close');
+  assert.equal(close.type, 'button');
+  assert.equal(close.disabled, false);
+  assert.equal(close.className, 'strava-heatmap-map-sheet-button strava-heatmap-map-sheet-primary');
   assert.equal(button.attributes['aria-disabled'], 'false');
   observer();
   assert.equal(group.children.length, 2, 'do not duplicate the menu item');
@@ -883,6 +889,8 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   }
   assert.match(failedDialog.children[3].textContent, /Saved privately.*but not added/);
   assert.match(failedDialog.children[3].textContent, /editable map/);
+  assert.equal(failedDialog.children[4].children[0].className, close.className);
+  assert.equal(failedDialog.children[4].children[0].textContent, 'Close');
   assert.equal(added.length, 1, 'failed map additions must not be put on the layer stack');
   assert.equal(selectedStore.hasInProgressNewObject, false, 'save errors release the native creation guard');
   dialog.close();
