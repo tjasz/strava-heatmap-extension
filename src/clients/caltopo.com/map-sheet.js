@@ -118,6 +118,8 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
     panel.className = 'strava-heatmap-map-sheet-selection-panel';
     panel.setAttribute('role', 'dialog');
     panel.setAttribute('aria-label', 'Select heatmap area');
+    const heading = document.createElement('h2');
+    heading.textContent = 'Map Sheet from Strava Heatmap';
     const instructions = document.createElement('p');
     instructions.textContent = `Drag a box around the area to capture (up to ${MAX_TILES} zoom-${MAX_ZOOM} tiles). Use the zoom buttons or mouse wheel for precision.`;
     const nameLabel = document.createElement('label');
@@ -133,17 +135,32 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
     status.setAttribute('role', 'status');
     status.textContent = 'Draw a box, then confirm. Drag again to replace it.';
     const confirm = document.createElement('button');
-    confirm.textContent = 'Capture selected area';
+    confirm.className = 'strava-heatmap-map-sheet-button strava-heatmap-map-sheet-primary';
+    confirm.type = 'button';
+    confirm.textContent = 'Capture';
+    confirm.setAttribute('aria-label', 'Capture selected area');
     confirm.disabled = true;
     const cancel = document.createElement('button');
+    cancel.className = 'strava-heatmap-map-sheet-button';
+    cancel.type = 'button';
     cancel.textContent = 'Cancel';
     const zoomOut = document.createElement('button');
+    zoomOut.className = 'strava-heatmap-map-sheet-button';
+    zoomOut.type = 'button';
     zoomOut.textContent = '-';
     zoomOut.setAttribute('aria-label', 'Zoom out');
     const zoomIn = document.createElement('button');
+    zoomIn.className = 'strava-heatmap-map-sheet-button';
+    zoomIn.type = 'button';
     zoomIn.textContent = '+';
     zoomIn.setAttribute('aria-label', 'Zoom in');
-    panel.append(instructions, nameLabel, status, confirm, cancel, zoomOut, zoomIn);
+    const zoomControls = document.createElement('div');
+    zoomControls.className = 'strava-heatmap-map-sheet-zoom';
+    zoomControls.append(zoomOut, zoomIn);
+    const actions = document.createElement('div');
+    actions.className = 'strava-heatmap-map-sheet-actions';
+    actions.append(cancel, confirm);
+    panel.append(heading, instructions, nameLabel, status, zoomControls, actions);
     overlay.append(box, panel);
     let anchor;
     let pointer;
@@ -522,6 +539,29 @@ async function addToMap(image, title, signal) {
   native.mapViewStore.addToStack(`geoimage_${image.id}`, 1);
 }
 
+function reserveMapSheetCreation() {
+  const cards = window.org?.sarsoft?.MapState?.controllers?.MapGeoImage?.cardsUiStore;
+  const selected = cards?.selectedStore;
+  if (typeof selected?.hasInProgressNewObject !== 'boolean' ||
+      typeof cards?.showNewCard !== 'function') {
+    throw new Error('CalTopo item creation controls are unavailable. Reload the map and try again.');
+  }
+  if (selected.hasInProgressNewObject) {
+    cards.showNewCard({ type: 'Feature', properties: { class: 'MapGeoImage' } });
+    return null;
+  }
+  const original = Object.getOwnPropertyDescriptor(selected, 'hasInProgressNewObject');
+  if (original && !original.configurable) {
+    throw new Error('CalTopo item creation controls are unavailable. Reload the map and try again.');
+  }
+  // Native new-item cards consult this getter before opening.
+  Object.defineProperty(selected, 'hasInProgressNewObject', { configurable: true, get: () => true });
+  return () => {
+    if (original) Object.defineProperty(selected, 'hasInProgressNewObject', original);
+    else delete selected.hasInProgressNewObject;
+  };
+}
+
 export function installCalTopoMapSheets(getLayer, getMap) {
   let busy = false;
   let menu;
@@ -589,8 +629,11 @@ export function installCalTopoMapSheets(getLayer, getMap) {
     dialog.addEventListener('close', () => dialog.remove());
     dialog.append(heading, name, privacy, status, close);
     let timer;
+    let releaseCreation;
     let saved = false;
     try {
+      releaseCreation = reserveMapSheetCreation();
+      if (!releaseCreation) return;
       const progress = (message) => { status.textContent = message; };
       const selection = await selectMapSheetRegion(getMap(), controller.signal, suggestedTitle);
       if (!selection) return;
@@ -624,6 +667,7 @@ export function installCalTopoMapSheets(getLayer, getMap) {
           ? ' CalTopo may have saved the sheet; check your account before retrying.' : ''}`;
     } finally {
       clearTimeout(timer);
+      releaseCreation?.();
       busy = false;
       uploading = false;
       close.disabled = false;
