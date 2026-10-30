@@ -100,8 +100,8 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
   assert.equal(select(0, 'period').value, 'global');
   assert.equal(select(1, 'period').value, 'weekly');
   assert.equal(ids['apply-settings'].disabled, true, 'old global presets must not look changed');
-  assert.equal(select(0, 'period').options.find((o) => o.value === 'weekly').disabled, true);
-  assert.equal(select(1, 'period').options.find((o) => o.value === 'global').disabled, true);
+  assert.equal(select(0, 'period').options.find((o) => o.value === 'weekly').disabled, false);
+  assert.equal(select(1, 'period').options.find((o) => o.value === 'global').disabled, false);
   assert.equal(select(0, 'activity').value, select(1, 'activity').value);
   assert.deepEqual(select(0, 'color').options.map((o) => o.value),
     select(1, 'color').options.map((o) => o.value));
@@ -110,8 +110,8 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
   select(2, 'period').value = 'weekly';
   await select(2, 'period').onchange();
   assert.equal(ids['apply-settings'].disabled, true, 'type changes must not validate missing sport/color');
-  assert.equal(select(2, 'activity').options.find((o) => o.value === 'run').disabled, true);
-  select(2, 'activity').value = 'sport_Hike';
+  assert.equal(select(2, 'activity').options.find((o) => o.value === 'run').disabled, false);
+  select(2, 'activity').value = 'run';
   await select(2, 'activity').onchange();
   assert.equal(ids['apply-settings'].disabled, true);
   select(2, 'color').value = 'purple';
@@ -120,12 +120,18 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
 
   list.children.reverse();
   await sorting.onEnd();
-  assert.equal(select(0, 'activity').value, 'sport_Hike');
+  assert.equal(select(0, 'activity').value, 'run');
   assert.equal(select(0, 'period').value, 'weekly');
   assert.equal(select(2, 'period').value, 'global');
   await ids['apply-settings'].onclick();
-  assert.equal(formatLayerPresets(presets), 'sport_Hike:purple:weekly;run:blue:weekly;run:orange');
+  assert.equal(formatLayerPresets(presets), 'run:purple:weekly;run:blue:weekly;run:orange');
   assert.equal(closed, true);
+
+  select(2, 'period').value = 'weekly';
+  await select(2, 'period').onchange();
+  assert.equal(ids['apply-settings'].disabled, false);
+  await ids['apply-settings'].onclick();
+  assert.equal(formatLayerPresets(presets), 'run:purple:weekly;run:blue:weekly;run:orange:weekly');
 
   await list.children[0].querySelector('button').onclick();
   assert.equal(list.children.length, 2);
@@ -180,5 +186,15 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
   await onReady();
   assert.equal(ids['apply-settings'].disabled, true, 'saved gradients and periods must reload unchanged');
   assert.equal(input(0, 1, 'opacity').value, '50');
+  assert.equal(input(1, 1, 'color').value, '#123456');
+  select(1, 'period').value = 'weekly';
+  await select(1, 'period').onchange();
+  assert.equal(ids['apply-settings'].disabled, false);
+  await ids['apply-settings'].onclick();
+  assert.equal(formatLayerPresets(presets),
+    'all:grayscale:weekly:#abcdef,1|#ffffff,0.5;all:grayscale:weekly:#ffffff,1|#123456,0.2');
+  await onReady();
+  assert.equal(ids['apply-settings'].disabled, true);
+  assert.equal(input(0, 0, 'color').value, '#abcdef');
   assert.equal(input(1, 1, 'color').value, '#123456');
 });

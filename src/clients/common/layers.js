@@ -214,6 +214,7 @@ export function getLayerConfigs(
   legacy = false
 ) {
   const timestamp = Date.now().toString();
+  const occurrences = new Map();
 
   return layerPresets.map((layer, index) => {
     const {
@@ -222,7 +223,7 @@ export function getLayerConfigs(
       gradientStops = DEFAULT_GRADIENT_STOPS,
       period = 'global',
     } = layer;
-    return getLayerConfig(
+    const config = getLayerConfig(
       index + 1,
       activity,
       color,
@@ -234,6 +235,10 @@ export function getLayerConfigs(
       legacy,
       period
     );
+    const occurrence = (occurrences.get(config.id) ?? 0) + 1;
+    occurrences.set(config.id, occurrence);
+    if (occurrence > 1) config.id += `-${occurrence}`;
+    return config;
   });
 }
 
