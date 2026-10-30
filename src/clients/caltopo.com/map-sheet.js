@@ -115,25 +115,29 @@ export function resizeMapSheetSelection(region, handle, point) {
 export function selectMapSheetRegion(map, signal, suggestedTitle) {
   const container = map?.getContainer?.() || map?.getDiv?.();
   const leaflet = typeof map?.containerPointToLatLng === 'function';
-  const wrapper = window.map;
-  if (!container || (!leaflet && (
-    typeof wrapper?.fromContainerPixel !== 'function' ||
-    typeof wrapper?.toContainerPixel !== 'function'
-  ))) {
+  let googleOverlay;
+  if (!container || (!leaflet && typeof window.google?.maps?.OverlayView !== 'function')) {
     return Promise.reject(new Error('CalTopo area selection is unavailable. Reload the map and try again.'));
   }
   const fromPixel = (x, y) => {
     if (!leaflet) {
-      if (typeof map.getProjection === 'function' && !map.getProjection()) {
+      const projection = googleOverlay?.getProjection();
+      if (!projection) {
         throw new Error('Wait for the map to finish loading before adjusting the area.');
       }
-      return wrapper.fromContainerPixel([x, y]);
+      const point = projection.fromContainerPixelToLatLng(new window.google.maps.Point(x, y));
+      return [point.lng(), point.lat()];
     }
     const point = map.containerPointToLatLng([x, y]);
     return [point.lng, point.lat];
   };
   const toPixel = (x, y) => {
-    if (!leaflet) return wrapper.toContainerPixel([longitude(x), latitude(y)]);
+    if (!leaflet) {
+      const point = googleOverlay.getProjection().fromLatLngToDivPixel(
+        new window.google.maps.LatLng(latitude(y), longitude(x)),
+      );
+      return [point.x, point.y];
+    }
     const point = map.latLngToContainerPoint([latitude(y), longitude(x)]);
     return [point.x, point.y];
   };
@@ -162,6 +166,7 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
     nameLabel.appendChild(nameInput);
     const status = document.createElement('p');
     status.setAttribute('role', 'status');
+    status.textContent = 'Wait for the map to finish loading.';
     const confirm = document.createElement('button');
     confirm.className = 'strava-heatmap-map-sheet-button strava-heatmap-map-sheet-primary';
     confirm.type = 'button';
@@ -179,7 +184,6 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
     overlay.append(box, panel);
     let drag;
     let region;
-    let listener;
     let finished = false;
     const showSelection = (limited = false) => {
       status.setAttribute('role', 'status');
@@ -225,7 +229,7 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
       signal.removeEventListener('abort', abort);
       document.removeEventListener('keydown', keydown, true);
       if (leaflet) map.off('move zoom resize', draw);
-      else listener?.remove();
+      else googleOverlay?.setMap(null);
       overlay.remove();
       if (error) reject(error);
       else resolve(result);
@@ -330,12 +334,16 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
       if (leaflet) {
         map.on('move zoom resize', draw);
       } else {
-        listener = map.addListener('bounds_changed', draw);
+        googleOverlay = new window.google.maps.OverlayView();
+        googleOverlay.onAdd = () => googleOverlay.getPanes().overlayMouseTarget.appendChild(box);
+        googleOverlay.draw = draw;
+        googleOverlay.onRemove = () => box.remove();
+        googleOverlay.setMap(map);
       }
       signal.addEventListener('abort', abort, { once: true });
       document.addEventListener('keydown', keydown, true);
       container.appendChild(overlay);
-      draw();
+      if (leaflet) draw();
       nameInput.focus();
       nameInput.select();
     } catch (error) {
