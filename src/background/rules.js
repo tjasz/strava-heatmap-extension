@@ -1,7 +1,7 @@
 export async function updateHeatmapRules(credentials) {
   const condition = {
     regexFilter:
-      '^https://[^/]+\\.strava\\.com/identified/globalheat/[^/]+/[^/]+/[^/]+/[^/]+/[^/]+\\.png',
+      '^https://[^/]+\\.strava\\.com/(identified/globalheat/[^/]+/[^/]+/[0-9]+/[0-9]+/[0-9]+\\.png|weeklyheat/[0-9]+/[0-9]+/[0-9]+)(\\?|$)',
     resourceTypes: ['image', 'xmlhttprequest'],
     excludedInitiatorDomains: ['strava.com'],
   };

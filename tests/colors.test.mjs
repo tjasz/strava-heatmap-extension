@@ -103,7 +103,7 @@ test('each grayscale-tile client loads the shared palette filters and CSS', asyn
 test('every named palette matches its tile URL; custom gradients are not filtered', async () => {
   const css = await read('src/clients/common/colors.css');
   const rules = [...css.matchAll(
-    /img\[src\*='\/globalheat\/'\]\[src\*='([^']+)'\]\s*\{\s*filter: url\(#([^)]+)\);\s*\}/g
+    /img:is\(\[src\*='\/globalheat\/'\], \[src\*='\/weeklyheat\/'\]\)\[src\*='([^']+)'\]\s*\{\s*filter: url\(#([^)]+)\);\s*\}/g
   )];
   assert.equal(rules.length, palettes.length);
   const presets = palettes.map((color) => ({ activity: 'ride', color }));

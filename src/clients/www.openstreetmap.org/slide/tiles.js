@@ -19,7 +19,7 @@ export const SLIDE_ZOOM = 15;
 
 // Ask the enabled heatmap overlay for a tile URL and sanity-check it. We must
 // keep BOTH the selected activity (e.g. "run") and the selected palette, and
-// both are encoded in the URL path — the tile bytes are interpreted by png.js
+// encoded in the URL path or query — the tile bytes are interpreted by png.js
 // as ordered heat, never as display colours. Anything unexpected is treated
 // as "the user is not logged in", because that is the only way a Strava
 // overlay source can look here.
@@ -29,7 +29,7 @@ export function slideTileURL(source, x, y, zoom) {
   if (
     parsed.protocol !== 'https:' ||
     parsed.hostname !== 'content-a.strava.com' ||
-    !/^\/identified\/globalheat\/[^/]+\/[^/]+\/\d+\/\d+\/\d+\.png$/.test(parsed.pathname)
+    !/^\/(identified\/globalheat\/[^/]+\/[^/]+\/\d+\/\d+\/\d+\.png|weeklyheat\/\d+\/\d+\/\d+)$/.test(parsed.pathname)
   ) {
     throw new Error('Log into Strava using the extension before using Slide.');
   }

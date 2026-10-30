@@ -24,6 +24,7 @@ function createActivitySelect(selected, disabled) {
   select.classList.toggle('invalid', selected === undefined);
 
   const placeholder = document.createElement('option');
+  placeholder.value = '';
   placeholder.textContent = '✨ Pick an Activity';
   placeholder.disabled = true;
   placeholder.selected = selected === undefined;
@@ -51,6 +52,7 @@ function createColorPicker(selected) {
   select.classList.toggle('invalid', selected === undefined);
 
   const placeholder = document.createElement('option');
+  placeholder.value = '';
   placeholder.textContent = '✨ Pick a Color';
   placeholder.disabled = true;
   placeholder.selected = selected === undefined;
@@ -191,10 +193,26 @@ function hexToRgb(color) {
   );
 }
 
+function createPeriodSelect(selected = 'global', disabled) {
+  const select = document.createElement('select');
+  select.className = 'layer-period';
+  select.setAttribute('aria-label', 'Heatmap type');
+  for (const [value, label] of [['global', 'Global'], ['weekly', 'Weekly (Pro)']]) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    option.selected = value === selected;
+    option.disabled = disabled.includes(value);
+    select.appendChild(option);
+  }
+  return select;
+}
+
 function createLayerItem(
   layer,
   index,
   disabledActivities,
+  disabledPeriods,
   removeCallback,
   changeCallback
 ) {
@@ -207,9 +225,15 @@ function createLayerItem(
   dragHandle.textContent = '⠿';
 
   const activitySelect = createActivitySelect(layer.activity, disabledActivities);
+  activitySelect.className = `${activitySelect.className} layer-activity`.trim();
+  activitySelect.setAttribute('aria-label', 'Sport');
   activitySelect.onchange = () => changeCallback();
   const colorSelect = createColorPicker(layer.color);
+  colorSelect.className = `${colorSelect.className} layer-color`.trim();
+  colorSelect.setAttribute('aria-label', 'Color');
   colorSelect.onchange = () => changeCallback();
+  const periodSelect = createPeriodSelect(layer.period, disabledPeriods);
+  periodSelect.onchange = () => changeCallback();
 
   const deleteButton = document.createElement('button');
   deleteButton.className = 'layer-remove';
@@ -218,7 +242,7 @@ function createLayerItem(
 
   const main = document.createElement('div');
   main.className = 'layer-main';
-  main.append(dragHandle, activitySelect, colorSelect, deleteButton);
+  main.append(dragHandle, periodSelect, activitySelect, colorSelect, deleteButton);
   li.appendChild(main);
   if (layer.color === 'grayscale') {
     li.appendChild(createGradientControls(layer, changeCallback));
@@ -235,7 +259,11 @@ async function renderLayers(layers) {
     const item = createLayerItem(
       layer,
       i,
-      layers.map((l) => l.activity).filter((a) => a !== layer.activity),
+      layers
+        .filter((l) => (l.period ?? 'global') === (layer.period ?? 'global'))
+        .map((l) => l.activity).filter((a) => a !== layer.activity),
+      layers.filter((l) => l !== layer && l.activity === layer.activity)
+        .map((l) => l.period ?? 'global'),
       async (index) => {
         layers.splice(index, 1);
         await renderLayers(layers);
@@ -263,10 +291,11 @@ async function renderLayers(layers) {
 function getCurrentLayers() {
   const items = [...document.querySelectorAll('#layer-list .layer')];
   return items.map((item) => {
-    const color = item.querySelector('.layer-color').value;
+    const color = item.querySelector('.layer-color').value || undefined;
     const layer = {
-      activity: item.querySelector('.layer-activity').value,
+      activity: item.querySelector('.layer-activity').value || undefined,
       color,
+      period: item.querySelector('.layer-period').value,
     };
     if (color === 'grayscale') {
       const stopRows = [...item.querySelectorAll('.gradient-stop')];

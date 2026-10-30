@@ -34,9 +34,9 @@ export async function migrateLayerPresets() {
 	const layerPresets = await getLayerPresets();
 	if (!layerPresets.some(({ color }) => color in MIGRATED_COLORS)) return false;
 
-	const migratedLayerPresets = layerPresets.map(({ activity, color }) => ({
-		activity,
-		color: MIGRATED_COLORS[color] ?? color,
+	const migratedLayerPresets = layerPresets.map((layer) => ({
+		...layer,
+		color: MIGRATED_COLORS[layer.color] ?? layer.color,
 	}));
 	await setLayerPresets(migratedLayerPresets);
 
@@ -61,8 +61,9 @@ export async function getLayerPresets() {
 export function formatLayerPresets(layerPresets) {
 	return layerPresets
 		.map((layer) => {
-			const { activity, color, gradientStops } = layer;
+			const { activity, color, gradientStops, period = 'global' } = layer;
 			const fields = [activity, color];
+			if (period !== 'global') fields.push(period);
 			if (color === 'grayscale') {
 				const serializedStops = normalizeGradientStops(gradientStops)
 					.map(({ color: stopColor, opacity }) =>
@@ -77,8 +78,9 @@ export function formatLayerPresets(layerPresets) {
 }
 
 export function validateLayerPresets(layerPresets) {
-	for (const { activity, color, gradientStops } of layerPresets) {
-		if (activity === undefined || color === undefined) {
+	for (const { activity, color, gradientStops, period = 'global' } of layerPresets) {
+		if (activity === undefined || color === undefined ||
+			!['global', 'weekly'].includes(period)) {
 			return false;
 		}
 		if (
