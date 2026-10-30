@@ -197,7 +197,7 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
     let finished = false;
     const showSelection = (limited = false) => {
       status.setAttribute('role', 'status');
-      status.textContent = `${region.count}/${MAX_TILES} tiles selected.${limited
+      status.textContent = `${region.count}/${MAX_TILES} tiles selected (${region.columns}x${region.rows}).${limited
         ? ' Limit reached; the box cannot grow further.' : ''}`;
       confirm.disabled = !!drag;
     };
