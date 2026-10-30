@@ -178,6 +178,16 @@ for (const renderer of ['leaflet', 'google']) {
     assert.equal(f.row(1).input.value, '35');
     assert.equal(f.row(0).collapse.style.visibility, 'hidden');
     assert.match(f.row(1).button.attributes['aria-label'], /Weekly/);
+    for (let index = 0; index < 3; index++) {
+      const { button } = f.row(index);
+      const title = button.children[1].children[0].children[0];
+      assert.equal(title.textContent, getLayerConfigs(
+        parseLayerPresets(presets), true, '0', true,
+      )[index].name);
+      assert.equal(button.attributes['aria-label'], title.textContent);
+      assert.ok(!title.textContent.includes('Strava Heatmap'));
+      assert.equal(button.children[0].className, 'MuiBox-root strava-heatmap-swatch');
+    }
     assert.ok(!f.list.children.some((item) => item.tagName === 'SELECT'));
 
     f.row(0).button.handlers.click();

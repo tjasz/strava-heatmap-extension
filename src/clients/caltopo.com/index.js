@@ -318,7 +318,7 @@ function createLayerControls(config) {
   ribbon.id = `${RIBBON_ID}-${config.id}`;
   ribbon.className =
     'MuiListItem-root MuiListItem-gutters MuiListItem-padding css-5rcv3b';
-  const label = `Strava Heatmap ${config.name}`;
+  const label = config.name;
   ribbon.setAttribute('value', label);
 
   const stack = document.createElement('div');
