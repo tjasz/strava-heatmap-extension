@@ -213,7 +213,7 @@ other item you are creating first; CalTopo allows only one new item at a time,
 including heatmap map sheets.
 A 5-by-5 box of zoom-15 tiles starts centered on your map view. Drag its edge or
 corner handles to resize it around the area you want. The **Sheet name** field suggests
-a name containing the activity, color, and timestamp; keep it or enter your own
+a name containing the activity, color, and UTC date; keep it or enter your own
 non-empty name, then choose **Capture**.
 The box stops growing before it would include more than 100 tiles at
 zoom 15. A live tile count shows the selection size. Use CalTopo's

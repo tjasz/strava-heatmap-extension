@@ -843,7 +843,7 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   assert.equal(requests, 0, 'no downloads or uploads before confirmation');
   assert.equal(body.children.length, 0);
   const { nameInput, confirm } = selectionControls(panel);
-  assert.match(nameInput.value, /^Strava Global Heatmap All Foot Sports orange \d{4}-\d\d-\d\dT/);
+  assert.match(nameInput.value, /^All Foot Sports orange \d{4}-\d{2}-\d{2}$/);
   expectedTitle = 'Wasatch & <hike> "Loop"';
   nameInput.value = `  ${expectedTitle}  `;
   nameInput.handlers.input();
@@ -874,7 +874,7 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   const nextPanel = resizeSelection(selection.container);
   const nextControls = selectionControls(nextPanel);
   expectedTitle = nextControls.nameInput.value;
-  assert.match(expectedTitle, /^Strava Global Heatmap All Foot Sports orange \d{4}-\d\d-\d\dT/);
+  assert.match(expectedTitle, /^All Foot Sports orange \d{4}-\d{2}-\d{2}$/);
   nextControls.confirm.handlers.click();
   await new Promise((resolve) => setImmediate(resolve));
   const failedDialog = body.children[1];
