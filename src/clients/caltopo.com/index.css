@@ -17,8 +17,8 @@
   position: absolute;
   inset: 0;
   z-index: 1100;
-  cursor: crosshair;
-  touch-action: none;
+  pointer-events: none;
+  touch-action: auto;
   overflow: hidden;
 }
 
@@ -28,6 +28,47 @@
   border: 2px solid #cc5d31;
   background: rgba(204, 93, 49, 0.2);
   pointer-events: none;
+}
+
+.strava-heatmap-map-sheet-handle {
+  position: absolute;
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 2px solid #cc5d31;
+  border-radius: 50%;
+  background: #fff;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.strava-heatmap-map-sheet-handle-n,
+.strava-heatmap-map-sheet-handle-s {
+  cursor: ns-resize;
+}
+
+.strava-heatmap-map-sheet-handle-e,
+.strava-heatmap-map-sheet-handle-w {
+  cursor: ew-resize;
+}
+
+.strava-heatmap-map-sheet-handle-nw,
+.strava-heatmap-map-sheet-handle-se {
+  cursor: nwse-resize;
+}
+
+.strava-heatmap-map-sheet-handle-ne,
+.strava-heatmap-map-sheet-handle-sw {
+  cursor: nesw-resize;
+}
+
+.strava-heatmap-map-sheet-handle:focus-visible {
+  outline: 2px solid #cc5d31;
+  outline-offset: 2px;
 }
 
 .strava-heatmap-map-sheet-selection-panel {
@@ -50,6 +91,8 @@
   background: #fff;
   font: 13px/1.5 arial, helvetica, clean, sans-serif;
   cursor: default;
+  pointer-events: auto;
+  touch-action: auto;
 }
 
 .strava-heatmap-map-sheet-selection-panel h2 {
@@ -86,7 +129,6 @@
   outline-offset: -2px;
 }
 
-.strava-heatmap-map-sheet-zoom,
 .strava-heatmap-map-sheet-actions {
   display: flex;
   flex-wrap: wrap;

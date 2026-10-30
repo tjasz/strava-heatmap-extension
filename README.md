@@ -211,13 +211,15 @@ from Strava Heatmap**, directly below **Map Sheet**, at any map zoom level.
 The selection form sits at the bottom left of the map. Finish or cancel any
 other item you are creating first; CalTopo allows only one new item at a time,
 including heatmap map sheets.
-Drag a bounding box around the area you want. The **Sheet name** field suggests
+A 5-by-5 box of zoom-15 tiles starts centered on your map view. Drag its edge or
+corner handles to resize it around the area you want. The **Sheet name** field suggests
 a name containing the activity, color, and timestamp; keep it or enter your own
 non-empty name, then choose **Capture**.
 The box stops growing before it would include more than 100 tiles at
-zoom 15. A live tile count shows the selection size. Use the zoom buttons or
-mouse wheel for a more precise selection, or drag again to replace the box.
-Zooming after drawing centers the view on your selected area.
+zoom 15. A live tile count shows the selection size. Use CalTopo's
+normal map controls to pan and zoom without changing the selected geographic
+area. Only the resize handles intercept dragging; the map remains draggable
+inside and outside the box.
 Choose **Cancel** or press **Escape** to exit without downloading or uploading.
 
 After confirmation, the extension stitches the full tiles intersecting your box,

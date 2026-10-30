@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   mapSheetRegion, mapSheetAlignment, colorizeMapSheetPixels,
   mapSheetAvailability, renderMapSheet, uploadMapSheet,
-  installCalTopoMapSheets, limitMapSheetSelection, selectMapSheetRegion,
+  installCalTopoMapSheets, limitMapSheetSelection, resizeMapSheetSelection, selectMapSheetRegion,
 } from '../src/clients/caltopo.com/map-sheet.js';
 import { getLayerConfigs } from '../src/clients/common/layers.js';
 import { PALETTES } from '../src/clients/common/palettes.js';
@@ -59,7 +59,7 @@ test('availability ignores viewport zoom and size but requires Pro, Strava tiles
   ]) {
     const available = mapSheetAvailability({ ...state, bounds });
     assert.equal(available.enabled, true);
-    assert.match(available.message, /Draw an area/);
+    assert.match(available.message, /Adjust an area/);
   }
 });
 
@@ -84,6 +84,38 @@ test('selection clamps every drag direction to at most 100 tiles and allows shri
   assert.equal(small.region.count, 1);
   assert.equal(small.limited, false);
   assert.throws(() => limitMapSheetSelection(anchor, [181, 40]), /world map/);
+});
+
+test('all eight resize handles preserve their opposite edges and enforce the tile limit', () => {
+  const initial = mapSheetRegion(boundsFor(6200, 12000, 5, 5));
+  for (const handle of ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']) {
+    const point = [lng(handle.includes('w') ? 6000 : 6400), lat(handle.includes('n') ? 11800 : 12200)];
+    const { region: resized, limited } = resizeMapSheetSelection(initial, handle, point);
+    assert.equal(limited, true, handle);
+    assert.ok(resized.count >= 1 && resized.count <= 100, `${handle}: ${resized.count}`);
+    if (!handle.includes('w')) assert.equal(resized.minX, initial.minX);
+    if (!handle.includes('e')) assert.equal(resized.maxX, initial.maxX);
+    if (!handle.includes('n')) assert.equal(resized.minY, initial.minY);
+    if (!handle.includes('s')) assert.equal(resized.maxY, initial.maxY);
+    if (handle.length === 1) assert.equal(resized.count, 100, handle);
+    const { region: crossed } = resizeMapSheetSelection(initial, handle,
+      [lng(handle.includes('w') ? 6400 : 6000), lat(handle.includes('n') ? 12200 : 11800)]);
+    assert.equal(crossed.columns, /[we]/.test(handle) ? 1 : 5);
+    assert.equal(crossed.rows, /[ns]/.test(handle) ? 1 : 5);
+  }
+  const exact = resizeMapSheetSelection(initial, 'se', [lng(6210), lat(12010)]);
+  assert.equal(exact.region.count, 100);
+  assert.equal(exact.limited, false);
+  for (const [x, y] of [[0, 0], [32763, 32763]]) {
+    const edge = mapSheetRegion(boundsFor(x, y, 5, 5));
+    for (const handle of ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']) {
+      const { region: resized } = resizeMapSheetSelection(edge, handle,
+        [lng(handle.includes('w') ? 0 : 32768), lat(handle.includes('n') ? 0 : 32768)]);
+      assert.ok(resized.minX >= 0 && resized.maxX < 32768);
+      assert.ok(resized.minY >= 0 && resized.maxY < 32768);
+      assert.ok(resized.count <= 100);
+    }
+  }
 });
 
 test('automatic alignment maps actual image pixels to exact Mercator coordinates, including high latitudes', () => {
@@ -282,6 +314,7 @@ class Element {
   cloneNode() { return new Element(this.tagName); }
   closest() { return this.parentElement; }
   setAttribute(name, value) { this.attributes[name] = value; }
+  getAttribute(name) { return this.attributes[name] ?? null; }
   removeAttribute(name) { delete this.attributes[name]; }
   addEventListener(name, callback) { this.handlers[name] = callback; }
   click() { this.handlers.click?.({ preventDefault() {}, stopPropagation() {} }); }
@@ -306,15 +339,18 @@ function selectionMap(renderer = 'google', initiallyDraggable = true) {
   const container = new Element('div');
   let draggable = initiallyDraggable;
   let zoom = 1;
+  let originX = 6200;
+  let originY = 12000;
   let centered = 0;
   let move;
   let removed = 0;
   const wrapper = {
-    fromContainerPixel: ([x, y]) => [lng(6200 + x / 100), lat(12000 + y / 100)],
+    fromContainerPixel: ([x, y]) => [lng(originX + x / (100 * 2 ** (zoom - 1))),
+      lat(originY + y / (100 * 2 ** (zoom - 1)))],
     toContainerPixel: ([longitude, latitude]) => {
       const x = (longitude + 180) / 360 * 32768;
       const y = (1 - Math.asinh(Math.tan(latitude * Math.PI / 180)) / Math.PI) / 2 * 32768;
-      return [(x - 6200) * 100, (y - 12000) * 100];
+      return [(x - originX) * 100 * 2 ** (zoom - 1), (y - originY) * 100 * 2 ** (zoom - 1)];
     },
   };
   const map = renderer === 'google' ? {
@@ -349,7 +385,8 @@ function selectionMap(renderer = 'google', initiallyDraggable = true) {
   map.setCenter = () => centered++;
   map.panTo = () => centered++;
   return { map, wrapper, container, draggable: () => draggable,
-    move: () => move(), removed: () => removed, centered: () => centered };
+    move: () => move(), removed: () => removed, centered: () => centered,
+    pan: (x, y) => { originX += x; originY += y; move(); } };
 }
 
 function pointer(overlay, type, x, y, overrides = {}) {
@@ -359,25 +396,27 @@ function pointer(overlay, type, x, y, overrides = {}) {
   });
 }
 
-function drawSelection(container, start = [10, 10], end = [80, 80]) {
+function resizeSelection(container) {
   const overlay = container.children[0];
-  pointer(overlay, 'pointerdown', ...start);
-  pointer(overlay, 'pointermove', ...end);
-  pointer(overlay, 'pointerup', ...end);
+  const box = overlay.children[0];
+  const handle = box.children[4];
+  const end = [parseFloat(box.style.left) + 100, parseFloat(box.style.top) + 100];
+  pointer(handle, 'pointerdown', 0, 0);
+  pointer(handle, 'pointermove', ...end);
+  pointer(handle, 'pointerup', ...end);
   return overlay.children[1];
 }
 
 function selectionControls(panel) {
-  const [heading, instructions, nameLabel, status, zoom, actions] = panel.children;
+  const [heading, instructions, nameLabel, status, actions] = panel.children;
   return {
     heading, instructions, nameInput: nameLabel.children[0], status,
-    zoomOut: zoom.children[0], zoomIn: zoom.children[1],
     cancel: actions.children[0], confirm: actions.children[1],
   };
 }
 
 for (const renderer of ['google', 'leaflet']) {
-  test(`${renderer} area drawing caps expansion, previews tiles, and requires explicit confirmation`, async (t) => {
+  test(`${renderer} starts with 25 tiles and resizes through handles without blocking normal map navigation`, async (t) => {
     const document = new Element('document');
     document.createElement = (tag) => new Element(tag);
     const fixture = selectionMap(renderer);
@@ -387,24 +426,28 @@ for (const renderer of ['google', 'leaflet']) {
     let completed = false;
     const work = selectMapSheetRegion(fixture.map, new AbortController().signal, 'Suggested sheet name')
       .then((result) => { completed = true; return result; });
-    assert.equal(fixture.draggable(), false);
+    assert.equal(fixture.draggable(), true);
     const overlay = fixture.container.children[0];
+    const box = overlay.children[0];
+    const handle = box.children[4];
     const panel = overlay.children[1];
-    const { heading, nameInput, status, confirm, zoomIn } = selectionControls(panel);
+    const { heading, instructions, nameInput, status, confirm } = selectionControls(panel);
     assert.equal(heading.textContent, 'Map Sheet from Strava Heatmap');
+    assert.doesNotMatch(instructions.textContent, /zoom buttons|mouse wheel/);
+    assert.equal(panel.children.length, 5, 'no separate zoom controls');
     assert.match(confirm.className, /strava-heatmap-map-sheet-primary/);
     assert.equal(confirm.type, 'button');
-    if (renderer === 'google') {
-      fixture.map.getProjection = () => null;
-      pointer(overlay, 'pointerdown', 10, 10);
-      assert.match(status.textContent, /finish loading/);
-      assert.equal(confirm.disabled, true);
-      fixture.map.getProjection = () => ({});
+    assert.equal(box.children.length, 8);
+    assert.match(status.textContent, /25\/100 tiles selected/);
+    assert.equal(parseFloat(box.style.left), 800);
+    assert.ok(Math.abs(parseFloat(box.style.width) - 500) < 1e-6);
+    for (const name of ['pointerdown', 'pointermove', 'pointerup', 'wheel', 'mousedown', 'click']) {
+      assert.equal(overlay.handlers[name], undefined, `${name} must remain available to the map`);
     }
     for (const name of ['click', 'dblclick', 'mousedown', 'mouseup', 'contextmenu']) {
       let blocked = false;
-      overlay.handlers[name]({ preventDefault() {}, stopPropagation() { blocked = true; } });
-      assert.equal(blocked, true, `${name} must not reach the map's drawing controls`);
+      handle.handlers[name]({ preventDefault() {}, stopPropagation() { blocked = true; } });
+      assert.equal(blocked, true, `${name} on a resize handle must not reach the map`);
       let stopped = false;
       let defaultPrevented = false;
       const event = {
@@ -412,33 +455,35 @@ for (const renderer of ['google', 'leaflet']) {
         preventDefault() { defaultPrevented = true; },
       };
       panel.handlers[name]?.(event);
-      if (!stopped) overlay.handlers[name](event);
-      assert.equal(stopped, true, `${name} in the panel must not reach the selection overlay`);
+      assert.equal(stopped, true, `${name} in the panel must not reach the map`);
       assert.equal(defaultPrevented, false, `${name} must preserve native text-field editing`);
     }
     assert.equal(nameInput.value, 'Suggested sheet name');
     assert.equal(nameInput.required, true);
-    assert.equal(confirm.disabled, true);
-    pointer(overlay, 'pointerdown', 10, 10);
-    pointer(overlay, 'pointermove', 100000, 100000);
+    assert.equal(confirm.disabled, false);
+    pointer(handle, 'pointerdown', 1300, 1300);
+    pointer(handle, 'pointermove', 100000, 100000);
     assert.match(status.textContent, /100\/100 tiles selected/);
     assert.match(status.textContent, /Limit reached/);
     assert.equal(confirm.disabled, true, 'cannot confirm during a drag');
-    fixture.move();
-    assert.ok(parseFloat(overlay.children[0].style.width) <= 1000.00001);
-    pointer(overlay, 'pointerup', 100000, 100000);
+    assert.equal(fixture.draggable(), true, 'resizing must not change native map settings');
+    assert.ok(parseFloat(box.style.width) <= 1000.00001);
+    pointer(handle, 'pointerup', 100000, 100000);
+    handle.handlers.lostpointercapture();
+    assert.match(status.textContent, /100\/100 tiles selected/, 'normal capture release must not undo the resize');
     assert.equal(confirm.disabled, false);
-    zoomIn.handlers.click();
-    assert.equal(fixture.map.getZoom(), 2);
-    assert.equal(fixture.centered(), 1);
-    overlay.handlers.wheel({ deltaY: -10, preventDefault() {}, stopPropagation() {} });
-    assert.equal(fixture.map.getZoom(), 3);
-    overlay.handlers.wheel({ deltaY: -10, preventDefault() {}, stopPropagation() {} });
-    assert.equal(fixture.map.getZoom(), 3, 'throttle wheel zoom');
     await Promise.resolve();
     assert.equal(completed, false);
-    drawSelection(fixture.container);
+    resizeSelection(fixture.container);
     assert.match(status.textContent, /1\/100 tiles selected/);
+    const left = parseFloat(box.style.left);
+    fixture.pan(1, 0);
+    assert.ok(Math.abs(parseFloat(box.style.left) - (left - 100)) < 1e-6);
+    fixture.map.setZoom(2);
+    fixture.move();
+    assert.ok(Math.abs(parseFloat(box.style.width) - 200) < 1e-6);
+    assert.match(status.textContent, /1\/100 tiles selected/, 'navigation must not change the selected tiles');
+    assert.equal(fixture.centered(), 0, 'selection must not recenter the map while zooming');
     nameInput.value = '   ';
     confirm.handlers.click();
     await Promise.resolve();
@@ -450,8 +495,8 @@ for (const renderer of ['google', 'leaflet']) {
     confirm.handlers.click();
     const result = await work;
     assert.equal(result.region.count, 1);
-    assert.equal(result.region.minX, 6200);
-    assert.equal(result.region.minY, 12000);
+    assert.equal(result.region.minX, 6208);
+    assert.equal(result.region.minY, 12008);
     assert.equal(result.title, renderer === 'google' ? 'My trail map' : 'Suggested sheet name');
     assert.equal(fixture.container.children.length, 0);
     assert.equal(fixture.draggable(), true);
@@ -459,7 +504,7 @@ for (const renderer of ['google', 'leaflet']) {
     assert.equal(document.handlers.keydown, undefined);
   });
 
-  test(`${renderer} selection handles touch cancellation and Escape without changing an initially locked map`, async (t) => {
+  test(`${renderer} cancelled resize restores the previous box and Escape preserves an initially locked map`, async (t) => {
     const document = new Element('document');
     document.createElement = (tag) => new Element(tag);
     const fixture = selectionMap(renderer, false);
@@ -467,20 +512,62 @@ for (const renderer of ['google', 'leaflet']) {
     globalValue(t, 'window', { map: fixture.wrapper });
     const work = selectMapSheetRegion(fixture.map, new AbortController().signal, 'Suggested sheet name');
     const overlay = fixture.container.children[0];
-    pointer(overlay, 'pointerdown', 10, 10);
-    pointer(overlay, 'pointermove', 80, 80);
-    pointer(overlay, 'pointercancel', 80, 80);
-    assert.equal(selectionControls(overlay.children[1]).confirm.disabled, true);
-    assert.equal(overlay.children[0].hidden, true);
+    const handle = overlay.children[0].children[4];
+    pointer(handle, 'pointerdown', 800, 800);
+    pointer(handle, 'pointermove', 1000, 1000);
+    pointer(handle, 'pointercancel', 1000, 1000);
+    const { status, confirm } = selectionControls(overlay.children[1]);
+    assert.match(status.textContent, /25\/100 tiles selected/);
+    assert.equal(confirm.disabled, false);
+    assert.equal(overlay.children[0].hidden, false);
+    assert.equal(handle.pointers.size, 0);
+    const east = overlay.children[0].children[3];
+    east.handlers.keydown({ key: 'ArrowRight', preventDefault() {}, stopPropagation() {} });
+    assert.match(status.textContent, /30\/100 tiles selected/, 'edge handles also support keyboard resizing');
     document.handlers.keydown({ key: 'Escape', preventDefault() {}, stopPropagation() {} });
     assert.equal(await work, null);
     assert.equal(fixture.draggable(), false);
     assert.equal(fixture.container.children.length, 0);
     assert.equal(fixture.removed(), 1);
   });
+
+  test(`${renderer} can confirm the initial centered 5 by 5 selection without resizing`, async (t) => {
+    const document = new Element('document');
+    document.createElement = (tag) => new Element(tag);
+    const fixture = selectionMap(renderer);
+    globalValue(t, 'document', document);
+    globalValue(t, 'window', { map: fixture.wrapper });
+    const work = selectMapSheetRegion(fixture.map, new AbortController().signal, 'Initial selection');
+    selectionControls(fixture.container.children[0].children[1]).confirm.handlers.click();
+    const result = await work;
+    assert.equal(result.region.columns, 5);
+    assert.equal(result.region.rows, 5);
+    assert.equal(result.region.count, 25);
+    assert.equal(result.region.minX, 6203);
+    assert.equal(result.region.minY, 12003);
+  });
 }
 
-test('aborting area selection cleans up all listeners and restores map dragging', async (t) => {
+test('initial selection waits for the Google projection and recovers when the map loads', async (t) => {
+  const document = new Element('document');
+  document.createElement = (tag) => new Element(tag);
+  const fixture = selectionMap();
+  fixture.map.getProjection = () => null;
+  globalValue(t, 'document', document);
+  globalValue(t, 'window', { map: fixture.wrapper });
+  const work = selectMapSheetRegion(fixture.map, new AbortController().signal, 'Initial selection');
+  const { status, confirm, cancel } = selectionControls(fixture.container.children[0].children[1]);
+  assert.match(status.textContent, /finish loading/);
+  assert.equal(confirm.disabled, true);
+  fixture.map.getProjection = () => ({});
+  fixture.move();
+  assert.match(status.textContent, /25\/100 tiles selected/);
+  assert.equal(confirm.disabled, false);
+  cancel.handlers.click();
+  assert.equal(await work, null);
+});
+
+test('aborting an active resize releases pointer capture and leaves map dragging unchanged', async (t) => {
   const document = new Element('document');
   document.createElement = (tag) => new Element(tag);
   const fixture = selectionMap();
@@ -488,8 +575,12 @@ test('aborting area selection cleans up all listeners and restores map dragging'
   globalValue(t, 'window', { map: fixture.wrapper });
   const controller = new AbortController();
   const work = selectMapSheetRegion(fixture.map, controller.signal, 'Suggested sheet name');
+  const handle = fixture.container.children[0].children[0].children[4];
+  pointer(handle, 'pointerdown', 800, 800);
+  assert.equal(handle.hasPointerCapture(1), true);
   controller.abort();
   await assert.rejects(work, { name: 'AbortError' });
+  assert.equal(handle.hasPointerCapture(1), false);
   assert.equal(fixture.container.children.length, 0);
   assert.equal(fixture.draggable(), true);
   assert.equal(document.handlers.keydown, undefined);
@@ -590,7 +681,7 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   assert.equal(badge.tabIndex, -1);
   refresh();
   assert.equal(button.attributes['aria-disabled'], 'false');
-  assert.match(description.textContent, /Draw an area/);
+  assert.match(description.textContent, /Adjust an area/);
   cardsUiStore.showNewCard();
   button.handlers.click();
   await new Promise((resolve) => setImmediate(resolve));
@@ -635,7 +726,7 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   });
   button.handlers.keydown({ key: 'Enter', preventDefault() {} });
   assert.equal(button.attributes['aria-disabled'], 'true', 'disable repeat activation immediately');
-  const panel = drawSelection(selection.container);
+  const panel = resizeSelection(selection.container);
   assert.equal(requests, 0, 'no downloads or uploads before confirmation');
   assert.equal(body.children.length, 0);
   const { nameInput, confirm } = selectionControls(panel);
@@ -667,7 +758,7 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   t.mock.method(console, 'warn', () => {});
   native.MapObjectDAO.save = (feature, type, success, failure) => failure();
   button.handlers.click();
-  const nextPanel = drawSelection(selection.container);
+  const nextPanel = resizeSelection(selection.container);
   const nextControls = selectionControls(nextPanel);
   expectedTitle = nextControls.nameInput.value;
   assert.match(expectedTitle, /^Strava Global Heatmap All Foot Sports orange \d{4}-\d\d-\d\dT/);

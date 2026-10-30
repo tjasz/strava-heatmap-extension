@@ -5,6 +5,7 @@ const MAX_ZOOM = 15;
 const TILE_SIZE = 512;
 const TILE_COUNT = 2 ** MAX_ZOOM;
 const MAX_TILES = 100;
+const INITIAL_TILE_SIDE = 5;
 const MAX_LATITUDE = 85.0511287798066;
 const MENU_ID = 'strava-heatmap-map-sheet';
 
@@ -52,16 +53,17 @@ export function mapSheetRegion({ west, south, east, north } = {}) {
   return regionFromTiles(minX, maxX, minY, maxY);
 }
 
+function tilePoint([lng, lat]) {
+  if (!Number.isFinite(lng) || !Number.isFinite(lat) || lng < -180 || lng > 180 ||
+      Math.abs(lat) > MAX_LATITUDE) {
+    throw new Error('Select an area inside the world map, away from the poles and date line.');
+  }
+  return [(lng + 180) / 360 * TILE_COUNT, tileY(lat)].map(snapTileEdge);
+}
+
 export function limitMapSheetSelection(anchor, corner) {
-  const project = ([lng, lat]) => {
-    if (!Number.isFinite(lng) || !Number.isFinite(lat) || lng < -180 || lng > 180 ||
-        Math.abs(lat) > MAX_LATITUDE) {
-      throw new Error('Draw inside the world map, away from the poles and date line.');
-    }
-    return [(lng + 180) / 360 * TILE_COUNT, tileY(lat)];
-  };
-  const start = project(anchor);
-  const end = project(corner);
+  const start = tilePoint(anchor);
+  const end = tilePoint(corner);
   const at = (fraction) => {
     const point = start.map((value, i) => value + (end[i] - value) * fraction);
     const clamp = (value) => Math.max(0, Math.min(TILE_COUNT - 1, value));
@@ -83,6 +85,33 @@ export function limitMapSheetSelection(anchor, corner) {
   return { region: at(low), limited: true };
 }
 
+export function resizeMapSheetSelection(region, handle, point) {
+  const [x, y] = tilePoint(point);
+  let left = region.minX;
+  let right = region.maxX + 1;
+  let top = region.minY;
+  let bottom = region.maxY + 1;
+  if (handle.includes('w')) left = Math.max(0, Math.min(right - 1, Math.floor(x)));
+  if (handle.includes('e')) right = Math.min(TILE_COUNT, Math.max(left + 1, Math.ceil(x)));
+  if (handle.includes('n')) top = Math.max(0, Math.min(bottom - 1, Math.floor(y)));
+  if (handle.includes('s')) bottom = Math.min(TILE_COUNT, Math.max(top + 1, Math.ceil(y)));
+  const requested = regionFromTiles(left, right - 1, top, bottom - 1);
+  if (requested.count <= MAX_TILES) return { region: requested, limited: false };
+  if (handle.length === 2) {
+    return limitMapSheetSelection(
+      [longitude(handle.includes('w') ? right : left), latitude(handle.includes('n') ? bottom : top)],
+      [longitude(handle.includes('w') ? left : right), latitude(handle.includes('n') ? top : bottom)],
+    );
+  }
+  const columns = Math.floor(MAX_TILES / region.rows);
+  const rows = Math.floor(MAX_TILES / region.columns);
+  if (handle === 'w') left = right - columns;
+  if (handle === 'e') right = left + columns;
+  if (handle === 'n') top = bottom - rows;
+  if (handle === 's') bottom = top + rows;
+  return { region: regionFromTiles(left, right - 1, top, bottom - 1), limited: true };
+}
+
 export function selectMapSheetRegion(map, signal, suggestedTitle) {
   const container = map?.getContainer?.() || map?.getDiv?.();
   const leaflet = typeof map?.containerPointToLatLng === 'function';
@@ -96,7 +125,7 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
   const fromPixel = (x, y) => {
     if (!leaflet) {
       if (typeof map.getProjection === 'function' && !map.getProjection()) {
-        throw new Error('Wait for the map to finish loading before drawing.');
+        throw new Error('Wait for the map to finish loading before adjusting the area.');
       }
       return wrapper.fromContainerPixel([x, y]);
     }
@@ -121,7 +150,7 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
     const heading = document.createElement('h2');
     heading.textContent = 'Map Sheet from Strava Heatmap';
     const instructions = document.createElement('p');
-    instructions.textContent = `Drag a box around the area to capture (up to ${MAX_TILES} zoom-${MAX_ZOOM} tiles). Use the zoom buttons or mouse wheel for precision.`;
+    instructions.textContent = `Drag the edge or corner handles to adjust the capture area (up to ${MAX_TILES} zoom-${MAX_ZOOM} tiles).`;
     const nameLabel = document.createElement('label');
     nameLabel.className = 'strava-heatmap-map-sheet-name';
     nameLabel.textContent = 'Sheet name';
@@ -133,7 +162,6 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
     nameLabel.appendChild(nameInput);
     const status = document.createElement('p');
     status.setAttribute('role', 'status');
-    status.textContent = 'Draw a box, then confirm. Drag again to replace it.';
     const confirm = document.createElement('button');
     confirm.className = 'strava-heatmap-map-sheet-button strava-heatmap-map-sheet-primary';
     confirm.type = 'button';
@@ -144,50 +172,61 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
     cancel.className = 'strava-heatmap-map-sheet-button';
     cancel.type = 'button';
     cancel.textContent = 'Cancel';
-    const zoomOut = document.createElement('button');
-    zoomOut.className = 'strava-heatmap-map-sheet-button';
-    zoomOut.type = 'button';
-    zoomOut.textContent = '-';
-    zoomOut.setAttribute('aria-label', 'Zoom out');
-    const zoomIn = document.createElement('button');
-    zoomIn.className = 'strava-heatmap-map-sheet-button';
-    zoomIn.type = 'button';
-    zoomIn.textContent = '+';
-    zoomIn.setAttribute('aria-label', 'Zoom in');
-    const zoomControls = document.createElement('div');
-    zoomControls.className = 'strava-heatmap-map-sheet-zoom';
-    zoomControls.append(zoomOut, zoomIn);
     const actions = document.createElement('div');
     actions.className = 'strava-heatmap-map-sheet-actions';
     actions.append(cancel, confirm);
-    panel.append(heading, instructions, nameLabel, status, zoomControls, actions);
+    panel.append(heading, instructions, nameLabel, status, actions);
     overlay.append(box, panel);
-    let anchor;
-    let pointer;
+    let drag;
     let region;
     let listener;
-    let wheelTimer;
-    let restoreDragging = () => {};
+    let finished = false;
+    const showSelection = (limited = false) => {
+      status.setAttribute('role', 'status');
+      status.textContent = `${region.count}/${MAX_TILES} tiles selected.${limited
+        ? ' Limit reached; the box cannot grow further.' : ''}`;
+      confirm.disabled = !!drag;
+    };
     const draw = () => {
-      if (!region) return;
-      const a = toPixel(region.minX, region.minY);
-      const b = toPixel(region.maxX + 1, region.maxY + 1);
-      box.hidden = false;
-      box.style.left = `${Math.min(a[0], b[0])}px`;
-      box.style.top = `${Math.min(a[1], b[1])}px`;
-      box.style.width = `${Math.abs(b[0] - a[0])}px`;
-      box.style.height = `${Math.abs(b[1] - a[1])}px`;
+      if (finished) return;
+      try {
+        if (!region) {
+          const rect = container.getBoundingClientRect();
+          if (!rect.width || !rect.height) throw new Error('Wait for the map to finish loading.');
+          const center = tilePoint(fromPixel(rect.width / 2, rect.height / 2));
+          const [x, y] = center.map((value) => Math.max(0,
+            Math.min(TILE_COUNT - INITIAL_TILE_SIDE, Math.floor(value) - Math.floor(INITIAL_TILE_SIDE / 2))));
+          region = regionFromTiles(x, x + INITIAL_TILE_SIDE - 1, y, y + INITIAL_TILE_SIDE - 1);
+          showSelection();
+        }
+        const a = toPixel(region.minX, region.minY);
+        const b = toPixel(region.maxX + 1, region.maxY + 1);
+        box.hidden = false;
+        box.style.left = `${Math.min(a[0], b[0])}px`;
+        box.style.top = `${Math.min(a[1], b[1])}px`;
+        box.style.width = `${Math.abs(b[0] - a[0])}px`;
+        box.style.height = `${Math.abs(b[1] - a[1])}px`;
+        if (!drag && status.getAttribute('role') === 'alert') showSelection();
+      } catch (error) {
+        status.setAttribute('role', 'alert');
+        status.textContent = error.message;
+        confirm.disabled = true;
+      }
+    };
+    const releasePointer = () => {
+      const active = drag;
+      drag = undefined;
+      if (active?.element.hasPointerCapture(active.pointer)) active.element.releasePointerCapture(active.pointer);
     };
     const finish = (result, error) => {
-      if (pointer !== undefined && overlay.hasPointerCapture(pointer)) overlay.releasePointerCapture(pointer);
-      pointer = undefined;
-      clearTimeout(wheelTimer);
+      if (finished) return;
+      finished = true;
+      releasePointer();
       signal.removeEventListener('abort', abort);
       document.removeEventListener('keydown', keydown, true);
       if (leaflet) map.off('move zoom resize', draw);
       else listener?.remove();
       overlay.remove();
-      restoreDragging();
       if (error) reject(error);
       else resolve(result);
     };
@@ -205,83 +244,74 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
           Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
           Math.max(0, Math.min(rect.height, event.clientY - rect.top)),
         );
-        if (corner[0] === anchor[0] && corner[1] === anchor[1]) return;
-        const selection = limitMapSheetSelection(anchor, corner);
+        const selection = resizeMapSheetSelection(drag.region, drag.handle, corner);
         region = selection.region;
-        status.setAttribute('role', 'status');
-        status.textContent = `${region.count}/${MAX_TILES} tiles selected.${selection.limited
-          ? ' Limit reached; the box cannot grow further. Zoom in for a more precise selection.' : ''}`;
+        showSelection(selection.limited);
         draw();
       } catch (error) {
-        region = undefined;
-        box.hidden = true;
         status.setAttribute('role', 'alert');
         status.textContent = error.message;
+        confirm.disabled = true;
       }
     };
-    overlay.addEventListener('pointerdown', (event) => {
-      if (pointer !== undefined || event.button !== 0 || !event.isPrimary) return;
-      event.preventDefault();
-      event.stopPropagation();
-      region = undefined;
-      box.hidden = true;
-      confirm.disabled = true;
-      try {
-        const rect = container.getBoundingClientRect();
-        anchor = fromPixel(event.clientX - rect.left, event.clientY - rect.top);
-        limitMapSheetSelection(anchor, anchor);
-      } catch (error) {
-        status.setAttribute('role', 'alert');
-        status.textContent = error.message;
-        return;
-      }
-      pointer = event.pointerId;
-      overlay.setPointerCapture(pointer);
-    });
-    overlay.addEventListener('pointermove', (event) => {
-      if (event.pointerId !== pointer) return;
-      event.stopPropagation();
-      update(event);
-    });
-    overlay.addEventListener('pointerup', (event) => {
-      if (event.pointerId !== pointer) return;
-      event.stopPropagation();
-      update(event);
-      overlay.releasePointerCapture(pointer);
-      pointer = undefined;
-      confirm.disabled = !region;
-    });
-    overlay.addEventListener('pointercancel', (event) => {
-      if (event.pointerId !== pointer) return;
-      overlay.releasePointerCapture(pointer);
-      pointer = undefined;
-      region = undefined;
-      box.hidden = true;
-      confirm.disabled = true;
-      status.setAttribute('role', 'status');
-      status.textContent = 'Drawing cancelled. Drag again to select an area.';
-    });
-    const zoom = (direction) => {
-      if (region) {
-        const lat = latitude((region.minY + region.maxY + 1) / 2);
-        const lng = longitude((region.minX + region.maxX + 1) / 2);
-        if (leaflet) map.panTo([lat, lng], { animate: false });
-        else map.setCenter({ lat, lng });
-      }
-      map.setZoom(Math.max(0, Math.min(21, map.getZoom() + direction)));
-    };
-    overlay.addEventListener('wheel', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (!event.deltaY || wheelTimer !== undefined) return;
-      zoom(-Math.sign(event.deltaY));
-      wheelTimer = setTimeout(() => { wheelTimer = undefined; }, 150);
-    }, { passive: false });
-    for (const name of ['click', 'dblclick', 'mousedown', 'mouseup', 'contextmenu']) {
-      overlay.addEventListener(name, (event) => {
+    for (const [direction, label, x, y] of [
+      ['nw', 'northwest corner', 0, 0], ['n', 'north edge', 50, 0], ['ne', 'northeast corner', 100, 0],
+      ['e', 'east edge', 100, 50], ['se', 'southeast corner', 100, 100],
+      ['s', 'south edge', 50, 100], ['sw', 'southwest corner', 0, 100], ['w', 'west edge', 0, 50],
+    ]) {
+      const handle = document.createElement('button');
+      handle.type = 'button';
+      handle.className = `strava-heatmap-map-sheet-handle strava-heatmap-map-sheet-handle-${direction}`;
+      handle.setAttribute('aria-label', `Resize ${label}`);
+      handle.style.left = `${x}%`;
+      handle.style.top = `${y}%`;
+      handle.addEventListener('pointerdown', (event) => {
+        if (drag || !region || event.button !== 0 || !event.isPrimary) return;
         event.preventDefault();
         event.stopPropagation();
+        handle.setPointerCapture(event.pointerId);
+        drag = { element: handle, pointer: event.pointerId, handle: direction, region };
+        confirm.disabled = true;
       });
+      handle.addEventListener('pointermove', (event) => {
+        if (!drag || event.pointerId !== drag.pointer || drag.element !== handle) return;
+        event.stopPropagation();
+        update(event);
+      });
+      handle.addEventListener('pointerup', (event) => {
+        if (!drag || event.pointerId !== drag.pointer || drag.element !== handle) return;
+        event.stopPropagation();
+        update(event);
+        releasePointer();
+        confirm.disabled = status.getAttribute('role') === 'alert';
+      });
+      const cancelDrag = () => {
+        if (drag?.element !== handle) return;
+        region = drag.region;
+        releasePointer();
+        showSelection();
+        draw();
+      };
+      handle.addEventListener('pointercancel', cancelDrag);
+      handle.addEventListener('lostpointercapture', cancelDrag);
+      handle.addEventListener('keydown', (event) => {
+        const delta = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
+        if (!delta || !region || drag) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const edgeX = direction.includes('w') ? region.minX : region.maxX + 1;
+        const edgeY = direction.includes('n') ? region.minY : region.maxY + 1;
+        const selection = resizeMapSheetSelection(region, direction,
+          [longitude(Math.max(0, Math.min(TILE_COUNT, edgeX + delta[0]))),
+            latitude(Math.max(0, Math.min(TILE_COUNT, edgeY + delta[1])))]);
+        region = selection.region;
+        showSelection(selection.limited);
+        draw();
+      });
+      for (const name of ['click', 'dblclick', 'mousedown', 'mouseup', 'contextmenu', 'touchstart', 'touchmove', 'touchend']) {
+        handle.addEventListener(name, (event) => event.stopPropagation());
+      }
+      box.appendChild(handle);
     }
     for (const name of ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'dblclick', 'contextmenu', 'keydown']) {
       panel.addEventListener(name, (event) => event.stopPropagation());
@@ -294,26 +324,18 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
       finish({ region, title });
     });
     cancel.addEventListener('click', () => finish(null));
-    zoomOut.addEventListener('click', () => zoom(-1));
-    zoomIn.addEventListener('click', () => zoom(1));
+    panel.addEventListener('wheel', (event) => event.stopPropagation());
     try {
       checkAbort(signal);
       if (leaflet) {
-        const draggable = map.dragging.enabled();
-        if (draggable) {
-          map.dragging.disable();
-          restoreDragging = () => map.dragging.enable();
-        }
         map.on('move zoom resize', draw);
       } else {
-        const draggable = map.get('draggable');
-        map.setOptions({ draggable: false });
-        restoreDragging = () => map.setOptions({ draggable: draggable ?? true });
         listener = map.addListener('bounds_changed', draw);
       }
       signal.addEventListener('abort', abort, { once: true });
       document.addEventListener('keydown', keydown, true);
       container.appendChild(overlay);
+      draw();
       nameInput.focus();
       nameInput.select();
     } catch (error) {
@@ -495,7 +517,7 @@ export function mapSheetAvailability({ pro, accountId, layer, busy }) {
   }
   return {
     enabled: true, pro: true,
-    message: `Draw an area of up to ${MAX_TILES} zoom-${MAX_ZOOM} heatmap tiles to save privately.`,
+    message: `Adjust an area of up to ${MAX_TILES} zoom-${MAX_ZOOM} heatmap tiles to save privately.`,
   };
 }
 
