@@ -1,9 +1,9 @@
 import { PALETTES } from '../common/palettes.js';
 import { slideTileURL } from '../www.openstreetmap.org/slide/tiles.js';
 
-const ZOOM = 15;
+const MAX_ZOOM = 15;
 const TILE_SIZE = 512;
-const TILE_COUNT = 2 ** ZOOM;
+const TILE_COUNT = 2 ** MAX_ZOOM;
 const MAX_TILES = 49;
 const MAX_LATITUDE = 85.0511287798066;
 const MENU_ID = 'strava-heatmap-map-sheet';
@@ -112,7 +112,7 @@ async function api(url, data, signal) {
 
 export async function renderMapSheet(region, layer, signal, progress) {
   if (region.count > MAX_TILES || region.count < 1) {
-    throw new Error('Zoom in until the view contains at most 49 zoom-15 tiles.');
+    throw new Error(`Zoom in until the view contains at most ${MAX_TILES} zoom-${MAX_ZOOM} tiles.`);
   }
   const color = new URL(layer.template).searchParams.get('heatmap-color');
   if (!PALETTES[color]) throw new Error('Choose a supported Strava heatmap color.');
@@ -138,7 +138,7 @@ export async function renderMapSheet(region, layer, signal, progress) {
     while (next < jobs.length) {
       checkAbort(controller.signal);
       const { x, y } = jobs[next++];
-      const blob = await request(slideTileURL(source, x, y, ZOOM), {
+      const blob = await request(slideTileURL(source, x, y, MAX_ZOOM), {
         credentials: 'omit',
       }, controller.signal, 20000, (response) => response.blob());
       const image = await createImageBitmap(blob);
@@ -234,7 +234,7 @@ export function mapSheetAvailability({ pro, accountId, layer, bounds, busy }) {
       enabled: region.count <= MAX_TILES, pro: true, region,
       message: region.count <= MAX_TILES
         ? `Save ${region.count} heatmap tiles privately for mobile, downloads, and printing.`
-        : 'Zoom in to include 49 or fewer zoom-15 heatmap tiles.',
+        : `Zoom in to include ${MAX_TILES} or fewer zoom-${MAX_ZOOM} heatmap tiles.`,
     };
   } catch (error) {
     return { enabled: false, pro: true, message: error.message };
