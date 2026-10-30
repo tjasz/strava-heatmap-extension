@@ -79,7 +79,7 @@ test('global URLs stay unchanged and weekly layers have distinct names and IDs',
   assert.ok(weekly.name.endsWith(' (Weekly)'));
   assert.ok(global.description.includes('last year'));
   assert.ok(weekly.description.includes('last week'));
-  assert.ok(weekly.description.includes('Strava Pro required'));
+  assert.ok(weekly.description.includes('Strava Premium subscribers only'));
   assert.equal(new URL(tileURL(global)).pathname, '/identified/globalheat/run/grayscale/14/3099/6161.png');
   for (const layer of configs([globalLayer, weeklyLayer], false)) {
     const url = new URL(tileURL(layer));

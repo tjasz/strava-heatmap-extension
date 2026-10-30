@@ -159,7 +159,7 @@ function getLayerConfig(
     name: `${new Array(position).join('󠀠')}${colorEmoji} ${
       short ? activityName : `Strava Heatmap ${activityName}`
     }${period === 'weekly' ? ' (Weekly)' : ''}`,
-    description: `Shows ${activityName.toLowerCase()} aggregated, public Strava activities over the last ${period === 'weekly' ? 'week (Strava Pro required)' : 'year'} in ${colorEmoji} color.`,
+    description: `Shows ${activityName.toLowerCase()} aggregated, public Strava activities over the last ${period === 'weekly' ? 'week (Strava Premium subscribers only)' : 'year'} in ${colorEmoji} color.`,
     template: getTileTemplate(activity, color, timestamp, authenticated, version, legacy, period),
     zoomExtent: authenticated ? [0, 15] : [0, 20],
   };

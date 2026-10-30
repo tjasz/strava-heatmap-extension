@@ -103,14 +103,14 @@ editor; regeneration replaces both outputs.
 
 ### Instructions
 
-### Weekly heatmap layers (Strava Pro)
+### Weekly heatmap layers (Strava Premium)
 
 In the extension's layer settings, choose **Global** (the default) or
-**Weekly (Pro)** for each layer, then choose its sport and color and click
+**Weekly (Premium)** for each layer, then choose its sport and color and click
 **Apply changes**. Both types offer the same sport and color options, and
 you can configure multiple layers for the same sport, including layers of the
 same heatmap type with different colors. Weekly tiles
-require an active Strava Pro subscription and authentication through the
+require you to be a Strava Premium subscriber and authenticate through the
 extension; the extension does not unlock subscription-only data.
 
 ## OpenStreetMap iD editor
