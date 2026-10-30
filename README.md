@@ -167,7 +167,7 @@ To enable the Strava Heatmap in CalTopo:
 
 1. Sign into Strava using the extension and select the activity layer in the Strava heatmap controls.
 2. Choose **Add > Line**, **Polygon**, or **Buffer** (and enter its radius), then select **Strava** in the map's **Snap To** dropdown. The measure tool also supports Strava snapping.
-3. Zoom to `z=15` or higher, then **click anywhere to begin**. Strava suggests up to five paths from that exact point, shown in semitransparent yellow. A hovered option becomes wider and brighter and previews the path up to your cursor; click to confirm that draft.
+3. Zoom to `z=15` or higher, then **click anywhere to begin**. Strava suggests paths from that exact point, shown in semitransparent yellow. A hovered option becomes wider and brighter and previews the path up to your cursor; click to confirm that draft.
    Click away from the highlighted options to add a straight segment, just as with CalTopo's other snap sources. Every confirmed point generates a fresh set of suggestions.
 4. Use CalTopo's normal **Undo** (or **Esc**) to remove a segment, and finish or save normally. CalTopo still handles polygon closing and buffer geometry. To snap a polygon's final edge too, click back on its starting point before finishing.
    Double-click to finish.
@@ -175,16 +175,22 @@ To enable the Strava Heatmap in CalTopo:
 Snapping uses the selected Strava activity and palette, even if the overlay is hidden.
 Suggestions use Slide's locally normalized intensity surface and least-cost
 pathfinding, rather than skeletonizing heat-band outlines. One shared search
-finds paths toward 50 targets at a radius of one displayed tile width (256 map
-pixels at the current zoom). The first point samples every 7.2 degrees around
-the anchor. Later points use the previous-to-current bearing: 30 forward targets
-spaced 6 degrees apart and 20 backward targets spaced 9 degrees apart.
+finds paths toward 48 targets on a 7-by-7 grid centered on the anchor, excluding
+the center. The grid spans 1 km east-west and north-south, with targets about
+167 m apart. Sampling is independent of map zoom and uses the same unbiased
+grid at every anchor, regardless of the previous drawing direction.
 Sample endpoints can move onto nearby heat; clicked anchors remain exact.
 
-Paths sharing at least 90% of **both** trajectories (within one `z=15` heatmap
+Paths fully contained in a longer path are removed. Paths sharing at least
+90% of **both** trajectories (within one `z=15` heatmap
 pixel) merge into a common trunk ending at their branching point. Choosing that
-point generates new options for the branches. The best five remaining options
-are ranked by Slide cost per metre, not total cost.
+point generates new options for the branches. Deduplication repeats after
+truncation to remove newly redundant trunks. All remaining options are shown,
+ordered by Slide cost per metre, not total cost.
+Selected paths then use Slide's heat-guarded smoothing to remove pixel-grid
+zigzags, with clicked anchors and branch points held in place. Smoothing backs
+off at tight bends rather than leaving the heat ridge or crossing missing
+imagery.
 
 These are suggestions from heatmap imagery, not mapped trail data. Missing
 coverage and long dark gaps are rejected; a short off-heat approach from a
