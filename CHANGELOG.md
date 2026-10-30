@@ -4,9 +4,8 @@
 
 ### `0.15.0.1` (Unreleased)
 
-- [CalTopo] Prevent Strava heatmap overlay from disappearing at zoom level 18.
-- [CalTopo] Display heatmap tiles at 256 pixels with no zoom offset, including requests at map zoom 0.
-- [CalTopo] When "Snap to" is set to "Strava", the extension pre-calculates snap-eligible lines from heatmap data. Snapping then functions as with the other snap-to options.
+- [CalTopo] Improve display of overlay on the widest and narrowest zoom levels.
+- [CalTopo] When "Snap to" is set to "Strava", begin by clicking on a starting point. After that, suggested lines are highlighted after each click based on Strava heat.
 
 ### `0.15.0.0` (2026-10-28)
 
