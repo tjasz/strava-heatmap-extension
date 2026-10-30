@@ -62,9 +62,9 @@ for (const [reason, expected] of [
     assert.equal(versionElement.textContent, `v${version}`);
     assert.equal(versionElement.children.length, 0);
     assert.equal(links['a[href*="#readme"]'].href,
-      `https://github.com/tjasz/strava-heatmap-extension/blob/cto-v${version}/README.md`);
+      `https://github.com/tjasz/strava-heatmap-extension/blob/v${version}/README.md`);
     assert.equal(links['a[href*="#changelog"]'].href,
-      `https://github.com/tjasz/strava-heatmap-extension/blob/cto-v${version}/CHANGELOG.md`);
+      `https://github.com/tjasz/strava-heatmap-extension/blob/v${version}/CHANGELOG.md`);
     assert.equal(links['.actions a[href="#rate"]'].href,
       'https://addons.mozilla.org/en-US/firefox/addon/strava-heatmap/reviews/');
   });

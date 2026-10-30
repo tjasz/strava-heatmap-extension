@@ -2,7 +2,7 @@
 
 ## Versions
 
-### `0.15.0.1` (Unreleased)
+### `0.15.0.1` (2026-10-29)
 
 - [CalTopo] Improve display of overlay on the widest and narrowest zoom levels.
 - [CalTopo] When "Snap to" is set to "Strava", begin by clicking on a starting point. After that, suggested lines are highlighted after each click based on Strava heat.
