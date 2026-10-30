@@ -1789,6 +1789,14 @@ const SMOOTH_STEP_METERS = 1.5;
 const SMOOTH_PASSES = 24;
 const SMOOTH_TOLERANCE_METERS = 0.4;
 const SMOOTH_MIN_HEAT = 0.5;
+export function smoothSlidePath(locations, raster, fixedIndices = []) {
+  if (locations.length < 3) return locations;
+  const fixed = new Set(fixedIndices);
+  return smoothLine(locations.map((loc, i) => ({
+    loc, nodeIndex: null, drawn: fixed.has(i),
+  })), raster).map((record) => record.loc);
+}
+
 function smoothLine(records, raster) {
   const zoom = raster.zoom;
   const scale = metersPerPixel(records[0].loc[1], zoom);
@@ -1834,7 +1842,16 @@ function smoothRun(run, raster, step, scale) {
             current[i][axis] / 2 + (current[i - 1][axis] + current[i + 1][axis]) / 4;
       current = next;
     }
-    if (current.every((p, i) => sampleDensity(raster, p) >= heat[i])) smooth = current;
+    if (current.every((p, i) => {
+      if (!isCovered(raster, p) || sampleDensity(raster, p) < heat[i]) return false;
+      if (!i) return true;
+      const a = current[i - 1], steps = Math.max(1, Math.ceil(Math.hypot(p[0] - a[0], p[1] - a[1]) * 2));
+      for (let s = 1; s < steps; s++) {
+        if (!isCovered(raster, [a[0] + (p[0] - a[0]) * s / steps,
+          a[1] + (p[1] - a[1]) * s / steps])) return false;
+      }
+      return true;
+    })) smooth = current;
   }
   if (!smooth) return run;
   const keep = simplifyKeep(smooth, SMOOTH_TOLERANCE_METERS / scale, raster);

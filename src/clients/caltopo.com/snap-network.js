@@ -1,4 +1,4 @@
-import { createHeatmapRaster, project, slidePaths, unproject } from '../www.openstreetmap.org/slide/algorithm.js';
+import { createHeatmapRaster, project, slidePaths, smoothSlidePath, unproject } from '../www.openstreetmap.org/slide/algorithm.js';
 import { loadSlideTiles, SLIDE_ZOOM } from '../www.openstreetmap.org/slide/tiles.js';
 
 export function sampleSlideTargets(anchor, previous, zoom) {
@@ -42,7 +42,7 @@ function sharedTrajectory(a, b) {
   return shared >= a.lengths.at(-1) * 0.9 && shared >= b.lengths.at(-1) * 0.9;
 }
 
-export function selectSlideOptions(paths) {
+export function selectSlideOptions(paths, raster) {
   const score = (path) => path.costs.at(-1) / (path.lengths.at(-1) * path.scale);
   const groups = [];
   for (const path of paths.slice().sort((a, b) => score(a) - score(b))) {
@@ -58,13 +58,27 @@ export function selectSlideOptions(paths) {
         group.base.points[end + 1].every((value, k) => value === path.points[end + 1][k])) end++;
     group.end = end;
   }
-  return groups.filter(({ end }) => end > 0).map(({ base, end }) => {
+  const options = groups.filter(({ end }) => end > 0).map(({ base, end }) => {
     const cost = base.costs[end], length = base.lengths[end] * base.scale;
     return {
       coordinates: base.points.slice(0, end + 1).map((point) => unproject(point, SLIDE_ZOOM)),
       cost, length, score: cost / length,
     };
   }).sort((a, b) => a.score - b.score).slice(0, 5);
+  if (raster) {
+    // Keep deduplication on the pixel tree; smoothing must not move its forks.
+    const exits = new Map();
+    for (const { coordinates } of options) coordinates.forEach((point, i) => {
+      const key = point.join(',');
+      if (!exits.has(key)) exits.set(key, new Set());
+      exits.get(key).add(coordinates[i + 1]?.join(','));
+    });
+    for (const option of options) {
+      const fixed = option.coordinates.flatMap((point, i) => exits.get(point.join(',')).size > 1 ? [i] : []);
+      option.coordinates = smoothSlidePath(option.coordinates, raster, fixed);
+    }
+  }
+  return options;
 }
 
 export async function loadSlideOptions(anchor, previous, zoom, layer, signal, onProgress = () => {}) {
@@ -86,7 +100,7 @@ export async function loadSlideOptions(anchor, previous, zoom, layer, signal, on
     },
     onProgress: (progress) => onProgress(`Finding Slide options... ${Math.round(progress * 100)}%`),
   });
-  const options = selectSlideOptions(paths);
+  const options = selectSlideOptions(paths, raster);
   // Keep the user's anchor exact through projection and unprojection.
   for (const option of options) option.coordinates[0] = anchor.slice();
   return options;
