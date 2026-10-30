@@ -83,7 +83,7 @@ export function limitMapSheetSelection(anchor, corner) {
   return { region: at(low), limited: true };
 }
 
-export function selectMapSheetRegion(map, signal) {
+export function selectMapSheetRegion(map, signal, suggestedTitle) {
   const container = map?.getContainer?.() || map?.getDiv?.();
   const leaflet = typeof map?.containerPointToLatLng === 'function';
   const wrapper = window.map;
@@ -120,6 +120,15 @@ export function selectMapSheetRegion(map, signal) {
     panel.setAttribute('aria-label', 'Select heatmap area');
     const instructions = document.createElement('p');
     instructions.textContent = `Drag a box around the area to capture (up to ${MAX_TILES} zoom-${MAX_ZOOM} tiles). Use the zoom buttons or mouse wheel for precision.`;
+    const nameLabel = document.createElement('label');
+    nameLabel.className = 'strava-heatmap-map-sheet-name';
+    nameLabel.textContent = 'Sheet name';
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.required = true;
+    nameInput.value = suggestedTitle;
+    nameInput.addEventListener('input', () => nameInput.setCustomValidity(''));
+    nameLabel.appendChild(nameInput);
     const status = document.createElement('p');
     status.setAttribute('role', 'status');
     status.textContent = 'Draw a box, then confirm. Drag again to replace it.';
@@ -134,7 +143,7 @@ export function selectMapSheetRegion(map, signal) {
     const zoomIn = document.createElement('button');
     zoomIn.textContent = '+';
     zoomIn.setAttribute('aria-label', 'Zoom in');
-    panel.append(instructions, status, confirm, cancel, zoomOut, zoomIn);
+    panel.append(instructions, nameLabel, status, confirm, cancel, zoomOut, zoomIn);
     overlay.append(box, panel);
     let anchor;
     let pointer;
@@ -257,10 +266,16 @@ export function selectMapSheetRegion(map, signal) {
         event.stopPropagation();
       });
     }
-    for (const name of ['pointerdown', 'pointerup', 'click', 'dblclick']) {
+    for (const name of ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'dblclick', 'contextmenu', 'keydown']) {
       panel.addEventListener(name, (event) => event.stopPropagation());
     }
-    confirm.addEventListener('click', () => { if (!confirm.disabled) finish(region); });
+    confirm.addEventListener('click', () => {
+      if (confirm.disabled) return;
+      const title = nameInput.value.trim();
+      nameInput.setCustomValidity(title ? '' : 'Enter a sheet name.');
+      if (!nameInput.reportValidity()) return;
+      finish({ region, title });
+    });
     cancel.addEventListener('click', () => finish(null));
     zoomOut.addEventListener('click', () => zoom(-1));
     zoomIn.addEventListener('click', () => zoom(1));
@@ -282,7 +297,8 @@ export function selectMapSheetRegion(map, signal) {
       signal.addEventListener('abort', abort, { once: true });
       document.addEventListener('keydown', keydown, true);
       container.appendChild(overlay);
-      cancel.focus();
+      nameInput.focus();
+      nameInput.select();
     } catch (error) {
       finish(null, error);
     }
@@ -541,7 +557,7 @@ export function installCalTopoMapSheets(getLayer, getMap) {
     const layer = getLayer();
     const color = new URL(layer.template).searchParams.get('heatmap-color');
     const activity = layer.name.replace(/^\S+\s*/, '');
-    const sheetTitle = `Strava Global Heatmap ${activity} ${color} ${new Date().toISOString()}`;
+    const suggestedTitle = `Strava Global Heatmap ${activity} ${color} ${new Date().toISOString()}`;
     const accountId = window.sarsoft.account.id;
     const controller = new AbortController();
     const dialog = document.createElement('dialog');
@@ -549,7 +565,7 @@ export function installCalTopoMapSheets(getLayer, getMap) {
     const heading = document.createElement('h2');
     heading.textContent = 'Map Sheet from Strava Heatmap';
     const name = document.createElement('p');
-    name.textContent = sheetTitle;
+    name.textContent = suggestedTitle;
     const privacy = document.createElement('p');
     privacy.textContent = 'Share publicly: Off. Heatmap map sheets are saved privately.';
     const status = document.createElement('p');
@@ -571,8 +587,10 @@ export function installCalTopoMapSheets(getLayer, getMap) {
     let saved = false;
     try {
       const progress = (message) => { status.textContent = message; };
-      const region = await selectMapSheetRegion(getMap(), controller.signal);
-      if (!region) return;
+      const selection = await selectMapSheetRegion(getMap(), controller.signal, suggestedTitle);
+      if (!selection) return;
+      const { region, title: sheetTitle } = selection;
+      name.textContent = sheetTitle;
       document.body.appendChild(dialog);
       dialog.showModal();
       timer = setTimeout(() => controller.abort(), 5 * 60 * 1000);

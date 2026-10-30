@@ -47,6 +47,17 @@
   margin: 0 0 8px;
 }
 
+.strava-heatmap-map-sheet-name {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.strava-heatmap-map-sheet-name input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+}
+
 .strava-heatmap-map-sheet-selection-panel button + button {
   margin-left: 8px;
 }

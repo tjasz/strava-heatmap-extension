@@ -279,6 +279,9 @@ class Element {
   addEventListener(name, callback) { this.handlers[name] = callback; }
   removeEventListener(name) { delete this.handlers[name]; }
   focus() {}
+  select() {}
+  setCustomValidity(message) { this.validationMessage = message; }
+  reportValidity() { return !this.validationMessage; }
   getBoundingClientRect() { return { left: 0, top: 0, width: 1000, height: 1000 }; }
   setPointerCapture(id) { this.pointers.add(id); }
   hasPointerCapture(id) { return this.pointers.has(id); }
@@ -365,7 +368,7 @@ for (const renderer of ['google', 'leaflet']) {
     globalValue(t, 'document', document);
     globalValue(t, 'window', { map: fixture.wrapper });
     let completed = false;
-    const work = selectMapSheetRegion(fixture.map, new AbortController().signal)
+    const work = selectMapSheetRegion(fixture.map, new AbortController().signal, 'Suggested sheet name')
       .then((result) => { completed = true; return result; });
     assert.equal(fixture.draggable(), false);
     const overlay = fixture.container.children[0];
@@ -373,26 +376,39 @@ for (const renderer of ['google', 'leaflet']) {
     if (renderer === 'google') {
       fixture.map.getProjection = () => null;
       pointer(overlay, 'pointerdown', 10, 10);
-      assert.match(panel.children[1].textContent, /finish loading/);
-      assert.equal(panel.children[2].disabled, true);
+      assert.match(panel.children[2].textContent, /finish loading/);
+      assert.equal(panel.children[3].disabled, true);
       fixture.map.getProjection = () => ({});
     }
     for (const name of ['click', 'dblclick', 'mousedown', 'mouseup', 'contextmenu']) {
       let blocked = false;
       overlay.handlers[name]({ preventDefault() {}, stopPropagation() { blocked = true; } });
       assert.equal(blocked, true, `${name} must not reach the map's drawing controls`);
+      let stopped = false;
+      let defaultPrevented = false;
+      const event = {
+        stopPropagation() { stopped = true; },
+        preventDefault() { defaultPrevented = true; },
+      };
+      panel.handlers[name]?.(event);
+      if (!stopped) overlay.handlers[name](event);
+      assert.equal(stopped, true, `${name} in the panel must not reach the selection overlay`);
+      assert.equal(defaultPrevented, false, `${name} must preserve native text-field editing`);
     }
-    assert.equal(panel.children[2].disabled, true);
+    const nameInput = panel.children[1].children[0];
+    assert.equal(nameInput.value, 'Suggested sheet name');
+    assert.equal(nameInput.required, true);
+    assert.equal(panel.children[3].disabled, true);
     pointer(overlay, 'pointerdown', 10, 10);
     pointer(overlay, 'pointermove', 100000, 100000);
-    assert.match(panel.children[1].textContent, /100\/100 tiles selected/);
-    assert.match(panel.children[1].textContent, /Limit reached/);
-    assert.equal(panel.children[2].disabled, true, 'cannot confirm during a drag');
+    assert.match(panel.children[2].textContent, /100\/100 tiles selected/);
+    assert.match(panel.children[2].textContent, /Limit reached/);
+    assert.equal(panel.children[3].disabled, true, 'cannot confirm during a drag');
     fixture.move();
     assert.ok(parseFloat(overlay.children[0].style.width) <= 1000.00001);
     pointer(overlay, 'pointerup', 100000, 100000);
-    assert.equal(panel.children[2].disabled, false);
-    panel.children[5].handlers.click();
+    assert.equal(panel.children[3].disabled, false);
+    panel.children[6].handlers.click();
     assert.equal(fixture.map.getZoom(), 2);
     assert.equal(fixture.centered(), 1);
     overlay.handlers.wheel({ deltaY: -10, preventDefault() {}, stopPropagation() {} });
@@ -402,12 +418,21 @@ for (const renderer of ['google', 'leaflet']) {
     await Promise.resolve();
     assert.equal(completed, false);
     drawSelection(fixture.container);
-    assert.match(panel.children[1].textContent, /1\/100 tiles selected/);
-    panel.children[2].handlers.click();
+    assert.match(panel.children[2].textContent, /1\/100 tiles selected/);
+    nameInput.value = '   ';
+    panel.children[3].handlers.click();
+    await Promise.resolve();
+    assert.equal(completed, false, 'blank names must not confirm the capture');
+    assert.equal(nameInput.validationMessage, 'Enter a sheet name.');
+    nameInput.value = renderer === 'google' ? '  My trail map  ' : 'Suggested sheet name';
+    nameInput.handlers.input();
+    assert.equal(nameInput.validationMessage, '');
+    panel.children[3].handlers.click();
     const result = await work;
-    assert.equal(result.count, 1);
-    assert.equal(result.minX, 6200);
-    assert.equal(result.minY, 12000);
+    assert.equal(result.region.count, 1);
+    assert.equal(result.region.minX, 6200);
+    assert.equal(result.region.minY, 12000);
+    assert.equal(result.title, renderer === 'google' ? 'My trail map' : 'Suggested sheet name');
     assert.equal(fixture.container.children.length, 0);
     assert.equal(fixture.draggable(), true);
     assert.equal(fixture.removed(), 1);
@@ -420,12 +445,12 @@ for (const renderer of ['google', 'leaflet']) {
     const fixture = selectionMap(renderer, false);
     globalValue(t, 'document', document);
     globalValue(t, 'window', { map: fixture.wrapper });
-    const work = selectMapSheetRegion(fixture.map, new AbortController().signal);
+    const work = selectMapSheetRegion(fixture.map, new AbortController().signal, 'Suggested sheet name');
     const overlay = fixture.container.children[0];
     pointer(overlay, 'pointerdown', 10, 10);
     pointer(overlay, 'pointermove', 80, 80);
     pointer(overlay, 'pointercancel', 80, 80);
-    assert.equal(overlay.children[1].children[2].disabled, true);
+    assert.equal(overlay.children[1].children[3].disabled, true);
     assert.equal(overlay.children[0].hidden, true);
     document.handlers.keydown({ key: 'Escape', preventDefault() {}, stopPropagation() {} });
     assert.equal(await work, null);
@@ -442,7 +467,7 @@ test('aborting area selection cleans up all listeners and restores map dragging'
   globalValue(t, 'document', document);
   globalValue(t, 'window', { map: fixture.wrapper });
   const controller = new AbortController();
-  const work = selectMapSheetRegion(fixture.map, controller.signal);
+  const work = selectMapSheetRegion(fixture.map, controller.signal, 'Suggested sheet name');
   controller.abort();
   await assert.rejects(work, { name: 'AbortError' });
   assert.equal(fixture.container.children.length, 0);
@@ -508,20 +533,25 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   assert.match(description.textContent, /Draw an area/);
   button.handlers.click();
   assert.equal(body.children.length, 0, 'selection must precede the upload dialog');
-  selection.container.children[0].children[1].children[3].handlers.click();
+  selection.container.children[0].children[1].children[4].handlers.click();
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(button.attributes['aria-disabled'], 'false', 'cancel permits another selection');
   let requests = 0;
+  let expectedTitle;
   t.mock.method(globalThis, 'fetch', async (url, options) => {
     requests++;
     if (url.startsWith('https:')) return new Response('png');
     if (url === '/api/v1/rendergeo') {
       const payload = JSON.parse(options.body.get('json'));
-      assert.match(payload.title, /^Strava Global Heatmap All Foot Sports orange \d{4}-\d\d-\d\dT/);
+      assert.equal(payload.title, expectedTitle);
       assert.equal(payload.shared, false);
       return reply({ id: 'task', manual: true });
     }
-    if (url.startsWith('/rendermanualgeo?')) return reply({ id: 'task' });
+    if (url.startsWith('/rendermanualgeo?')) {
+      const alignment = JSON.parse(new URL(url, 'https://caltopo.com').searchParams.get('json'));
+      assert.equal(alignment.properties.title, expectedTitle);
+      return reply({ id: 'task' });
+    }
     return reply({ state: 'done', image: { id: 'image', bbox: [-112, 40, -111, 41],
       properties: { maxZoom: 15, downloadableSize: 1024 } } });
   });
@@ -530,16 +560,23 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   const panel = drawSelection(selection.container);
   assert.equal(requests, 0, 'no downloads or uploads before confirmation');
   assert.equal(body.children.length, 0);
-  panel.children[2].handlers.click();
+  const nameInput = panel.children[1].children[0];
+  assert.match(nameInput.value, /^Strava Global Heatmap All Foot Sports orange \d{4}-\d\d-\d\dT/);
+  expectedTitle = 'Wasatch & <hike> "Loop"';
+  nameInput.value = `  ${expectedTitle}  `;
+  nameInput.handlers.input();
+  panel.children[3].handlers.click();
   await new Promise((resolve) => setImmediate(resolve));
   const dialog = body.children[0];
   for (let i = 0; i < 100 && !dialog.children[3].textContent.includes('and added'); i++) {
     await new Promise((resolve) => setImmediate(resolve));
   }
   assert.match(dialog.children[3].textContent, /saved privately.*and added/i);
+  assert.equal(dialog.children[1].textContent, expectedTitle);
   assert.match(dialog.children[2].textContent, /Share publicly: Off/);
   assert.equal(savedFeature.properties.backendImageId, 'image');
   assert.equal(savedFeature.properties.maxZoom, 15);
+  assert.equal(savedFeature.properties.title, expectedTitle);
   assert.deepEqual(added, [['geoimage_image', 1]]);
   assert.equal(fixture.closed(), 1);
   assert.equal(dialog.children[4].textContent, 'Close');
@@ -549,7 +586,10 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   t.mock.method(console, 'warn', () => {});
   native.MapObjectDAO.save = (feature, type, success, failure) => failure();
   button.handlers.click();
-  drawSelection(selection.container).children[2].handlers.click();
+  const nextPanel = drawSelection(selection.container);
+  expectedTitle = nextPanel.children[1].children[0].value;
+  assert.match(expectedTitle, /^Strava Global Heatmap All Foot Sports orange \d{4}-\d\d-\d\dT/);
+  nextPanel.children[3].handlers.click();
   await new Promise((resolve) => setImmediate(resolve));
   const failedDialog = body.children[1];
   for (let i = 0; i < 100 && failedDialog.children[3].attributes.role !== 'alert'; i++) {
