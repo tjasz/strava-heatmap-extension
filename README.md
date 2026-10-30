@@ -164,7 +164,7 @@ gap, or choose **OSM** for mapped-trail routing.
 With a CalTopo Pro account and the extension signed into Strava, choose your
 activity and color in the Strava Heatmap layer controls. Open **Add > Map Sheet
 from Strava Heatmap**, directly below **Map Sheet**. Zoom in until the view
-contains no more than 49 tiles at zoom 15; the menu explains when you need to
+contains no more than 100 tiles at zoom 15; the menu explains when you need to
 zoom in further.
 
 The extension stitches the full tiles intersecting your view, applies the

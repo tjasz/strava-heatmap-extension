@@ -4,7 +4,7 @@ import { slideTileURL } from '../www.openstreetmap.org/slide/tiles.js';
 const MAX_ZOOM = 15;
 const TILE_SIZE = 512;
 const TILE_COUNT = 2 ** MAX_ZOOM;
-const MAX_TILES = 49;
+const MAX_TILES = 100;
 const MAX_LATITUDE = 85.0511287798066;
 const MENU_ID = 'strava-heatmap-map-sheet';
 
