@@ -476,11 +476,20 @@ export async function renderMapSheet(region, layer, signal, progress) {
   if (region.count > MAX_TILES || region.count < 1) {
     throw new Error(`Select an area containing at most ${MAX_TILES} zoom-${MAX_ZOOM} tiles.`);
   }
-  const color = new URL(layer.template).searchParams.get('heatmap-color');
-  if (!PALETTES[color]) throw new Error('Choose a supported Strava heatmap color.');
-  const source = {
-    url: ([x, y, z]) => layer.template.replace('{z}', z).replace('{x}', x).replace('{y}', y),
-  };
+  const layers = Array.isArray(layer) ? layer : layer ? [layer] : [];
+  if (!layers.length) throw new Error('Enable a Strava heatmap layer before saving a map sheet.');
+  const sources = layers.map((layer) => {
+    const color = new URL(layer.template).searchParams.get('heatmap-color');
+    if (!PALETTES[color]) throw new Error('Choose a supported Strava heatmap color.');
+    const opacity = layer.opacity ?? 1;
+    if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) {
+      throw new Error('Choose a heatmap opacity between 0 and 100%.');
+    }
+    return {
+      color, opacity,
+      url: ([x, y, z]) => layer.template.replace('{z}', z).replace('{x}', x).replace('{y}', y),
+    };
+  });
   const canvas = document.createElement('canvas');
   canvas.width = region.width;
   canvas.height = region.height;
@@ -497,28 +506,40 @@ export async function renderMapSheet(region, layer, signal, progress) {
   signal.addEventListener('abort', abort, { once: true });
   if (signal.aborted) abort();
   const worker = async () => {
+    const tile = document.createElement('canvas');
+    const colorTile = document.createElement('canvas');
+    tile.width = colorTile.width = TILE_SIZE;
+    tile.height = colorTile.height = TILE_SIZE;
+    const tileContext = tile.getContext('2d');
+    const colorContext = colorTile.getContext('2d');
+    if (!tileContext || !colorContext) throw new Error('Could not create the map sheet image.');
     while (next < jobs.length) {
       checkAbort(controller.signal);
       const { x, y } = jobs[next++];
-      const blob = await request(slideTileURL(source, x, y, MAX_ZOOM), {
-        credentials: 'omit',
-      }, controller.signal, 20000, (response) => response.blob());
-      const image = await createImageBitmap(blob);
-      try {
-        if (image.width !== TILE_SIZE || image.height !== TILE_SIZE) {
-          throw new Error('Strava returned an unexpected heatmap tile size.');
+      tileContext.clearRect(0, 0, TILE_SIZE, TILE_SIZE);
+      for (const source of sources) {
+        const blob = await request(slideTileURL(source, x, y, MAX_ZOOM), {
+          credentials: 'omit',
+        }, controller.signal, 20000, (response) => response.blob());
+        const image = await createImageBitmap(blob);
+        try {
+          if (image.width !== TILE_SIZE || image.height !== TILE_SIZE) {
+            throw new Error('Strava returned an unexpected heatmap tile size.');
+          }
+          checkAbort(controller.signal);
+          colorContext.clearRect(0, 0, TILE_SIZE, TILE_SIZE);
+          colorContext.drawImage(image, 0, 0);
+          const pixels = colorContext.getImageData(0, 0, TILE_SIZE, TILE_SIZE);
+          colorizeMapSheetPixels(pixels.data, source.color);
+          colorContext.putImageData(pixels, 0, 0);
+          tileContext.globalAlpha = source.opacity;
+          tileContext.drawImage(colorTile, 0, 0);
+          progress(`Preparing heatmap tiles (${++done}/${region.count * sources.length})...`);
+        } finally {
+          image.close();
         }
-        checkAbort(controller.signal);
-        const left = (x - region.minX) * TILE_SIZE;
-        const top = (y - region.minY) * TILE_SIZE;
-        context.drawImage(image, left, top);
-        const pixels = context.getImageData(left, top, TILE_SIZE, TILE_SIZE);
-        colorizeMapSheetPixels(pixels.data, color);
-        context.putImageData(pixels, left, top);
-        progress(`Preparing heatmap tiles (${++done}/${region.count})...`);
-      } finally {
-        image.close();
       }
+      context.drawImage(tile, (x - region.minX) * TILE_SIZE, (y - region.minY) * TILE_SIZE);
     }
   };
   try {
@@ -575,8 +596,10 @@ export async function uploadMapSheet({ region, title, image, accountId, signal, 
 export function mapSheetAvailability({ pro, accountId, layer, busy }) {
   if (!pro || !accountId) return { enabled: false, pro: false, message: 'Save a private heatmap to your CalTopo account.' };
   if (busy) return { enabled: false, pro: true, message: 'A Strava map sheet is being saved...' };
-  if (!layer || !/^\/(identified\/globalheat|weeklyheat)\//.test(new URL(layer.template).pathname)) {
-    return { enabled: false, pro: true, message: 'Sign into Strava using the extension and choose a heatmap layer.' };
+  const layers = Array.isArray(layer) ? layer : layer ? [layer] : [];
+  if (!layers.length || layers.some((layer) =>
+    !/^\/(identified\/globalheat|weeklyheat)\//.test(new URL(layer.template).pathname))) {
+    return { enabled: false, pro: true, message: 'Sign into Strava using the extension and enable a heatmap layer.' };
   }
   return {
     enabled: true, pro: true,
@@ -647,7 +670,7 @@ function reserveMapSheetCreation() {
   };
 }
 
-export function installCalTopoMapSheets(getLayer, getMap) {
+export function installCalTopoMapSheets(getLayers, getMap) {
   let busy = false;
   let menu;
   let line;
@@ -661,7 +684,7 @@ export function installCalTopoMapSheets(getLayer, getMap) {
     if (!getMap()) return { enabled: false, pro: true, message: 'Wait for the map to finish loading.' };
     return mapSheetAvailability({
       pro, accountId,
-      layer: getLayer(), busy,
+      layer: getLayers(), busy,
     });
   };
   const refresh = () => {
@@ -684,10 +707,11 @@ export function installCalTopoMapSheets(getLayer, getMap) {
     busy = true;
     refresh();
     document.querySelector('.expandedMenu img[src$="/menu-close.svg"]')?.click();
-    const layer = getLayer();
-    const color = new URL(layer.template).searchParams.get('heatmap-color');
-    const activity = layer.name.replace(/^\S+\s*/, '');
-    const suggestedTitle = `${activity} ${color} ${new Date().toISOString().slice(0, 10)}`;
+    const selected = getLayers();
+    const layers = Array.isArray(selected) ? selected : [selected];
+    const names = layers.map((layer) =>
+      `${layer.name.replace(/^\S+\s*/, '')} ${new URL(layer.template).searchParams.get('heatmap-color')}`);
+    const suggestedTitle = `${names.join(' + ')} ${new Date().toISOString().slice(0, 10)}`;
     const accountId = window.sarsoft.account.id;
     const controller = new AbortController();
     const dialog = document.createElement('dialog');
@@ -732,7 +756,7 @@ export function installCalTopoMapSheets(getLayer, getMap) {
       document.body.appendChild(dialog);
       dialog.showModal();
       timer = setTimeout(() => controller.abort(), 5 * 60 * 1000);
-      const image = await renderMapSheet(region, layer, controller.signal, progress);
+      const image = await renderMapSheet(region, layers, controller.signal, progress);
       uploading = true;
       close.disabled = true;
       const result = await uploadMapSheet({

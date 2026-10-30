@@ -134,8 +134,8 @@ To enable the Strava Heatmap in GPX.studio:
 To enable the Strava Heatmap in CalTopo:
 
 1. Open a map at https://caltopo.com/.
-2. In the Map Layers panel to the right of the map, under "Route Discovery", toggle the Strava Heatmap layer. Select a configured layer, toggle it, or adjust its opacity.
-3. Use the extension icon to log into Strava and configure the available heatmap layers. Grayscale layers support ordered color and opacity stops for custom gradients.
+2. In the Map Layers panel to the right of the map, under "Route Discovery", each configured Strava heatmap has its own button. Toggle any combination of layers; each enabled layer expands to show its own opacity slider. Layers are stacked in their configured order, with later layers on top.
+3. Use the extension icon to log into Strava and configure the available heatmap layers. Custom gradient layers support ordered color and opacity stops.
 
 The live overlay is not shown in CalTopo's print preview because PDFs are rendered
 server-side and cannot include it. To include a heatmap in a printed map, first
@@ -150,7 +150,8 @@ server-side and cannot include it. To include a heatmap in a printed map, first
 4. Use CalTopo's normal **Undo** (or **Esc**) to remove a segment, and finish or save normally. CalTopo still handles polygon closing and buffer geometry. To snap a polygon's final edge too, click back on its starting point before finishing.
    Double-click to finish.
 
-Snapping uses the selected Strava activity and palette, even if the overlay is hidden.
+Snapping uses the Strava layer you most recently enabled or adjusted, even if
+you subsequently hide it. Each layer's visibility and opacity are saved separately.
 Suggestions use Slide's locally normalized intensity surface and least-cost
 pathfinding, rather than skeletonizing heat-band outlines. One shared search
 finds paths toward 48 targets on a 7-by-7 grid centered on the anchor, excluding
@@ -179,8 +180,10 @@ gap, or choose **OSM** for mapped-trail routing.
 
 ### Save a CalTopo heatmap map sheet
 
-With a CalTopo Pro account and the extension signed into Strava, choose your
-activity and color in the Strava Heatmap layer controls. Open **Add > Map Sheet
+With a CalTopo Pro account and the extension signed into Strava, enable the
+heatmap layers you want under **Route Discovery** and adjust their opacities.
+The map sheet combines all enabled layers in the same order and at the same
+opacities as the map. Open **Add > Map Sheet
 from Strava Heatmap**, directly below **Map Sheet**, at any map zoom level.
 The selection form sits at the bottom left of the map. Finish or cancel any
 other item you are creating first; CalTopo allows only one new item at a time,

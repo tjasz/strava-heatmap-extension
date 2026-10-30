@@ -169,22 +169,38 @@ test('all colors reproduce all 256 entries of the displayed RGBA palette, includ
 function canvasFixture(t) {
   const draws = [];
   const puts = [];
-  globalValue(t, 'document', {
-    createElement: () => ({
+  const composites = [];
+  let canvasCount = 0;
+  const createCanvas = () => {
+    const index = canvasCount++;
+    const canvas = {
       width: 0, height: 0,
-      getContext: () => ({
-        drawImage: (image, left, top) => draws.push([image, left, top]),
-        getImageData: () => ({ data: new Uint8ClampedArray([128, 128, 128, 255]) }),
-        putImageData: (data, left, top) => puts.push([data, left, top]),
-      }),
+      getContext: () => context,
       toDataURL: (type) => { assert.equal(type, 'image/png'); return 'data:image/png;base64,cG5n'; },
-    }),
+    };
+    const context = {
+      globalAlpha: 1,
+      clearRect() {},
+      drawImage(image, left, top) {
+        if (index === 0) draws.push([image, left, top]);
+        else if (image.getContext) composites.push({ opacity: this.globalAlpha, pixels: image.pixels });
+      },
+      getImageData: () => ({ data: new Uint8ClampedArray([128, 128, 128, 255]) }),
+      putImageData(data, left, top) {
+        canvas.pixels = Buffer.from(data.data).toString('hex');
+        puts.push([data, left, top]);
+      },
+    };
+    return canvas;
+  };
+  globalValue(t, 'document', {
+    createElement: createCanvas,
   });
   let closed = 0;
   globalValue(t, 'createImageBitmap', async () => ({
     width: 512, height: 512, close: () => closed++,
   }));
-  return { draws, puts, closed: () => closed };
+  return { draws, puts, composites, closed: () => closed, createCanvas };
 }
 
 test('rendering fetches every z15 tile once, stitches by position, colorizes, and releases bitmaps', async (t) => {
@@ -207,6 +223,37 @@ test('rendering fetches every z15 tile once, stitches by position, colorizes, an
   const paletteEntry = PALETTES.orange.slice(128 * 8, 129 * 8);
   for (const [data] of fixture.puts) assert.equal(Buffer.from(data.data).toString('hex'), paletteEntry);
   for (const url of requests) assert.match(url, /\/run\/grayscale\/15\/620[01]\/1200[012]\.png/);
+});
+
+test('map sheets composite every enabled layer in configured order at its own opacity', async (t) => {
+  const fixture = canvasFixture(t);
+  const layers = getLayerConfigs([
+    { activity: 'run', color: 'orange' },
+    { activity: 'run', color: 'blue', period: 'weekly' },
+  ], true, '0', true).map((layer, index) => ({ ...layer, opacity: index ? 0.7 : 0.3 }));
+  const selected = mapSheetRegion(boundsFor(6200, 12000, 1, 1));
+  const requests = [];
+  const progress = [];
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    requests.push(url);
+    return new Response('png');
+  });
+  assert.equal(mapSheetAvailability({ pro: true, accountId: 'account', layer: layers }).enabled, true);
+  assert.equal(mapSheetAvailability({ pro: true, accountId: 'account', layer: [] }).enabled, false);
+  await renderMapSheet(selected, layers, new AbortController().signal, (message) => progress.push(message));
+  assert.equal(requests.length, 2);
+  assert.match(requests[0], /identified\/globalheat\/run/);
+  assert.match(requests[1], /weeklyheat.*sport_types=run/);
+  assert.deepEqual(fixture.composites, [
+    { opacity: 0.3, pixels: PALETTES.orange.slice(128 * 8, 129 * 8) },
+    { opacity: 0.7, pixels: PALETTES.blue.slice(128 * 8, 129 * 8) },
+  ]);
+  assert.equal(fixture.draws.length, 1);
+  assert.equal(fixture.closed(), 2);
+  assert.match(progress.at(-1), /2\/2/);
+  await assert.rejects(renderMapSheet(selected, [], new AbortController().signal, () => {}), /Enable/);
+  await assert.rejects(renderMapSheet(selected, [{ ...layer, opacity: NaN }],
+    new AbortController().signal, () => {}), /opacity/);
 });
 
 test('rendering rejects oversized selections, invalid sources, expired auth, missing tiles, and cancelled work', async (t) => {
@@ -857,7 +904,6 @@ test('aborting an active resize releases pointer capture and leaves map dragging
 
 test('Add menu selects at any zoom, waits for confirmation, then saves privately through native controls', async (t) => {
   const fixture = canvasFixture(t);
-  const canvas = globalThis.document.createElement('canvas');
   const body = new Element('body');
   const group = new Element('div');
   const item = new Element('div');
@@ -875,7 +921,7 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   const document = new Element('document');
   Object.assign(document, {
     body,
-    createElement: (tag) => tag === 'canvas' ? canvas : new Element(tag),
+    createElement: (tag) => tag === 'canvas' ? fixture.createCanvas() : new Element(tag),
     querySelector: (selector) => selector.includes('layer-mapsheets.svg') ? icon : null,
     getElementById: (id) => find(group, id),
   });
