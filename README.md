@@ -164,8 +164,10 @@ gap, or choose **OSM** for mapped-trail routing.
 With a CalTopo Pro account and the extension signed into Strava, choose your
 activity and color in the Strava Heatmap layer controls. Open **Add > Map Sheet
 from Strava Heatmap**, directly below **Map Sheet**, at any map zoom level.
-Drag a bounding box around the area you want, then choose **Capture selected
-area**. The box stops growing before it would include more than 100 tiles at
+Drag a bounding box around the area you want. The **Sheet name** field suggests
+a name containing the activity, color, and timestamp; keep it or enter your own
+non-empty name, then choose **Capture selected area**.
+The box stops growing before it would include more than 100 tiles at
 zoom 15. A live tile count shows the selection size. Use the zoom buttons or
 mouse wheel for a more precise selection, or drag again to replace the box.
 Zooming after drawing centers the view on your selected area.
@@ -174,8 +176,8 @@ Choose **Cancel** or press **Escape** to exit without downloading or uploading.
 After confirmation, the extension stitches the full tiles intersecting your box,
 applies the selected color (independent of the overlay opacity), and uploads and aligns the
 image automatically. It saves the sheet privately to your CalTopo account and
-adds it to the current map. **Share publicly is always off.** The title includes
-the activity, color, and timestamp. Account map sheets can be used on mobile,
+adds it to the current map using your chosen name. **Share publicly is always
+off.** Account map sheets can be used on mobile,
 downloaded there, and included in printed PDFs using CalTopo's normal controls.
 
 You can cancel while tiles are being prepared. Once uploading starts, wait for
