@@ -14,16 +14,12 @@ const STORAGE_KEY = 'strava-heatmap-extension:caltopo-layer-state';
 const RETRY_INTERVAL_MS = 500;
 const MAX_ATTEMPTS = 120;
 
-let enabled = true;
-let opacity = 1;
 let selectedLayerId;
 let layerConfigs = [];
-let stack;
-let toggleButton;
-let controlsCollapse;
-let layerInput;
-let opacityInput;
-let opacityOutput;
+const layerStates = new Map();
+const overlaysById = new Map();
+const controlsById = new Map();
+let initialLayerState = { enabled: true, opacity: 1 };
 let observedOverlayMapTypes;
 let overlayMapTypeListeners = [];
 let restoreOverlayTimer;
@@ -35,10 +31,20 @@ function loadState() {
     const state = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (!state || typeof state !== 'object') return;
 
-    if (typeof state.enabled === 'boolean') enabled = state.enabled;
     if (typeof state.layerId === 'string') selectedLayerId = state.layerId;
-    if (Number.isFinite(state.opacity)) {
-      opacity = Math.max(0, Math.min(1, state.opacity));
+    if (state.layers && typeof state.layers === 'object') {
+      for (const [id, layer] of Object.entries(state.layers)) {
+        if (typeof layer?.enabled !== 'boolean' || !Number.isFinite(layer.opacity)) continue;
+        layerStates.set(id, {
+          enabled: layer.enabled,
+          opacity: Math.max(0, Math.min(1, layer.opacity)),
+        });
+      }
+    } else {
+      if (typeof state.enabled === 'boolean') initialLayerState.enabled = state.enabled;
+      if (Number.isFinite(state.opacity)) {
+        initialLayerState.opacity = Math.max(0, Math.min(1, state.opacity));
+      }
     }
   } catch (error) {
     console.warn('[StravaHeatmapExt] Could not restore CalTopo layer state.', error);
@@ -49,7 +55,7 @@ function saveState() {
   try {
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ enabled, layerId: selectedLayerId, opacity }),
+      JSON.stringify({ layerId: selectedLayerId, layers: Object.fromEntries(layerStates) }),
     );
   } catch (error) {
     console.warn('[StravaHeatmapExt] Could not save CalTopo layer state.', error);
@@ -70,25 +76,22 @@ function getLeafletMap() {
 
 function restoreOverlayOnTop() {
   restoreOverlayTimer = undefined;
-  if (!enabled) return;
-
-  const overlay = window[OVERLAY_KEY];
-  if (overlay?.__stravaHeatmapRenderer === 'leaflet') {
-    overlay.bringToFront();
-    return;
+  const activeOverlays = layerConfigs.map(({ id }) => overlaysById.get(id)).filter(Boolean);
+  for (const overlay of activeOverlays) {
+    if (overlay.__stravaHeatmapRenderer === 'leaflet') overlay.bringToFront();
   }
-
   const googleMap = getGoogleMap();
-  if (!overlay || !googleMap) return;
+  if (!activeOverlays.length || !googleMap) return;
 
   const overlays = googleMap.overlayMapTypes;
+  const managed = new Set(activeOverlays);
   const overlayIndexes = [];
   for (let index = 0; index < overlays.getLength(); index++) {
-    if (overlays.getAt(index) === overlay) overlayIndexes.push(index);
+    if (managed.has(overlays.getAt(index))) overlayIndexes.push(index);
   }
   if (
-    overlayIndexes.length === 1 &&
-    overlayIndexes[0] === overlays.getLength() - 1
+    activeOverlays.every((overlay, index) =>
+      overlays.getAt(overlays.getLength() - activeOverlays.length + index) === overlay)
   ) {
     return;
   }
@@ -96,7 +99,7 @@ function restoreOverlayOnTop() {
   for (let index = overlayIndexes.length - 1; index >= 0; index--) {
     overlays.removeAt(overlayIndexes[index]);
   }
-  overlays.push(overlay);
+  for (const overlay of activeOverlays) overlays.push(overlay);
 }
 
 function setupOverlayMapTypesListener(googleMap) {
@@ -114,46 +117,45 @@ function setupOverlayMapTypesListener(googleMap) {
   );
 }
 
-function detachOverlay() {
-  const overlay = window[OVERLAY_KEY];
+function detachOverlay(id) {
+  const overlay = overlaysById.get(id);
+  if (!overlay) return;
   if (overlay?.__stravaHeatmapRenderer === 'leaflet') {
     overlay.remove();
-    delete window[OVERLAY_KEY];
-    return true;
+  } else {
+    const overlays = overlay.__stravaHeatmapMap.overlayMapTypes;
+    for (let index = overlays.getLength() - 1; index >= 0; index--) {
+      if (overlays.getAt(index) === overlay) overlays.removeAt(index);
+    }
   }
-
-  const googleMap = getGoogleMap();
-  if (!overlay || !googleMap) return false;
-
-  const overlays = googleMap.overlayMapTypes;
-  for (let index = overlays.getLength() - 1; index >= 0; index--) {
-    if (overlays.getAt(index) === overlay) overlays.removeAt(index);
-  }
-
-  delete window[OVERLAY_KEY];
-  return true;
+  overlaysById.delete(id);
 }
 
-function removeOverlay() {
-  enabled = false;
-  detachOverlay();
+function toggleOverlay(id) {
+  const state = layerStates.get(id);
+  state.enabled = !state.enabled;
+  if (state.enabled) {
+    selectedLayerId = id;
+    snapIntegration?.invalidate();
+    addOverlay(id);
+  } else {
+    detachOverlay(id);
+  }
   updateControls();
   saveState();
 }
 
-function addOverlay() {
-  enabled = true;
-  saveState();
+function addOverlay(id) {
   const leafletMap = getLeafletMap();
   const googleMap = getGoogleMap();
-  const config = layerConfigs.find(({ id }) => id === selectedLayerId);
+  const config = layerConfigs.find((config) => config.id === id);
+  const state = layerStates.get(id);
   if ((!leafletMap && !googleMap) || !config) {
-    updateControls();
     return false;
   }
 
   if (leafletMap) {
-    const existingOverlay = window[OVERLAY_KEY];
+    const existingOverlay = overlaysById.get(id);
     if (
       existingOverlay?.__stravaHeatmapRenderer === 'leaflet' &&
       existingOverlay._map === leafletMap
@@ -162,30 +164,33 @@ function addOverlay() {
       updateControls();
       return true;
     }
-    if (existingOverlay) detachOverlay();
+    if (existingOverlay) detachOverlay(id);
 
     const [minZoom, maxZoom] = config.zoomExtent;
     const overlay = window.L.tileLayer(config.template, {
       minZoom,
       maxNativeZoom: maxZoom,
       maxZoom: 21,
-      opacity,
+      opacity: state.opacity,
       tileSize: 256,
       zIndex: 1000,
     });
     overlay.__stravaHeatmapRenderer = 'leaflet';
     overlay.addTo(leafletMap);
-    window[OVERLAY_KEY] = overlay;
+    overlaysById.set(id, overlay);
+    restoreOverlayOnTop();
     updateControls();
     return true;
   }
 
   setupOverlayMapTypesListener(googleMap);
-  if (window[OVERLAY_KEY]) {
+  const existingOverlay = overlaysById.get(id);
+  if (existingOverlay?.__stravaHeatmapMap === googleMap) {
     restoreOverlayOnTop();
     updateControls();
     return true;
   }
+  if (existingOverlay) detachOverlay(id);
 
   const tiles = new Set();
   const tileSize = 256;
@@ -195,7 +200,8 @@ function addOverlay() {
     minZoom,
     maxZoom: 21,
     name: config.name,
-    opacity,
+    opacity: state.opacity,
+    __stravaHeatmapMap: googleMap,
     getTile(coord, requestedZoom, ownerDocument) {
       const tile = ownerDocument.createElement('div');
       tile.style.width = `${tileSize}px`;
@@ -239,92 +245,91 @@ function addOverlay() {
   };
 
   googleMap.overlayMapTypes.push(overlay);
-  window[OVERLAY_KEY] = overlay;
+  overlaysById.set(id, overlay);
+  restoreOverlayOnTop();
   updateControls();
   return true;
 }
 
-function refreshOverlay() {
+function refreshOverlays() {
   snapIntegration?.invalidate();
-  detachOverlay();
-  if (enabled) addOverlay();
+  for (const id of overlaysById.keys()) detachOverlay(id);
+  for (const { id } of layerConfigs) {
+    if (layerStates.get(id).enabled) addOverlay(id);
+  }
   updateControls();
 }
 
-function setOpacity(value) {
-  opacity = Math.max(0, Math.min(1, Number(value)));
-  window[OVERLAY_KEY]?.setOpacity(opacity);
+function setOpacity(id, value) {
+  const state = layerStates.get(id);
+  state.opacity = Math.max(0, Math.min(1, Number(value)));
+  overlaysById.get(id)?.setOpacity(state.opacity);
+  if (selectedLayerId !== id) {
+    selectedLayerId = id;
+    snapIntegration?.invalidate();
+  }
   updateControls();
   saveState();
 }
 
 function updateControls() {
-  if (stack) {
+  if (overlaysById.has(selectedLayerId)) window[OVERLAY_KEY] = overlaysById.get(selectedLayerId);
+  else delete window[OVERLAY_KEY];
+  for (const [id, controls] of controlsById) {
+    const { enabled, opacity } = layerStates.get(id);
+    const { stack, toggleButton, controlsCollapse, opacityInput, opacityOutput } = controls;
     stack.classList.toggle('strava-heatmap-layer-active', enabled);
-  }
-  if (toggleButton) {
     toggleButton.setAttribute('aria-pressed', String(enabled));
+    toggleButton.setAttribute('aria-expanded', String(enabled));
     toggleButton.classList.toggle('strava-heatmap-active', enabled);
-  }
-  if (controlsCollapse) {
     controlsCollapse.classList.toggle('MuiCollapse-hidden', !enabled);
     controlsCollapse.style.minHeight = enabled ? '' : '0px';
     controlsCollapse.style.height = enabled ? 'auto' : '0px';
     controlsCollapse.style.visibility = enabled ? 'visible' : 'hidden';
-  }
-  if (layerInput) layerInput.value = selectedLayerId ?? '';
-  if (opacityInput) {
     opacityInput.value = String(Math.round(opacity * 100));
     opacityInput.disabled = !enabled;
+    opacityOutput.value = `${Math.round(opacity * 100)}%`;
   }
-  if (opacityOutput) opacityOutput.value = `${Math.round(opacity * 100)}%`;
-}
-
-function updateLayerOptions() {
-  if (!layerInput) return;
-
-  layerInput.replaceChildren();
-  for (const config of layerConfigs) {
-    const option = document.createElement('option');
-    option.value = config.id;
-    option.textContent = config.name;
-    layerInput.appendChild(option);
-  }
-  updateControls();
 }
 
 function createRibbon() {
-  if (document.getElementById(RIBBON_ID)) return;
-
   const routeDiscoveryHeading = [...document.querySelectorAll('p')].find(
     ({ textContent }) => textContent.trim() === 'Route Discovery',
   );
   const routeDiscoveryList = routeDiscoveryHeading?.nextElementSibling;
   if (routeDiscoveryList?.tagName !== 'UL') return;
 
+  for (const config of layerConfigs) {
+    const ribbonId = `${RIBBON_ID}-${config.id}`;
+    if (document.getElementById(ribbonId)) continue;
+    const controls = createLayerControls(config);
+    controlsById.set(config.id, controls);
+    routeDiscoveryList.appendChild(controls.ribbon);
+  }
+  updateControls();
+}
+
+function createLayerControls(config) {
   const ribbon = document.createElement('li');
-  ribbon.id = RIBBON_ID;
+  ribbon.id = `${RIBBON_ID}-${config.id}`;
   ribbon.className =
     'MuiListItem-root MuiListItem-gutters MuiListItem-padding css-5rcv3b';
-  ribbon.setAttribute('value', 'Strava Heatmap');
+  const label = `Strava Heatmap ${config.name}`;
+  ribbon.setAttribute('value', label);
 
-  stack = document.createElement('div');
+  const stack = document.createElement('div');
   stack.className = 'MuiStack-root css-12mbytc';
 
-  toggleButton = document.createElement('div');
+  const toggleButton = document.createElement('div');
   toggleButton.className = 'MuiButtonBase-root MuiBox-root css-lp7ikr';
   toggleButton.tabIndex = 0;
   toggleButton.setAttribute('role', 'button');
-  toggleButton.setAttribute('aria-label', 'Strava Heatmap');
-  toggleButton.addEventListener('click', () => {
-    if (enabled) removeOverlay();
-    else addOverlay();
-  });
+  toggleButton.setAttribute('aria-label', label);
+  toggleButton.addEventListener('click', () => toggleOverlay(config.id));
   toggleButton.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
-    if (enabled) removeOverlay();
-    else addOverlay();
+    toggleOverlay(config.id);
   });
 
   const swatch = document.createElement('div');
@@ -340,13 +345,15 @@ function createRibbon() {
     'MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-1kofupb';
   const title = document.createElement('span');
   title.className = 'strava-heatmap-title';
-  title.setAttribute('aria-label', 'Strava Heatmap');
-  title.textContent = 'Strava Heatmap';
+  title.setAttribute('aria-label', label);
+  title.textContent = label;
   titleItem.appendChild(title);
   titleGrid.appendChild(titleItem);
   toggleButton.append(swatch, titleGrid);
 
-  controlsCollapse = document.createElement('div');
+  const controlsCollapse = document.createElement('div');
+  controlsCollapse.id = `${ribbon.id}-controls`;
+  toggleButton.setAttribute('aria-controls', controlsCollapse.id);
   controlsCollapse.className =
     'MuiCollapse-root MuiCollapse-vertical css-a0y2e3';
   const collapseWrapper = document.createElement('div');
@@ -358,40 +365,28 @@ function createRibbon() {
   const controls = document.createElement('div');
   controls.className = 'MuiBox-root css-1y82lur strava-heatmap-controls';
 
-  const layerLabel = document.createElement('label');
-  layerLabel.textContent = 'Layer';
-  layerInput = document.createElement('select');
-  layerInput.setAttribute('aria-label', 'Strava heatmap layer');
-  layerInput.addEventListener('change', () => {
-    selectedLayerId = layerInput.value;
-    refreshOverlay();
-    saveState();
-  });
-  layerLabel.appendChild(layerInput);
-
   const opacityLabel = document.createElement('label');
   opacityLabel.textContent = 'Opacity';
-  opacityInput = document.createElement('input');
+  const opacityInput = document.createElement('input');
   opacityInput.type = 'range';
   opacityInput.min = '0';
   opacityInput.max = '100';
   opacityInput.step = '1';
-  opacityInput.setAttribute('aria-label', 'Strava heatmap opacity');
+  opacityInput.setAttribute('aria-label', `${label} opacity`);
   opacityInput.addEventListener('input', () => {
-    setOpacity(Number(opacityInput.value) / 100);
+    setOpacity(config.id, Number(opacityInput.value) / 100);
   });
-  opacityOutput = document.createElement('output');
+  const opacityOutput = document.createElement('output');
   opacityOutput.setAttribute('aria-live', 'polite');
   opacityLabel.append(opacityInput, opacityOutput);
 
-  controls.append(layerLabel, opacityLabel);
+  controls.appendChild(opacityLabel);
   collapseInner.appendChild(controls);
   collapseWrapper.appendChild(collapseInner);
   controlsCollapse.appendChild(collapseWrapper);
   stack.append(toggleButton, controlsCollapse);
   ribbon.appendChild(stack);
-  routeDiscoveryList.appendChild(ribbon);
-  updateLayerOptions();
+  return { ribbon, stack, toggleButton, controlsCollapse, opacityInput, opacityOutput };
 }
 
 function setupRibbonObserver() {
@@ -399,19 +394,32 @@ function setupRibbonObserver() {
   if (ribbonObserver) return;
 
   ribbonObserver = new MutationObserver(() => {
-    if (!document.getElementById(RIBBON_ID)) createRibbon();
+    if (layerConfigs.some(({ id }) => !document.getElementById(`${RIBBON_ID}-${id}`))) createRibbon();
   });
   ribbonObserver.observe(document.body, { childList: true, subtree: true });
 }
 
 function applyLayerConfigs(layerPresets, authenticated, version) {
   const previousLayerId = selectedLayerId;
+  const previousState = layerStates.get(previousLayerId) ?? initialLayerState;
   layerConfigs = getLayerConfigs(layerPresets, authenticated, version, true);
   selectedLayerId = layerConfigs.some(({ id }) => id === previousLayerId)
     ? previousLayerId
-    : layerConfigs[0]?.id;
-  updateLayerOptions();
-  refreshOverlay();
+    : layerConfigs.find(({ id }) => layerStates.get(id)?.enabled)?.id ?? layerConfigs[0]?.id;
+  const ids = new Set(layerConfigs.map(({ id }) => id));
+  for (const id of layerStates.keys()) {
+    if (!ids.has(id)) layerStates.delete(id);
+  }
+  for (const { id } of layerConfigs) {
+    if (!layerStates.has(id)) {
+      layerStates.set(id, id === selectedLayerId ? { ...previousState } : { enabled: false, opacity: 1 });
+    }
+  }
+  for (const { ribbon } of controlsById.values()) ribbon.remove();
+  controlsById.clear();
+  createRibbon();
+  refreshOverlays();
+  saveState();
 }
 
 async function main() {
@@ -427,7 +435,8 @@ async function main() {
   applyLayerConfigs(layerPresets, authenticated, version);
   setupRibbonObserver();
   installCalTopoMapSheets(
-    () => layerConfigs.find(({ id }) => id === selectedLayerId),
+    () => layerConfigs.filter(({ id }) => layerStates.get(id).enabled)
+      .map((config) => ({ ...config, opacity: layerStates.get(config.id).opacity })),
     () => getLeafletMap() || getGoogleMap(),
   );
 
@@ -449,10 +458,11 @@ async function main() {
       snapIntegration = installCalTopoSnap(manager, () =>
         layerConfigs.find(({ id }) => id === selectedLayerId));
     }
-    const overlayReady = !enabled || addOverlay();
+    const overlayReady = layerConfigs.filter(({ id }) => layerStates.get(id).enabled)
+      .every(({ id }) => addOverlay(id));
     if ((overlayReady && snapIntegration) || attempts >= MAX_ATTEMPTS) {
       window.clearInterval(timer);
-      if (attempts >= MAX_ATTEMPTS && !window[OVERLAY_KEY]) {
+      if (attempts >= MAX_ATTEMPTS && !overlayReady) {
         console.warn('[StravaHeatmapExt] CalTopo map was not found.');
       }
       if (!snapIntegration) {

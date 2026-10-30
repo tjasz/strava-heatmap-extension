@@ -65,6 +65,7 @@ for (const [renderer, page] of ['leaflet', 'google'].flatMap((renderer) => [
           template,
           options,
           addTo(map) { this._map = map; },
+          bringToFront() {},
           remove() {},
         }),
       };
