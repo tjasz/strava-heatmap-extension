@@ -20,6 +20,7 @@ const MAX_ATTEMPTS = 120;
 
 let selectedLayerId;
 let layerConfigs = [];
+let layerOrder = [];
 const layerStates = new Map();
 const overlaysById = new Map();
 const controlsById = new Map();
@@ -36,6 +37,9 @@ function loadState() {
     if (!state || typeof state !== 'object') return;
 
     if (typeof state.layerId === 'string') selectedLayerId = state.layerId;
+    if (Array.isArray(state.layerOrder)) {
+      layerOrder = [...new Set(state.layerOrder.filter((id) => typeof id === 'string'))];
+    }
     if (state.layers && typeof state.layers === 'object') {
       for (const [id, layer] of Object.entries(state.layers)) {
         if (typeof layer?.enabled !== 'boolean' || !Number.isFinite(layer.opacity)) continue;
@@ -59,7 +63,7 @@ function saveState() {
   try {
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ layerId: selectedLayerId, layers: Object.fromEntries(layerStates) }),
+      JSON.stringify({ layerId: selectedLayerId, layers: Object.fromEntries(layerStates), layerOrder }),
     );
   } catch (error) {
     console.warn('[StravaHeatmapExt] Could not save CalTopo layer state.', error);
@@ -78,9 +82,13 @@ function getLeafletMap() {
     : null;
 }
 
+function getActiveLayerConfigs() {
+  return layerOrder.map((id) => layerConfigs.find((config) => config.id === id));
+}
+
 function restoreOverlayOnTop() {
   restoreOverlayTimer = undefined;
-  const activeOverlays = layerConfigs.map(({ id }) => overlaysById.get(id)).filter(Boolean);
+  const activeOverlays = getActiveLayerConfigs().map(({ id }) => overlaysById.get(id)).filter(Boolean);
   for (const overlay of activeOverlays) {
     if (overlay.__stravaHeatmapRenderer === 'leaflet') overlay.bringToFront();
   }
@@ -138,7 +146,9 @@ function detachOverlay(id) {
 function toggleOverlay(id) {
   const state = layerStates.get(id);
   state.enabled = !state.enabled;
+  layerOrder = layerOrder.filter((layerId) => layerId !== id);
   if (state.enabled) {
+    layerOrder.push(id);
     selectedLayerId = id;
     snapIntegration?.invalidate();
     addOverlay(id);
@@ -258,9 +268,7 @@ function addOverlay(id) {
 function refreshOverlays() {
   snapIntegration?.invalidate();
   for (const id of overlaysById.keys()) detachOverlay(id);
-  for (const { id } of layerConfigs) {
-    if (layerStates.get(id).enabled) addOverlay(id);
-  }
+  for (const { id } of getActiveLayerConfigs()) addOverlay(id);
   updateControls();
 }
 
@@ -419,6 +427,10 @@ function applyLayerConfigs(layerPresets, authenticated, version) {
       layerStates.set(id, id === selectedLayerId ? { ...previousState } : { enabled: false, opacity: 1 });
     }
   }
+  layerOrder = layerOrder.filter((id) => ids.has(id) && layerStates.get(id).enabled);
+  for (const { id } of layerConfigs) {
+    if (layerStates.get(id).enabled && !layerOrder.includes(id)) layerOrder.push(id);
+  }
   for (const { ribbon } of controlsById.values()) ribbon.remove();
   controlsById.clear();
   createRibbon();
@@ -438,7 +450,7 @@ async function main() {
   applyLayerConfigs(layerPresets, authenticated, version);
   setupRibbonObserver();
   installCalTopoMapSheets(
-    () => layerConfigs.filter(({ id }) => layerStates.get(id).enabled)
+    () => getActiveLayerConfigs()
       .map((config) => ({ ...config, opacity: layerStates.get(config.id).opacity })),
     () => getLeafletMap() || getGoogleMap(),
   );
@@ -461,7 +473,7 @@ async function main() {
       snapIntegration = installCalTopoSnap(manager, () =>
         layerConfigs.find(({ id }) => id === selectedLayerId));
     }
-    const overlayReady = layerConfigs.filter(({ id }) => layerStates.get(id).enabled)
+    const overlayReady = getActiveLayerConfigs()
       .every(({ id }) => addOverlay(id));
     if ((overlayReady && snapIntegration) || attempts >= MAX_ATTEMPTS) {
       window.clearInterval(timer);
