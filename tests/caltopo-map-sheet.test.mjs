@@ -26,7 +26,7 @@ function globalValue(t, name, value) {
   });
 }
 
-test('tile selection covers partial tiles, excludes touching edges, and enforces the exact 49-tile limit', () => {
+test('tile selection covers partial tiles, excludes touching edges, and enforces the exact 100-tile limit', () => {
   assert.deepEqual(region, {
     minX: 6200, maxX: 6201, minY: 12000, maxY: 12002,
     columns: 2, rows: 3, count: 6, width: 1024, height: 1536,
@@ -37,9 +37,9 @@ test('tile selection covers partial tiles, excludes touching edges, and enforces
     pro: true, accountId: 'account', layer, bounds,
   });
   assert.equal(available(boundsFor(6200, 12000, 7, 7)).enabled, true);
-  assert.equal(available(boundsFor(6200, 12000, 1, 49)).enabled, true);
-  assert.equal(available(boundsFor(6200, 12000, 5, 10)).enabled, false);
-  assert.match(available(boundsFor(6200, 12000, 5, 10)).message, /Zoom in/);
+  assert.equal(available(boundsFor(6200, 12000, 10, 10)).enabled, true);
+  assert.equal(available(boundsFor(6200, 12000, 1, 101)).enabled, false);
+  assert.match(available(boundsFor(6200, 12000, 1, 101)).message, /Zoom in/);
   for (const bounds of [
     { west: 179, east: -179, south: 40, north: 41 },
     { west: 0, east: 1, south: 85, north: 90 },
@@ -147,7 +147,7 @@ test('rendering fetches every z15 tile once, stitches by position, colorizes, an
 test('rendering rejects oversized views, invalid sources, expired auth, missing tiles, and cancelled work', async (t) => {
   canvasFixture(t);
   const controller = new AbortController();
-  await assert.rejects(renderMapSheet({ count: 50 }, layer, controller.signal, () => {}), /49/);
+  await assert.rejects(renderMapSheet({ count: 101 }, layer, controller.signal, () => {}), /100/);
   let requested = 0;
   t.mock.method(globalThis, 'fetch', async () => { requested++; return new Response('', { status: 403 }); });
   await assert.rejects(renderMapSheet(region, layer, controller.signal, () => {}), /HTTP 403/);
@@ -321,7 +321,7 @@ test('Add menu integrates Pro and zoom gating, automatically saves, and adds the
   refresh();
   assert.equal(button.attributes['aria-disabled'], 'false');
   assert.doesNotMatch(title.textContent, /\(Pro\)/);
-  bounds = boundsFor(6200, 12000, 5, 10);
+  bounds = boundsFor(6200, 12000, 10, 11);
   refresh();
   assert.equal(button.attributes['aria-disabled'], 'true');
   assert.match(description.textContent, /Zoom in/);
