@@ -5,7 +5,10 @@ import { metersPerPixel, project, unproject, slidePaths, smoothSlidePath } from 
 import { loadSlideOptions, sampleSlideTargets, selectSlideOptions } from '../src/clients/caltopo.com/snap-network.js';
 import { installCalTopoSnap } from '../src/clients/caltopo.com/snap.js';
 
-const layer = { template: 'https://content-a.strava.com/identified/globalheat/run/blue/{z}/{x}/{y}.png' };
+const layer = {
+  name: 'All Foot Sports (Blue)',
+  template: 'https://content-a.strava.com/identified/globalheat/run/blue/{z}/{x}/{y}.png',
+};
 const origin = project([-105, 40]).map(Math.floor);
 const loc = ([x, y]) => unproject([origin[0] + x, origin[1] + y]);
 const pixel = (location) => project(location).map((value, i) => value - origin[i]);
@@ -389,6 +392,34 @@ test('instructs users to click anywhere and loads no tiles before the first anch
   assert.equal(calls, 0);
   assert.match(status.textContent, /Click anywhere to begin/);
   assert.equal(installCalTopoSnap(manager, () => layer), integration);
+});
+
+test('identifies the snapping layer on initialization, source changes and progress updates', async (t) => {
+  const pending = deferred();
+  const f = setup(t, async (anchor, layer, signal, progress) => {
+    progress('Loading tiles...');
+    return pending.promise;
+  });
+  assert.equal(f.status.textContent,
+    `Snapping to ${layer.name}. Click anywhere to begin. Strava will suggest paths within a 1 km grid.`);
+  f.source('osm');
+  assert.equal(f.status.textContent, '');
+  f.source('strava');
+  assert.ok(f.status.textContent.startsWith(`Snapping to ${layer.name}.`));
+  const weekly = { ...layer, name: 'All Foot Sports (Weekly, Orange)' };
+  f.layer(weekly);
+  assert.ok(f.status.textContent.startsWith(`Snapping to ${weekly.name}.`));
+  assert.ok(!f.status.textContent.includes(layer.name));
+  f.manager.handleClick(f.event());
+  assert.equal(f.status.textContent, `Snapping to ${weekly.name}. Finding Slide options...`);
+  await Promise.resolve();
+  assert.equal(f.status.textContent, `Snapping to ${weekly.name}. Loading tiles...`);
+  pending.resolve([]);
+  await f.integration.ready;
+  assert.equal(f.status.textContent,
+    `Snapping to ${weekly.name}. No Slide options found here. Click anywhere to add a straight segment.`);
+  f.manager.cancel();
+  assert.equal(f.status.textContent, '');
 });
 
 test('every click proposes from the exact anchor and layer without direction or zoom inputs', async (t) => {

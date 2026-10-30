@@ -22,7 +22,10 @@ export function installCalTopoSnap(manager, getLayer, propose = loadSlideOptions
   select.after(status);
   const showStatus = (message, error = false) => {
     status.setAttribute('role', error ? 'alert' : 'status');
-    status.textContent = message;
+    const layerName = getLayer()?.name;
+    status.textContent = message && layerName
+      ? `Snapping to ${layerName}. ${message}`
+      : message;
   };
   let anchors = [];
   let controller;
