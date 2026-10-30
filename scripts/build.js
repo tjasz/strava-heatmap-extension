@@ -19,7 +19,9 @@ function getCalTopoManifest(manifest) {
     '*://gpx.studio/app*',
     '*://gpx.studio/*/app*',
     "*://tjasz.github.io/*",
+    "*://tjasz.github.io/geotab/*",
     "*://brouter.de/*",
+    "*://brouter.de/brouter-web/*",
   ]);
   const filterMatches = (entries) => entries
     .map((entry) => ({
