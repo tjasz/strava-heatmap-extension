@@ -1,7 +1,7 @@
 {
-  "name": "strava-heatmap-extension",
+  "name": "strava-heatmap-extension-caltopo",
   "version": "0.0.0",
-  "description": "Integrates the Strava Global Heatmap into OpenStreetMap iD, GPX Studio, CalTopo, Geotab, and BRouter.",
+  "description": "Integrates the Strava Global Heatmap into CalTopo.",
   "scripts": {
     "build": "node scripts/build.js",
     "icons": "node scripts/icons.js",
@@ -12,7 +12,7 @@
     "slide-lab:check": "node scripts/slide-lab.mjs --check",
     "slide-lab:accept": "node scripts/slide-lab.mjs --accept"
   },
-  "author": "Julien Etienne <etienne.julien@gmail.com>",
+  "author": "Tyler Jaszkowiak <tjaszkowiak@gmail.com>",
   "license": "MIT",
   "devDependencies": {
     "adm-zip": "^0.5.16",
