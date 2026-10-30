@@ -5,7 +5,8 @@ const MAX_ZOOM = 15;
 const TILE_SIZE = 512;
 const TILE_COUNT = 2 ** MAX_ZOOM;
 const MAX_TILES = 100;
-const INITIAL_TILE_SIDE = 5;
+const INITIAL_TILE_SIDE = 10;
+const INITIAL_VIEW_PADDING = 16;
 const MAX_LATITUDE = 85.0511287798066;
 const MENU_ID = 'strava-heatmap-map-sheet';
 
@@ -125,7 +126,7 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
       if (!projection) {
         throw new Error('Wait for the map to finish loading before adjusting the area.');
       }
-      const point = projection.fromContainerPixelToLatLng(new window.google.maps.Point(x, y));
+      const point = projection.fromContainerPixelToLatLng(new window.google.maps.Point(x, y), true);
       return [point.lng(), point.lat()];
     }
     const point = map.containerPointToLatLng([x, y]);
@@ -198,9 +199,28 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
           const rect = container.getBoundingClientRect();
           if (!rect.width || !rect.height) throw new Error('Wait for the map to finish loading.');
           const center = tilePoint(fromPixel(rect.width / 2, rect.height / 2));
-          const [x, y] = center.map((value) => Math.max(0,
-            Math.min(TILE_COUNT - INITIAL_TILE_SIDE, Math.floor(value) - Math.floor(INITIAL_TILE_SIDE / 2))));
-          region = regionFromTiles(x, x + INITIAL_TILE_SIDE - 1, y, y + INITIAL_TILE_SIDE - 1);
+          const padding = Math.min(INITIAL_VIEW_PADDING, rect.width / 4, rect.height / 4);
+          const visible = [
+            fromPixel(padding, padding),
+            fromPixel(rect.width - padding, rect.height - padding),
+          ].map(([lng, lat]) => {
+            return tilePoint([Math.max(-180, Math.min(180, lng)),
+              Math.max(-MAX_LATITUDE, Math.min(MAX_LATITUDE, lat))]);
+          });
+          const bounds = center.map((_, axis) => {
+            const first = Math.max(0, Math.ceil(Math.min(...visible.map((point) => point[axis]))));
+            const end = Math.min(TILE_COUNT, Math.floor(Math.max(...visible.map((point) => point[axis]))));
+            return [first, end];
+          });
+          const size = Math.max(1, Math.min(INITIAL_TILE_SIDE, Math.floor(Math.sqrt(MAX_TILES)),
+            ...bounds.map(([first, end]) => end - first)));
+          const [x, y] = center.map((value, axis) => {
+            const [first, end] = bounds[axis];
+            const min = end > first ? first : 0;
+            const max = end > first ? end - size : TILE_COUNT - size;
+            return Math.max(min, Math.min(max, Math.round(value - size / 2)));
+          });
+          region = regionFromTiles(x, x + size - 1, y, y + size - 1);
           showSelection();
         }
         const a = toPixel(region.minX, region.minY);

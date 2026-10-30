@@ -171,7 +171,9 @@ from Strava Heatmap**, directly below **Map Sheet**, at any map zoom level.
 The selection form sits at the bottom left of the map. Finish or cancel any
 other item you are creating first; CalTopo allows only one new item at a time,
 including heatmap map sheets.
-A 5-by-5 box of zoom-15 tiles starts centered on your map view. Drag its edge or
+A square of zoom-15 tiles starts centered on your map view, using the largest
+whole-tile square that fits with room for its handles, from 1-by-1 up to 10-by-10.
+If a single tile exceeds the view, zoom out to see all its handles. Drag its edge or
 corner handles to resize it around the area you want. The **Sheet name** field suggests
 a name containing the activity, color, and UTC date; keep it or enter your own
 non-empty name, then choose **Capture**.

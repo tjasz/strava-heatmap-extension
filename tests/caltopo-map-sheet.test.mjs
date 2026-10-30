@@ -406,7 +406,8 @@ function selectionMap(renderer = 'google', initiallyDraggable = true, deferOverl
       getProjection() {
         if (map.getProjection?.() === null) return undefined;
         return {
-          fromContainerPixelToLatLng: ({ x, y }) => {
+          fromContainerPixelToLatLng: ({ x, y }, noClampNoWrap) => {
+            assert.equal(noClampNoWrap, true);
             const [lng, lat] = wrapper.fromContainerPixel([x, y]);
             return { lng: () => lng, lat: () => lat };
           },
@@ -471,7 +472,7 @@ function selectionControls(panel) {
 }
 
 for (const renderer of ['google', 'leaflet']) {
-  test(`${renderer} starts with 25 tiles and resizes through handles without blocking normal map navigation`, async (t) => {
+  test(`${renderer} starts with up to 100 tiles and resizes through handles without blocking normal map navigation`, async (t) => {
     const document = new Element('document');
     document.createElement = (tag) => new Element(tag);
     const fixture = selectionMap(renderer);
@@ -493,9 +494,9 @@ for (const renderer of ['google', 'leaflet']) {
     assert.match(confirm.className, /strava-heatmap-map-sheet-primary/);
     assert.equal(confirm.type, 'button');
     assert.equal(box.children.length, 8);
-    assert.match(status.textContent, /25\/100 tiles selected/);
-    assert.equal(parseFloat(box.style.left), 800);
-    assert.ok(Math.abs(parseFloat(box.style.width) - 500) < 1e-6);
+    assert.match(status.textContent, /100\/100 tiles selected/);
+    assert.equal(parseFloat(box.style.left), 500);
+    assert.ok(Math.abs(parseFloat(box.style.width) - 1000) < 1e-6);
     for (const name of ['pointerdown', 'pointermove', 'pointerup', 'wheel', 'mousedown', 'click']) {
       assert.equal(overlay.handlers[name], undefined, `${name} must remain available to the map`);
     }
@@ -550,8 +551,8 @@ for (const renderer of ['google', 'leaflet']) {
     confirm.handlers.click();
     const result = await work;
     assert.equal(result.region.count, 1);
-    assert.equal(result.region.minX, 6208);
-    assert.equal(result.region.minY, 12008);
+    assert.equal(result.region.minX, 6205);
+    assert.equal(result.region.minY, 12005);
     assert.equal(result.title, renderer === 'google' ? 'My trail map' : 'Suggested sheet name');
     assert.equal(fixture.container.children.length, 0);
     assert.equal(fixture.draggable(), true);
@@ -573,13 +574,13 @@ for (const renderer of ['google', 'leaflet']) {
     pointer(handle, 'pointermove', 1000, 1000);
     pointer(handle, 'pointercancel', 1000, 1000);
     const { status, confirm } = selectionControls(selectionPanel(fixture.container));
-    assert.match(status.textContent, /25\/100 tiles selected/);
+    assert.match(status.textContent, /64\/100 tiles selected/);
     assert.equal(confirm.disabled, false);
     assert.equal(box.hidden, false);
     assert.equal(handle.pointers.size, 0);
     const east = box.children[3];
     east.handlers.keydown({ key: 'ArrowRight', preventDefault() {}, stopPropagation() {} });
-    assert.match(status.textContent, /30\/100 tiles selected/, 'edge handles also support keyboard resizing');
+    assert.match(status.textContent, /72\/100 tiles selected/, 'edge handles also support keyboard resizing');
     document.handlers.keydown({ key: 'Escape', preventDefault() {}, stopPropagation() {} });
     assert.equal(await work, null);
     assert.equal(fixture.draggable(), false);
@@ -587,7 +588,7 @@ for (const renderer of ['google', 'leaflet']) {
     assert.equal(fixture.removed(), 1);
   });
 
-  test(`${renderer} can confirm the initial centered 5 by 5 selection without resizing`, async (t) => {
+  test(`${renderer} can confirm the largest initial centered square without resizing`, async (t) => {
     const document = new Element('document');
     document.createElement = (tag) => new Element(tag);
     const fixture = selectionMap(renderer);
@@ -596,11 +597,90 @@ for (const renderer of ['google', 'leaflet']) {
     const work = selectMapSheetRegion(fixture.map, new AbortController().signal, 'Initial selection');
     selectionControls(selectionPanel(fixture.container)).confirm.handlers.click();
     const result = await work;
-    assert.equal(result.region.columns, 5);
-    assert.equal(result.region.rows, 5);
-    assert.equal(result.region.count, 25);
-    assert.equal(result.region.minX, 6203);
-    assert.equal(result.region.minY, 12003);
+    assert.equal(result.region.columns, 8);
+    assert.equal(result.region.rows, 8);
+    assert.equal(result.region.count, 64);
+    assert.equal(result.region.minX, 6201);
+    assert.equal(result.region.minY, 12001);
+  });
+
+  test(`${renderer} initial selection fits the viewport at close zooms with a one-tile minimum`, async (t) => {
+    const document = new Element('document');
+    document.createElement = (tag) => new Element(tag);
+    const window = {};
+    globalValue(t, 'document', document);
+    globalValue(t, 'window', window);
+    for (const [width, height, zoom, columns, rows] of [
+      [1000, 1000, 1, 8, 8],
+      [1000, 600, 1, 4, 4],
+      [400, 1000, 1, 2, 2],
+      [2000, 2000, 1, 10, 10],
+      [4000, 3000, 1, 10, 10],
+      [1000, 1000, 2, 3, 3],
+      [1600, 1000, 2, 3, 3],
+      [1000, 1000, 3, 1, 1],
+      [1000, 1000, 6, 1, 1],
+    ]) {
+      const fixture = selectionMap(renderer);
+      fixture.container.getBoundingClientRect = () => ({ left: 0, top: 0, width, height });
+      fixture.map.setZoom(zoom);
+      fixture.move();
+      Object.assign(window, { map: fixture.wrapper, google: fixture.google });
+      const work = selectMapSheetRegion(fixture.map, new AbortController().signal, 'Viewport selection');
+      const { confirm } = selectionControls(selectionPanel(fixture.container));
+      assert.equal(confirm.disabled, false);
+      confirm.handlers.click();
+      const { region } = await work;
+      const label = `${width}x${height}, zoom ${zoom}`;
+      assert.equal(region.columns, columns, label);
+      assert.equal(region.rows, rows, label);
+      const start = fixture.wrapper.toContainerPixel([lng(region.minX), lat(region.minY)]);
+      const end = fixture.wrapper.toContainerPixel([lng(region.maxX + 1), lat(region.maxY + 1)]);
+      if (zoom < 6) {
+        assert.ok(start[0] >= 16 - 1e-6 && end[0] <= width - 16 + 1e-6, `${label}: horizontal handles`);
+        assert.ok(start[1] >= 16 - 1e-6 && end[1] <= height - 16 + 1e-6, `${label}: vertical handles`);
+      } else {
+        assert.equal(region.count, 1, 'keep one tile even when it cannot fit in the viewport');
+      }
+    }
+  });
+
+  test(`${renderer} viewport fitting stays inside the world near the poles and date line`, async (t) => {
+    const document = new Element('document');
+    document.createElement = (tag) => new Element(tag);
+    const window = {};
+    globalValue(t, 'document', document);
+    globalValue(t, 'window', window);
+    for (const center of [0.5, 32767.5]) {
+      const fixture = selectionMap(renderer);
+      fixture.pan(center - 5 - 6200, center - 5 - 12000);
+      Object.assign(window, { map: fixture.wrapper, google: fixture.google });
+      const work = selectMapSheetRegion(fixture.map, new AbortController().signal, 'World edge selection');
+      const { confirm } = selectionControls(selectionPanel(fixture.container));
+      assert.equal(confirm.disabled, false);
+      confirm.handlers.click();
+      const { region } = await work;
+      assert.equal(region.columns, 5);
+      assert.equal(region.rows, 5);
+      assert.equal(region.minX, center < 1 ? 0 : 32763);
+      assert.equal(region.minY, center < 1 ? 0 : 32763);
+    }
+  });
+
+  test(`${renderer} fitting does not wrap viewport bounds when the view spans multiple worlds`, async (t) => {
+    const document = new Element('document');
+    document.createElement = (tag) => new Element(tag);
+    const fixture = selectionMap(renderer);
+    fixture.container.getBoundingClientRect = () => ({ left: 0, top: 0, width: 6553600, height: 1000 });
+    fixture.pan(-16384 - 6200, 0);
+    globalValue(t, 'document', document);
+    globalValue(t, 'window', { map: fixture.wrapper, google: fixture.google });
+    const work = selectMapSheetRegion(fixture.map, new AbortController().signal, 'World-spanning view');
+    selectionControls(selectionPanel(fixture.container)).confirm.handlers.click();
+    const { region } = await work;
+    assert.equal(region.columns, 8);
+    assert.equal(region.rows, 8);
+    assert.equal(region.minX, 16380);
   });
 }
 
@@ -617,7 +697,7 @@ test('initial selection waits for the Google projection and recovers when the ma
   assert.equal(confirm.disabled, true);
   fixture.map.getProjection = () => ({});
   fixture.move();
-  assert.match(status.textContent, /25\/100 tiles selected/);
+  assert.match(status.textContent, /64\/100 tiles selected/);
   assert.equal(confirm.disabled, false);
   cancel.handlers.click();
   assert.equal(await work, null);
@@ -633,27 +713,27 @@ test('Google selection follows render-time projection and native pane offsets th
   const box = selectionBox(fixture.container);
   const { confirm, status } = selectionControls(selectionPanel(fixture.container));
   assert.equal(box.parentElement, fixture.pane, 'geometry must share the basemap pane transforms');
-  assert.ok(Math.abs(parseFloat(box.style.width) - 500) < 1e-6);
+  assert.ok(Math.abs(parseFloat(box.style.width) - 800) < 1e-6);
   fixture.map.setZoom(2);
-  assert.ok(Math.abs(parseFloat(box.style.width) - 500) < 1e-6,
+  assert.ok(Math.abs(parseFloat(box.style.width) - 800) < 1e-6,
     'zoom state can change before the rendered projection updates');
   fixture.move();
-  assert.ok(Math.abs(parseFloat(box.style.width) - 1000) < 1e-6);
+  assert.ok(Math.abs(parseFloat(box.style.width) - 1600) < 1e-6);
   fixture.shiftPane(75, -40);
   fixture.pan(1, 2);
-  assert.ok(Math.abs(parseFloat(box.style.left) - 325) < 1e-6);
-  assert.ok(Math.abs(parseFloat(box.style.top) - 240) < 1e-6);
+  assert.ok(Math.abs(parseFloat(box.style.left) + 75) < 1e-6);
+  assert.ok(Math.abs(parseFloat(box.style.top) + 160) < 1e-6);
   fixture.map.setZoom(0);
   fixture.move();
-  assert.ok(Math.abs(parseFloat(box.style.width) - 250) < 1e-6);
-  assert.ok(Math.abs(parseFloat(box.style.left) - 25) < 1e-6);
-  assert.ok(Math.abs(parseFloat(box.style.top) - 90) < 1e-6);
-  assert.match(status.textContent, /25\/100 tiles selected/);
+  assert.ok(Math.abs(parseFloat(box.style.width) - 400) < 1e-6);
+  assert.ok(Math.abs(parseFloat(box.style.left) + 75) < 1e-6);
+  assert.ok(Math.abs(parseFloat(box.style.top) + 10) < 1e-6);
+  assert.match(status.textContent, /64\/100 tiles selected/);
   confirm.handlers.click();
   const result = await work;
-  assert.equal(result.region.minX, 6203);
-  assert.equal(result.region.minY, 12003);
-  assert.equal(result.region.count, 25);
+  assert.equal(result.region.minX, 6201);
+  assert.equal(result.region.minY, 12001);
+  assert.equal(result.region.count, 64);
   assert.equal(fixture.pane.children.length, 0, 'remove native geometry when selection ends');
   assert.equal(fixture.removed(), 1);
 });
@@ -674,9 +754,9 @@ test('Google selection waits for native overlay attachment before initializing i
   assert.equal(confirm.disabled, false);
   confirm.handlers.click();
   const result = await work;
-  assert.equal(result.region.minX, 6200);
-  assert.equal(result.region.minY, 12000);
-  assert.equal(result.region.count, 25);
+  assert.equal(result.region.minX, 6201);
+  assert.equal(result.region.minY, 12001);
+  assert.equal(result.region.count, 9);
 });
 
 test('aborting an active resize releases pointer capture and leaves map dragging unchanged', async (t) => {
