@@ -26,7 +26,8 @@
       if (
         target.tagName === 'IMG' &&
         target.src &&
-        target.src.includes('strava.com/identified/globalheat')
+        (target.src.includes('strava.com/identified/globalheat/') ||
+          target.src.includes('strava.com/weeklyheat/'))
       ) {
         const now = Date.now();
 

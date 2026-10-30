@@ -36,7 +36,8 @@ p {
 }
 
 .layer {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.5em;
   background: #f0f0f0;
@@ -51,13 +52,30 @@ p {
   }
 
   .drag-handle {
+    grid-column: 1;
+    grid-row: 1 / 3;
     cursor: grab;
     font-size: 1.25rem;
   }
 
   select {
-    flex: 1;
+    min-width: 0;
     padding: 0.25em;
+  }
+
+  .layer-period {
+    grid-column: 2 / 4;
+    grid-row: 1;
+  }
+
+  .layer-activity {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .layer-color {
+    grid-column: 3;
+    grid-row: 2;
   }
 
   select.invalid {
@@ -65,6 +83,8 @@ p {
   }
 
   .layer-remove {
+    grid-column: 4;
+    grid-row: 1 / 3;
     padding: 0.25em;
     font-size: 1.25em;
     border: none;

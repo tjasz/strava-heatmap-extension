@@ -29,9 +29,9 @@ export async function migrateLayerPresets() {
 	const layerPresets = await getLayerPresets();
 	if (!layerPresets.some(({ color }) => color in MIGRATED_COLORS)) return false;
 
-	const migratedLayerPresets = layerPresets.map(({ activity, color }) => ({
-		activity,
-		color: MIGRATED_COLORS[color] ?? color,
+	const migratedLayerPresets = layerPresets.map((layer) => ({
+		...layer,
+		color: MIGRATED_COLORS[layer.color] ?? layer.color,
 	}));
 	await setLayerPresets(migratedLayerPresets);
 
@@ -50,23 +50,22 @@ export async function getLayerPresets() {
 	const { layers } = await browser.storage.local.get('layers');
 	if (typeof layers !== 'string') return [];
 
-	const layerPresets = layers.split(';').map((item) => {
-		const [activity, color] = item.split(':');
-		return { activity, color };
-	});
-
-	return layerPresets;
+	return parseLayerPresets(layers);
 }
 
 export function formatLayerPresets(layerPresets) {
-	return layerPresets.map(({ activity, color }) => `${activity}:${color}`).join(';');
+	return layerPresets.map(({ activity, color, period = 'global' }) =>
+		`${activity}:${color}${period === 'global' ? '' : `:${period}`}`
+	).join(';');
 }
 
 export function validateLayerPresets(layerPresets) {
-	for (const { activity, color } of layerPresets) {
-		if (activity === undefined || color === undefined) {
+	for (const { activity, color, period = 'global' } of layerPresets) {
+		if (activity === undefined || color === undefined ||
+			!['global', 'weekly'].includes(period)) {
 			return false;
 		}
 	}
 	return true;
 }
+import { parseLayerPresets } from '../clients/common/layers.js';

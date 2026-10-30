@@ -575,7 +575,7 @@ export async function uploadMapSheet({ region, title, image, accountId, signal, 
 export function mapSheetAvailability({ pro, accountId, layer, busy }) {
   if (!pro || !accountId) return { enabled: false, pro: false, message: 'Save a private heatmap to your CalTopo account.' };
   if (busy) return { enabled: false, pro: true, message: 'A Strava map sheet is being saved...' };
-  if (!layer || !new URL(layer.template).pathname.startsWith('/identified/globalheat/')) {
+  if (!layer || !/^\/(identified\/globalheat|weeklyheat)\//.test(new URL(layer.template).pathname)) {
     return { enabled: false, pro: true, message: 'Sign into Strava using the extension and choose a heatmap layer.' };
   }
   return {

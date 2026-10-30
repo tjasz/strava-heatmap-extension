@@ -148,27 +148,32 @@ function getLayerConfig(
   authenticated,
   version,
   short,
-  legacy
+  legacy,
+  period
 ) {
   const activityName = ACTIVITIES[activity];
   const [colorEmoji] = COLORS[color] || '❓';
 
   return {
-    id: `strava-heatmap-${activity}`,
+    id: `strava-heatmap-${activity}${period === 'weekly' ? '-weekly' : ''}`,
     name: `${new Array(position).join('󠀠')}${colorEmoji} ${
       short ? activityName : `Strava Heatmap ${activityName}`
-    }`,
-    description: `Shows ${activityName.toLowerCase()} aggregated, public Strava activities over the last year in ${colorEmoji} color.`,
-    template: getTileTemplate(activity, color, timestamp, authenticated, version, legacy),
+    }${period === 'weekly' ? ' (Weekly)' : ''}`,
+    description: `Shows ${activityName.toLowerCase()} aggregated, public Strava activities over the last ${period === 'weekly' ? 'week (Strava Pro required)' : 'year'} in ${colorEmoji} color.`,
+    template: getTileTemplate(activity, color, timestamp, authenticated, version, legacy, period),
     zoomExtent: authenticated ? [0, 15] : [0, 20],
   };
 }
 
 // Grayscale tiles are colorized client-side; the color param is ignored by Strava
 // and lets the client match tiles to their palette (see colors.css)
-function getTileTemplate(activity, color, timestamp, authenticated, version, legacy) {
+function getTileTemplate(activity, color, timestamp, authenticated, version, legacy, period) {
   if (!authenticated) {
     return `https://raw.githubusercontent.com/tjasz/strava-heatmap-extension/refs/heads/v${version}/assets/heatmap-fallback.png?v=1&z={z}&x={x}&y={y}`;
+  }
+  if (period === 'weekly') {
+    const colormap = legacy ? LEGACY_COLORS[color] : 'grayscale';
+    return `https://content-a.strava.com/weeklyheat/{z}/{x}/{y}?sport_types=${activity}&format=png&colormap=${colormap}&missing=empty&${COLOR_PARAM}=${color}&t=${timestamp}`;
   }
   if (legacy) {
     return `https://content-a.strava.com/identified/globalheat/${activity}/${LEGACY_COLORS[color]}/{z}/{x}/{y}.png?v=19&t=${timestamp}`;
@@ -186,7 +191,7 @@ export function getLayerConfigs(
 ) {
   const timestamp = Date.now().toString();
 
-  return layerPresets.map(({ activity, color }, index) =>
+  return layerPresets.map(({ activity, color, period = 'global' }, index) =>
     getLayerConfig(
       index + 1,
       activity,
@@ -195,7 +200,8 @@ export function getLayerConfigs(
       authenticated,
       version,
       short,
-      legacy
+      legacy,
+      period
     )
   );
 }
@@ -211,7 +217,7 @@ export function setupLayerPresetsChangeListener(callback) {
 
 export function parseLayerPresets(string) {
   return string.split(';').map((item) => {
-    const [activity, color] = item.split(':');
-    return { activity, color };
+    const [activity, color, period] = item.split(':');
+    return period === undefined ? { activity, color } : { activity, color, period };
   });
 }
