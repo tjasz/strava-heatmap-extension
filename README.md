@@ -123,17 +123,31 @@ To enable the Strava Heatmap in CalTopo:
 
 1. Sign into Strava using the extension and select the activity layer in the Strava heatmap controls.
 2. Choose **Add > Line**, **Polygon**, or **Buffer** (and enter its radius), then select **Strava** in the map's **Snap To** dropdown. The measure tool also supports Strava snapping.
-3. Zoom in until snap-eligible heatmap lines appear in semitransparent yellow. They should appear at `z=15` or higher. A hovered line becomes wider and brighter. Click a yellow line to start snapping; hover farther along the connected lines to preview a draft, then click to confirm it.
-   Click away from the highlighted lines to add a straight segment, just as with CalTopo's other snap sources.
+3. Zoom to `z=15` or higher, then **click anywhere to begin**. Strava suggests up to five paths from that exact point, shown in semitransparent yellow. A hovered option becomes wider and brighter and previews the path up to your cursor; click to confirm that draft.
+   Click away from the highlighted options to add a straight segment, just as with CalTopo's other snap sources. Every confirmed point generates a fresh set of suggestions.
 4. Use CalTopo's normal **Undo** (or **Esc**) to remove a segment, and finish or save normally. CalTopo still handles polygon closing and buffer geometry. To snap a polygon's final edge too, click back on its starting point before finishing.
    Double-click to finish.
 
 Snapping uses the selected Strava activity and palette, even if the overlay is hidden.
-The snap network is derived from heatmap imagery, not mapped trail data.
-Only highlighted lines are eligible; disconnected heat traces cannot route across
-gaps. Review drafts at forks before confirming. Missing tiles, expired login, or
-an oversized view shows an error beside **Snap To**. Zoom in or click off the
-network to draw across a gap, or choose **OSM** for mapped-trail routing.
+Suggestions use Slide's locally normalized intensity surface and least-cost
+pathfinding, rather than skeletonizing heat-band outlines. One shared search
+finds paths toward 50 targets at a radius of one displayed tile width (256 map
+pixels at the current zoom). The first point samples every 7.2 degrees around
+the anchor. Later points use the previous-to-current bearing: 30 forward targets
+spaced 6 degrees apart and 20 backward targets spaced 9 degrees apart.
+Sample endpoints can move onto nearby heat; clicked anchors remain exact.
+
+Paths sharing at least 90% of **both** trajectories (within one `z=15` heatmap
+pixel) merge into a common trunk ending at their branching point. Choosing that
+point generates new options for the branches. The best five remaining options
+are ranked by Slide cost per metre, not total cost.
+
+These are suggestions from heatmap imagery, not mapped trail data. Missing
+coverage and long dark gaps are rejected; a short off-heat approach from a
+clicked anchor is allowed. Always review the draft, especially at forks.
+Missing tiles or expired login shows an error beside **Snap To** without
+preventing straight drawing. Zoom in, click off the options to draw across a
+gap, or choose **OSM** for mapped-trail routing.
 
 ### Geotab
 

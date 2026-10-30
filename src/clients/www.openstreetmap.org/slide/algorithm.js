@@ -531,8 +531,8 @@ function maskOtherWays(raster, otherWays, locations, scale) {
 // The neighbourhood maximum is computed with a sliding-window deque (a
 // monotonic maximum filter) in two passes – rows, then columns – which is
 // O(pixels) instead of O(pixels × radius²).
-const MIN_HEAT = 0.02;
-async function trackingSurface(raster, scale, options) {
+export const MIN_HEAT = 0.02;
+export async function trackingSurface(raster, scale, options) {
   const radius = Math.max(1, Math.ceil(SLIDE_DEFAULTS.contrastRadiusMeters / scale));
   const { width, height, density, coverage } = raster;
   const horizontal = new Float32Array(density.length);
@@ -711,7 +711,7 @@ function snap(raster, point, radius, normal, align = radius, hold = 0) {
 const JUMP_BULGE = 0.25;
 // Whether a traced path's raw heat dips below VALLEY_DIP of the heat it has
 // on both sides of the dip (the brightest before and after it).
-const VALLEY_DIP = 0.8;
+export const VALLEY_DIP = 0.8;
 function crossesValley(raster, points) {
   const heat = raster.heat ? { ...raster, density: raster.heat } : raster;
   const values = points.map((p) => sampleDensity(heat, p));
@@ -747,6 +747,10 @@ const TIGHT_EDGE_SHARE = 0.1;
 // Afterwards the path is validated for continuity: a long dark interior
 // stretch means the corridor crossed a gap instead of following a trail. Such
 // paths raise SLIDE_NO_SIGNAL so the caller can retry with a wider radius.
+function heatCost(density) {
+  return 0.06 + 8 * (1 - density) ** 2;
+}
+
 async function trace(raster, start, end, originalStart, originalEnd, radius, options) {
   if (!isCovered(raster, start) || !isCovered(raster, end)) {
     throw noSignal('Heatmap coverage is incomplete at an endpoint.');
@@ -780,7 +784,7 @@ async function trace(raster, start, end, originalStart, originalEnd, radius, opt
       const distance = distanceToSegment([x, y], originalStart, originalEnd);
       if (!raster.coverage[j] || distance > radius) continue;
       cellCosts[i] =
-        0.06 + 8 * (1 - raster.density[j]) ** 2 + 0.04 * (distance / radius) ** 2;
+        heatCost(raster.density[j]) + 0.04 * (distance / radius) ** 2;
       // A trail never runs over itself: make re-using the path traced by
       // earlier sections expensive, except where this section starts on it.
       if (
@@ -937,6 +941,105 @@ async function trace(raster, start, end, originalStart, originalEnd, radius, opt
     );
   }
   return points;
+}
+
+// With no drawn line to constrain a corridor, all targets can share one
+// shortest-path tree on Slide's tracking surface and trapezoidal heat costs.
+export async function slidePaths(startLocation, targetLocations, raster, options = {}) {
+  options = { yield: () => new Promise((resolve) => setTimeout(resolve, 0)), ...options };
+  checkAbort(options.signal);
+  const scale = metersPerPixel(startLocation[1], raster.zoom);
+  const tracking = await trackingSurface(raster, scale, options);
+  const start = project(startLocation, raster.zoom);
+  if (!isCovered(tracking, start)) throw noSignal('Heatmap coverage is missing at the starting point.');
+  const { width, height, x, y } = tracking;
+  const indexOf = (p) => (Math.floor(p[1]) - y) * width + Math.floor(p[0]) - x;
+  const cellPoint = (index) => [x + index % width, y + Math.floor(index / width)];
+  const from = indexOf(start);
+  const goals = new Map();
+  for (const location of targetLocations) {
+    const target = project(location, raster.zoom);
+    const radius = Math.min(SLIDE_DEFAULTS.maxSnapRadiusMeters / scale,
+      Math.hypot(target[0] - start[0], target[1] - start[1]) / 4);
+    const snapped = snap(tracking, target, radius);
+    if (!snapped || !isCovered(tracking, cellPoint(indexOf(snapped)))) continue;
+    const index = indexOf(snapped);
+    if (index !== from) goals.set(index, snapped);
+  }
+  if (!goals.size) throw noSignal('No usable heatmap trails were found near the sample points.');
+  const costs = new Float64Array(width * height).fill(Infinity);
+  const parents = new Int32Array(width * height).fill(-1);
+  const visited = new Uint8Array(width * height);
+  const cellCosts = Float32Array.from(tracking.density, (value, i) =>
+    tracking.coverage[i] ? heatCost(value) : Infinity);
+  const remaining = new Set(goals.keys());
+  const heap = new MinHeap();
+  costs[from] = 0;
+  heap.push({ index: from, cost: 0 });
+  let iterations = 0;
+  while (heap.items.length && remaining.size) {
+    const { index } = heap.pop();
+    if (visited[index]) continue;
+    visited[index] = 1;
+    remaining.delete(index);
+    if (++iterations % 4096 === 0) {
+      await options.yield();
+      checkAbort(options.signal);
+      options.onProgress?.(1 - remaining.size / goals.size);
+    }
+    const col = index % width, row = Math.floor(index / width);
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      if ((!dx && !dy) || col + dx < 0 || row + dy < 0 ||
+          col + dx >= width || row + dy >= height) continue;
+      const next = index + dy * width + dx;
+      if (visited[next] || !Number.isFinite(cellCosts[next])) continue;
+      if (dx && dy && (!Number.isFinite(cellCosts[index + dx]) ||
+          !Number.isFinite(cellCosts[index + dy * width]))) continue;
+      const cost = costs[index] + Math.hypot(dx, dy) * (cellCosts[index] + cellCosts[next]) / 2;
+      if (cost >= costs[next]) continue;
+      costs[next] = cost;
+      parents[next] = index;
+      heap.push({ index: next, cost });
+    }
+  }
+  const paths = [];
+  for (const [goal, target] of goals) {
+    checkAbort(options.signal);
+    if (!visited[goal]) continue;
+    const points = [];
+    for (let i = goal; i !== -1; i = parents[i]) points.push(cellPoint(i));
+    points.reverse();
+    points[0] = start;
+    points[points.length - 1] = target;
+    const prefixCosts = [0], lengths = [0];
+    let first = -1, last = -1, gap = 0, longestGap = 0, supported = 0, dark = 0;
+    const support = points.map((p) => sampleDensity(tracking, p) >= 0.12);
+    first = support.indexOf(true);
+    last = support.lastIndexOf(true);
+    for (let i = 1; i < points.length; i++) {
+      const length = Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1]);
+      lengths.push(lengths[i - 1] + length);
+      prefixCosts.push(prefixCosts[i - 1] + length *
+        (heatCost(sampleDensity(tracking, points[i - 1])) + heatCost(sampleDensity(tracking, points[i]))) / 2);
+      if (support[i] && support[i - 1]) supported += length;
+      if (i >= first && i <= last && !support[i]) {
+        dark += length;
+        gap += length;
+        longestGap = Math.max(longestGap, gap);
+      } else gap = 0;
+    }
+    const length = lengths.at(-1);
+    const leading = first < 0 ? Infinity : lengths[first];
+    const trailing = last < 0 ? Infinity : length - lengths[last];
+    const interior = last >= first && first >= 0 ? lengths[last] - lengths[first] : 0;
+    if (leading * scale > SLIDE_DEFAULTS.maxSearchRadiusMeters || trailing * scale > 2 ||
+        longestGap * scale > 12 || dark > Math.max(3, interior * 0.15) ||
+        supported < Math.min(20 / scale, length * 0.5)) continue;
+    paths.push({ points, costs: prefixCosts, lengths, scale });
+  }
+  if (!paths.length) throw noSignal('No continuous heatmap paths were found from this point.');
+  options.onProgress?.(1);
+  return paths;
 }
 
 // Reduce the traced pixel path to a handful of vertices – Douglas–Peucker

@@ -1,13 +1,15 @@
-import { loadHeatmapNetwork } from './snap-network.js';
+import { loadSlideOptions } from './snap-network.js';
+import { project, unproject } from '../www.openstreetmap.org/slide/algorithm.js';
 
 const SOURCE = 'strava';
 const NORMAL = { stroke: '#F0F000', 'stroke-opacity': 0.4, 'stroke-width': 7 };
 const HOVER = { stroke: '#FFFF00', 'stroke-opacity': 0.8, 'stroke-width': 10 };
+const BEGIN = 'Click anywhere to begin. Strava will suggest up to five Slide paths.';
 
-export function installCalTopoSnap(manager, getLayer, loadNetwork = loadHeatmapNetwork) {
+export function installCalTopoSnap(manager, getLayer, propose = loadSlideOptions) {
   const auto = manager.autoDrawOverlay;
   const select = auto?.dropMenu?.container?.[0];
-  if (!select || !['fetch', 'postFetch', 'add', 'select', 'unselect'].every(
+  if (!select || !['fetch', 'add', 'select', 'unselect', 'click', 'clear'].every(
     (name) => typeof auto[name] === 'function')) return null;
   if (manager.__stravaHeatmapSnap) return manager.__stravaHeatmapSnap;
 
@@ -22,128 +24,279 @@ export function installCalTopoSnap(manager, getLayer, loadNetwork = loadHeatmapN
     status.setAttribute('role', error ? 'alert' : 'status');
     status.textContent = message;
   };
-  let controller = new AbortController();
-  let template;
-  let queue = [];
-  let running = 0;
+  let anchors = [];
+  let controller;
+  let work;
+  let request;
+  let optionIds = [];
   let hovered;
-  let failed = false;
-  const invalidate = (reload = true) => {
-    controller.abort();
-    controller = new AbortController();
-    queue = [];
-    template = undefined;
+  let draft;
+  let preview;
+  let clickedAnchor;
+  let committing = false;
+  const map = manager.map;
+  const clearPreview = () => {
+    if (hovered && auto.mapObjs[hovered]) map.setStyle(auto.mapObjs[hovered], NORMAL);
     hovered = undefined;
-    failed = false;
-    showStatus('');
-    if (auto.source !== SOURCE) return;
-    auto.unselect();
-    auto.coordinates = undefined;
-    auto.clear(true);
-    auto.data[SOURCE] = { tiles: {}, features: {}, nodes: {} };
-    Object.assign(auto, auto.data[SOURCE]);
-    auto.rebuildGlobalNodeGrid();
-    if (reload && auto.map) auto.fetch();
-  };
-  select.addEventListener('change', () => invalidate());
-
-  const fetch = auto.fetch;
-  const pump = () => {
-    while (running < 2 && queue.length) {
-      const job = queue.shift();
-      running++;
-      const { signal, layer, x, y, key } = job;
-      Promise.resolve().then(() => {
-        if (signal.aborted) return;
-        return loadNetwork(x, y, auto.targetZoom, layer, signal);
-      }).then((features) => {
-        if (signal.aborted || auto.source !== SOURCE ||
-            getLayer()?.template !== layer.template || !auto.map) return;
-        auto.postFetch(key, features);
-        if (!failed && !queue.length && running === 1) showStatus('');
-      }).catch((error) => {
-        if (signal.aborted) return;
-        failed = true;
-        delete auto.data[SOURCE].tiles[key];
-        console.warn('[StravaHeatmapExt] CalTopo snap network failed.', error);
-        showStatus(`Strava: ${error.message}`, true);
-      }).finally(() => {
-        running--;
-        pump();
-      });
+    if (preview) {
+      map.removeOverlay(preview);
+      if (auto.selected === preview) auto.selected = undefined;
+      preview = undefined;
+    }
+    if (draft) manager.setOverride(false);
+    draft = undefined;
+    if (auto.source === SOURCE) {
+      auto.coordinates = undefined;
+      auto.id = undefined;
     }
   };
+  const clearOptions = () => {
+    controller?.abort();
+    controller = undefined;
+    request = undefined;
+    clearTimeout(auto.unselectTimeout);
+    auto.unselectTimeout = undefined;
+    clearPreview();
+    for (const id of optionIds) {
+      if (auto.mapObjs[id]) map.removeOverlay(auto.mapObjs[id]);
+      delete auto.mapObjs[id];
+    }
+    optionIds = [];
+    auto.data[SOURCE] = { tiles: {}, features: {}, nodes: {} };
+    if (auto.source === SOURCE) {
+      Object.assign(auto, auto.data[SOURCE]);
+      auto.reference = undefined;
+      auto.routing = undefined;
+      auto.backupReference = undefined;
+    }
+  };
+  const markAnchor = () => {
+    // Native double-click finishing removes the moving cursor when snap exists.
+    if (anchors.length) auto.reference = { coordinates: anchors.at(-1), snap: {} };
+  };
+  const signature = () => JSON.stringify([anchors.at(-1), anchors.at(-2), map.getZoom(), getLayer()?.template]);
+  const generate = () => {
+    clearOptions();
+    if (auto.source !== SOURCE || !auto.map) return;
+    if (!anchors.length) {
+      showStatus(BEGIN);
+      return;
+    }
+    markAnchor();
+    if (map.getZoom() < 15) {
+      showStatus('Zoom in to level 15 or higher for Slide options. Click anywhere to draw a straight segment.');
+      return;
+    }
+    const layer = getLayer();
+    if (!layer) {
+      showStatus('Choose a Strava heatmap layer first.', true);
+      return;
+    }
+    const anchor = anchors.at(-1).slice(), previous = anchors.at(-2)?.slice();
+    const zoom = map.getZoom(), polyline = manager.polyline, handler = manager.handler;
+    const current = new AbortController();
+    controller = current;
+    request = signature();
+    showStatus('Finding Slide options...');
+    const progress = (message) => {
+      if (!current.signal.aborted) showStatus(message);
+    };
+    work = Promise.resolve().then(() => {
+      if (!current.signal.aborted) return propose(anchor, previous, zoom, layer, current.signal, progress);
+    }).then((options) => {
+      if (current.signal.aborted || auto.source !== SOURCE || !auto.map ||
+          manager.polyline !== polyline || manager.handler !== handler || request !== signature()) return;
+      for (const [i, option] of options.entries()) {
+        const id = `strava-option-${i}`;
+        auto.features[id] = {
+          type: 'Feature', properties: { score: option.score },
+          geometry: { type: 'LineString', coordinates: option.coordinates },
+        };
+        optionIds.push(id);
+        auto.add(id);
+        map.setStyle(auto.mapObjs[id], NORMAL);
+      }
+      markAnchor();
+      showStatus(options.length
+        ? 'Hover a yellow Slide option to preview it, then click to confirm. Click elsewhere for a straight segment.'
+        : 'No Slide options found here. Click anywhere to add a straight segment.');
+    }).catch((error) => {
+      if (current.signal.aborted) return;
+      request = undefined;
+      console.warn('[StravaHeatmapExt] CalTopo Slide options failed.', error);
+      showStatus(`Strava: ${error.message} You can still click to add a straight segment.`, true);
+    }).finally(() => {
+      if (controller === current) controller = undefined;
+    });
+    return work;
+  };
+  const invalidate = (reload = true) => {
+    clearOptions();
+    showStatus('');
+    if (reload) return generate();
+  };
+  // CalTopo changes source before clearing the previous source's graph.
+  select.addEventListener('change', () => {
+    if (auto.source === SOURCE) clearOptions();
+  }, true);
+  select.addEventListener('change', () => {
+    anchors = [];
+    clearOptions();
+    if (auto.source !== SOURCE) return showStatus('');
+    if (manager.polyline) {
+      const coordinates = map.getCoordinates(manager.polyline);
+      if (coordinates.length >= 2) anchors.push(coordinates.at(-2).slice());
+    }
+    generate();
+  });
+  const fetch = auto.fetch;
   auto.fetch = function (...args) {
     if (this.source !== SOURCE) return fetch.apply(this, args);
     if (!this.map) return;
-    const layer = getLayer();
-    if (template && template !== layer?.template) return invalidate();
-    if (!layer) return showStatus('Choose a Strava heatmap layer first.', true);
-    template = layer.template;
-    if (this.map.getZoom() < this.zoomThreshold) {
-      showStatus('Zoom in to see Strava snap lines.');
-      return;
+    if (!anchors.length) return showStatus(BEGIN);
+    if (request !== signature()) return generate();
+  };
+  const postFetch = auto.postFetch;
+  auto.postFetch = function (...args) {
+    // Responses from a previous native source must not enter this source's graph.
+    if (this.source !== SOURCE) return postFetch.apply(this, args);
+  };
+  const clear = auto.clear;
+  auto.clear = function (force, ...args) {
+    if (this.source !== SOURCE) return clear.call(this, force, ...args);
+    if (force || map.getZoom() < 15) {
+      if (this.features !== this.data[SOURCE].features) clear.call(this, true, ...args);
+      clearOptions();
+      markAnchor();
     }
-    const bounds = this.getTileBounds(this.getMapBounds());
-    const count = (bounds[1][0] - bounds[0][0] + 1) * (bounds[0][1] - bounds[1][1] + 1);
-    if (count > 16) return showStatus('Zoom in to load Strava snap lines.', true);
-    for (let x = bounds[0][0]; x <= bounds[1][0]; x++) {
-      for (let y = bounds[1][1]; y <= bounds[0][1]; y++) {
-        const key = `${x}-${y}`;
-        if (this.tiles[key]) continue;
-        this.tiles[key] = true;
-        queue.push({ x, y, key, layer, signal: controller.signal });
+  };
+  const click = auto.click;
+  auto.click = function (point) {
+    if (this.source !== SOURCE) return click.call(this, point);
+    if (!point) return;
+    anchors.push((clickedAnchor ?? point).slice());
+    clickedAnchor = undefined;
+    return generate();
+  };
+  const backup = auto.backup;
+  auto.backup = function (...args) {
+    if (this.source !== SOURCE) return backup.apply(this, args);
+  };
+  const closest = (point, id) => {
+    const coordinates = auto.features[id]?.geometry.coordinates;
+    if (!coordinates) return;
+    const target = project(point);
+    let best;
+    for (let i = 1; i < coordinates.length; i++) {
+      const a = project(coordinates[i - 1]), b = project(coordinates[i]);
+      const dx = b[0] - a[0], dy = b[1] - a[1], length = dx * dx + dy * dy;
+      const fraction = length ? Math.max(0, Math.min(1,
+        ((target[0] - a[0]) * dx + (target[1] - a[1]) * dy) / length)) : 0;
+      const at = [a[0] + fraction * dx, a[1] + fraction * dy];
+      const distance = Math.hypot(target[0] - at[0], target[1] - at[1]);
+      if (!best || distance < best.distance) {
+        best = { distance, coordinates: [...coordinates.slice(0, i), unproject(at)] };
       }
     }
-    if (queue.length && running === 0) {
-      failed = false;
-      showStatus('Loading Strava snap lines...');
-    }
-    this.draw();
-    pump();
-  };
-
-  const add = auto.add;
-  auto.add = function (id) {
-    const result = add.call(this, id);
-    if (this.source === SOURCE && this.mapObjs[id]) this.map.setStyle(this.mapObjs[id], NORMAL);
-    return result;
+    return best;
   };
   const selectLine = auto.select;
-  const unselectLine = auto.unselect;
-  const restoreHover = () => {
-    if (hovered && auto.mapObjs[hovered]) auto.map?.setStyle(auto.mapObjs[hovered], NORMAL);
-    hovered = undefined;
-  };
   auto.select = function (point, id) {
     if (this.source !== SOURCE) return selectLine.call(this, point, id);
-    restoreHover();
-    const feature = this.features[id];
-    if (this.reference && (!this.routing ||
-        !this.routing.solution[feature?.startNodeId] || !this.routing.solution[feature?.endNodeId])) {
-      if (this.selected) this.map.removeOverlay(this.selected);
-      this.selected = undefined;
-      this.coordinates = undefined;
-      manager.setOverride(false);
-    }
-    const result = selectLine.call(this, point, id);
+    // Native touch clicks reselect before consuming the already prepared path.
+    if (committing) return;
+    clearTimeout(this.unselectTimeout);
+    this.unselectTimeout = undefined;
+    clearPreview();
+    const match = closest(point, id);
+    if (!match) return;
     hovered = id;
-    if (id && this.mapObjs[id]) this.map.setStyle(this.mapObjs[id], HOVER);
-    return result;
+    draft = match.coordinates;
+    this.id = id;
+    this.coordinates = draft;
+    manager.setOverride(true);
+    map.setStyle(this.mapObjs[id], HOVER);
+    preview = map.addOverlay({ type: 'LineString', coordinates: draft }, {
+      stroke: this.stroke, 'stroke-opacity': 1, 'stroke-width': 5, 'z-index': 5,
+      clickable: false, interactive: false,
+    });
+    this.selected = preview;
   };
+  const unselect = auto.unselect;
   auto.unselect = function (...args) {
-    const result = unselectLine.apply(this, args);
-    if (this.source === SOURCE) restoreHover();
+    if (this.source !== SOURCE) return unselect.apply(this, args);
+    clearPreview();
+  };
+  const handleClick = manager.handleClick;
+  manager.handleClick = function (event) {
+    if (auto.source !== SOURCE || !['polyline', 'polygon'].includes(this.handler?.mode) ||
+        this.ignoreNextClick || event.target?.closest('form, button, .leaflet-control')) {
+      return handleClick.call(this, event);
+    }
+    if ((event.detail ?? event.originalEvent?.detail) > 1) return;
+    const offset = this.$div.offset();
+    if (!offset) {
+      showStatus('Could not locate the CalTopo drawing canvas.', true);
+      return;
+    }
+    const point = map.fromContainerPixel([event.pageX - offset.left, event.pageY - offset.top]);
+    let match;
+    if (!event.shiftKey) for (const id of optionIds) {
+      const candidate = closest(point, id);
+      if (candidate && candidate.distance <= 10 * 2 ** (15 - map.getZoom()) &&
+          (!match || candidate.distance < match.distance)) match = candidate;
+    }
+    clearPreview();
+    if (match) {
+      clickedAnchor = match.coordinates.at(-1).slice();
+      // Supply points after the anchor with the normal moving cursor restored;
+      // native addPath then records the entire proposal as one undo action.
+      auto.coordinates = match.coordinates.slice(1);
+      this.lastAdditionPoint = false;
+    }
+    committing = true;
+    try {
+      return handleClick.call(this, event);
+    } finally {
+      committing = false;
+      clickedAnchor = undefined;
+    }
+  };
+  const undo = manager.undo;
+  manager.undo = function (...args) {
+    if (auto.source !== SOURCE) return undo.apply(this, args);
+    const remaining = anchors.slice(0, -1);
+    clearOptions();
+    const result = undo.apply(this, args);
+    anchors = this.polyline ? remaining : [];
+    generate();
     return result;
   };
-  for (const name of ['cancel', 'release', 'finish']) {
+  const doubleClick = manager.handleDblClick;
+  manager.handleDblClick = function (...args) {
+    if (auto.source === SOURCE) clearPreview();
+    return doubleClick.apply(this, args);
+  };
+  for (const name of ['cancel', 'release']) {
     const original = manager[name];
     manager[name] = function (...args) {
-      const result = original.apply(this, args);
-      if (auto.source === SOURCE) invalidate(false);
-      return result;
+      if (auto.source === SOURCE) {
+        anchors = [];
+        clearOptions();
+        showStatus('');
+      }
+      return original.apply(this, args);
     };
   }
-  manager.__stravaHeatmapSnap = { invalidate };
+  const finish = manager.finish;
+  manager.finish = async function (...args) {
+    if (auto.source !== SOURCE) return finish.apply(this, args);
+    clearOptions();
+    const result = await finish.apply(this, args);
+    if (this.handler && this.polyline) generate();
+    return result;
+  };
+  if (auto.source === SOURCE) showStatus(BEGIN);
+  manager.__stravaHeatmapSnap = { invalidate, get ready() { return work ?? Promise.resolve(); } };
   return manager.__stravaHeatmapSnap;
 }
