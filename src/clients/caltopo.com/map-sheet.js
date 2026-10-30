@@ -646,7 +646,12 @@ export function installCalTopoMapSheets(getLayer, getMap) {
     const status = document.createElement('p');
     status.setAttribute('role', 'status');
     const close = document.createElement('button');
+    close.className = 'strava-heatmap-map-sheet-button';
+    close.type = 'button';
     close.textContent = 'Cancel';
+    const actions = document.createElement('div');
+    actions.className = 'strava-heatmap-map-sheet-actions';
+    actions.appendChild(close);
     let uploading = false;
     close.addEventListener('click', () => {
       controller.abort();
@@ -657,7 +662,7 @@ export function installCalTopoMapSheets(getLayer, getMap) {
       else controller.abort();
     });
     dialog.addEventListener('close', () => dialog.remove());
-    dialog.append(heading, name, privacy, status, close);
+    dialog.append(heading, name, privacy, status, actions);
     let timer;
     let releaseCreation;
     let saved = false;
@@ -702,6 +707,7 @@ export function installCalTopoMapSheets(getLayer, getMap) {
       uploading = false;
       close.disabled = false;
       close.textContent = 'Close';
+      close.className = 'strava-heatmap-map-sheet-button strava-heatmap-map-sheet-primary';
       refresh();
     }
   };
