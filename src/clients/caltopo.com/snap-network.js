@@ -1,108 +1,93 @@
-import { createHeatmapRaster, unproject } from '../www.openstreetmap.org/slide/algorithm.js';
+import { createHeatmapRaster, project, slidePaths, unproject } from '../www.openstreetmap.org/slide/algorithm.js';
 import { loadSlideTiles, SLIDE_ZOOM } from '../www.openstreetmap.org/slide/tiles.js';
 
-// Thin the heat into a connected, one-pixel network before splitting it at
-// junctions. Unlike tracing a clicked chord, this preserves forks and loops.
-export async function heatmapNetwork(raster, bounds, signal) {
-  const { width, height, density, coverage, x, y, zoom } = raster;
-  const mask = Uint8Array.from(density, (value, i) => coverage[i] && value >= 0.08 ? 1 : 0);
-  const offsets = [-width, 1 - width, 1, width + 1, width, width - 1, -1, -width - 1];
-  let active = [];
-  for (let row = 0; row < height; row++) {
-    for (let col = 0; col < width; col++) {
-      const i = row * width + col;
-      if (!row || !col || row === height - 1 || col === width - 1) mask[i] = 0;
-      else if (mask[i]) active.push(i);
-    }
+export function sampleSlideTargets(anchor, previous, zoom) {
+  const start = project(anchor, SLIDE_ZOOM);
+  const radius = 512 * 2 ** (SLIDE_ZOOM - zoom);
+  let bearing = 0;
+  if (previous) {
+    const radians = (value) => value * Math.PI / 180;
+    const lat1 = radians(previous[1]), lat2 = radians(anchor[1]);
+    const delta = radians(anchor[0] - previous[0]);
+    bearing = Math.atan2(Math.sin(delta) * Math.cos(lat2),
+      Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(delta)) * 180 / Math.PI;
   }
-  let changed = true;
-  let iteration = 0;
-  while (changed) {
-    if (signal.aborted) throw new DOMException('Strava snap cancelled.', 'AbortError');
-    changed = false;
-    for (let phase = 0; phase < 2; phase++) {
-      const remove = [];
-      for (const i of active) {
-        const n = offsets.map((offset) => mask[i + offset]);
-        const count = n.reduce((sum, value) => sum + value, 0);
-        if (count < 2 || count > 6) continue;
-        const transitions = n.reduce((sum, value, j) =>
-          sum + (!value && n[(j + 1) % 8] ? 1 : 0), 0);
-        if (transitions !== 1) continue;
-        if (phase === 0
-          ? !(n[0] * n[2] * n[4]) && !(n[2] * n[4] * n[6])
-          : !(n[0] * n[2] * n[6]) && !(n[0] * n[4] * n[6])) remove.push(i);
-      }
-      for (const i of remove) mask[i] = 0;
-      changed ||= remove.length > 0;
-      active = active.filter((i) => mask[i]);
-    }
-    if (++iteration % 8 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-  // Crop only after thinning, so adjoining tiles share the same centerline.
-  for (const i of active) {
-    const px = x + i % width, py = y + Math.floor(i / width);
-    if (px < bounds.minX || px > bounds.maxX || py < bounds.minY || py > bounds.maxY) {
-      mask[i] = 0;
-    }
-  }
-  active = active.filter((i) => mask[i]);
-  const neighbors = (i) => offsets.flatMap((offset, j) => {
-    if (!mask[i + offset]) return [];
-    // A diagonal beside an orthogonal edge is not another junction.
-    if (j % 2 && (mask[i + offsets[(j + 7) % 8]] || mask[i + offsets[(j + 1) % 8]])) return [];
-    return [i + offset];
+  const angles = previous
+    ? [...Array.from({ length: 30 }, (_, i) => bearing - 87 + i * 6),
+      ...Array.from({ length: 20 }, (_, i) => bearing + 94.5 + i * 9)]
+    : Array.from({ length: 50 }, (_, i) => i * 7.2);
+  return angles.map((angle) => {
+    const radians = angle * Math.PI / 180;
+    return unproject([start[0] + radius * Math.sin(radians), start[1] - radius * Math.cos(radians)], SLIDE_ZOOM);
   });
-  const graph = new Map(active.map((i) => [i, neighbors(i)]));
-  const visited = new Set();
-  const features = [];
-  const edge = (a, b) => a < b ? `${a}:${b}` : `${b}:${a}`;
-  const walk = (start, next) => {
-    const path = [start];
-    let previous = start, current = next;
-    while (!visited.has(edge(previous, current))) {
-      visited.add(edge(previous, current));
-      path.push(current);
-      const links = graph.get(current);
-      if (links.length !== 2 || current === start) break;
-      const following = links.find((i) => i !== previous);
-      previous = current;
-      current = following;
-    }
-    if (path.length > 1) features.push({
-      type: 'Feature',
-      properties: {},
-      geometry: {
-        type: 'LineString',
-        coordinates: path.map((i) => unproject([x + i % width, y + Math.floor(i / width)], zoom)),
-      },
-    });
-  };
-  for (const [i, links] of graph) {
-    if (links.length !== 2) for (const next of links) {
-      if (!visited.has(edge(i, next))) walk(i, next);
-    }
-  }
-  // Components without endpoints are closed loops.
-  for (const [i, links] of graph) for (const next of links) {
-    if (!visited.has(edge(i, next))) walk(i, next);
-  }
-  if (signal.aborted) throw new DOMException('Strava snap cancelled.', 'AbortError');
-  return features;
 }
 
-export async function loadHeatmapNetwork(tileX, tileY, tileZoom, layer, signal) {
-  const size = 512 * 2 ** (SLIDE_ZOOM - tileZoom);
-  const x = tileX * size, y = tileY * size;
-  const bounds = { minX: x, minY: y, maxX: x + size, maxY: y + size };
-  const source = {
-    url: ([tx, ty, z]) => layer.template
-      .replace('{z}', z).replace('{x}', tx).replace('{y}', ty),
+function sharedTrajectory(a, b) {
+  let ia = 0, ib = 0, shared = 0;
+  const at = (path, distance, index) => {
+    const span = path.lengths[index + 1] - path.lengths[index];
+    const fraction = span ? (distance - path.lengths[index]) / span : 0;
+    return path.points[index].map((value, k) =>
+      value + fraction * (path.points[index + 1][k] - value));
   };
-  const loaded = await loadSlideTiles([
-    unproject([x + 1, y + 1]), unproject([x + size - 1, y + size - 1]),
-  ], source, signal);
-  if (signal.aborted) throw new DOMException('Strava snap cancelled.', 'AbortError');
+  const limit = Math.min(a.lengths.at(-1), b.lengths.at(-1));
+  for (let distance = 0; distance <= limit; distance = Math.min(limit, distance + 0.5)) {
+    while (ia + 2 < a.points.length && a.lengths[ia + 1] < distance) ia++;
+    while (ib + 2 < b.points.length && b.lengths[ib + 1] < distance) ib++;
+    const pa = at(a, distance, ia), pb = at(b, distance, ib);
+    if (Math.hypot(pa[0] - pb[0], pa[1] - pb[1]) > 1) break;
+    shared = distance;
+    if (distance === limit) break;
+  }
+  return shared >= a.lengths.at(-1) * 0.9 && shared >= b.lengths.at(-1) * 0.9;
+}
+
+export function selectSlideOptions(paths) {
+  const score = (path) => path.costs.at(-1) / (path.lengths.at(-1) * path.scale);
+  const groups = [];
+  for (const path of paths.slice().sort((a, b) => score(a) - score(b))) {
+    if (path.points.length < 2 || !(path.lengths.at(-1) > 0)) continue;
+    const group = groups.find((candidate) => candidate.members.every((member) => sharedTrajectory(path, member)));
+    if (!group) {
+      groups.push({ base: path, members: [path], end: path.points.length - 1 });
+      continue;
+    }
+    group.members.push(path);
+    let end = 0;
+    while (end + 1 <= group.end && end + 1 < path.points.length &&
+        group.base.points[end + 1].every((value, k) => value === path.points[end + 1][k])) end++;
+    group.end = end;
+  }
+  return groups.filter(({ end }) => end > 0).map(({ base, end }) => {
+    const cost = base.costs[end], length = base.lengths[end] * base.scale;
+    return {
+      coordinates: base.points.slice(0, end + 1).map((point) => unproject(point, SLIDE_ZOOM)),
+      cost, length, score: cost / length,
+    };
+  }).sort((a, b) => a.score - b.score).slice(0, 5);
+}
+
+export async function loadSlideOptions(anchor, previous, zoom, layer, signal, onProgress = () => {}) {
+  const targets = sampleSlideTargets(anchor, previous, zoom);
+  const source = {
+    url: ([x, y, z]) => layer.template.replace('{z}', z).replace('{x}', x).replace('{y}', y),
+  };
+  onProgress('Loading Strava heatmap...');
+  const loaded = await loadSlideTiles([anchor, ...targets], source, signal);
   const raster = createHeatmapRaster(loaded.tiles, loaded.zoom, loaded.bounds);
-  return heatmapNetwork(raster, bounds, signal);
+  onProgress('Finding Slide options...');
+  let lastYield = performance.now();
+  const paths = await slidePaths(anchor, targets, raster, {
+    signal,
+    yield: async () => {
+      if (performance.now() - lastYield < 16) return;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      lastYield = performance.now();
+    },
+    onProgress: (progress) => onProgress(`Finding Slide options... ${Math.round(progress * 100)}%`),
+  });
+  const options = selectSlideOptions(paths);
+  // Keep the user's anchor exact through projection and unprojection.
+  for (const option of options) option.coordinates[0] = anchor.slice();
+  return options;
 }
