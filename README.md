@@ -152,6 +152,7 @@ server-side and cannot include it. To include a heatmap in a printed map, first
 
 Snapping uses the Strava layer you most recently enabled or adjusted, even if
 you subsequently hide it. Each layer's visibility and opacity are saved separately.
+The status beside **Snap To** names the layer currently used for Strava snapping.
 Suggestions use Slide's locally normalized intensity surface and least-cost
 pathfinding, rather than skeletonizing heat-band outlines. One shared search
 finds paths toward 48 targets on a 7-by-7 grid centered on the anchor, excluding
