@@ -113,6 +113,15 @@ export function resizeMapSheetSelection(region, handle, point) {
   return { region: regionFromTiles(left, right - 1, top, bottom - 1), limited: true };
 }
 
+export function moveMapSheetSelection(region, dx, dy) {
+  if (![dx, dy].every(Number.isFinite)) {
+    throw new Error('Could not determine the map sheet position. Try moving the handle again.');
+  }
+  const x = Math.max(0, Math.min(TILE_COUNT - region.columns, region.minX + Math.round(dx)));
+  const y = Math.max(0, Math.min(TILE_COUNT - region.rows, region.minY + Math.round(dy)));
+  return regionFromTiles(x, x + region.columns - 1, y, y + region.rows - 1);
+}
+
 export function selectMapSheetRegion(map, signal, suggestedTitle) {
   const container = map?.getContainer?.() || map?.getDiv?.();
   const leaflet = typeof map?.containerPointToLatLng === 'function';
@@ -155,7 +164,7 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
     const heading = document.createElement('h2');
     heading.textContent = 'Map Sheet from Strava Heatmap';
     const instructions = document.createElement('p');
-    instructions.textContent = `Drag the edge or corner handles to adjust the capture area (up to ${MAX_TILES} zoom-${MAX_ZOOM} tiles).`;
+    instructions.textContent = `Drag the center handle to move the area, or its edge and corner handles to resize it (up to ${MAX_TILES} zoom-${MAX_ZOOM} tiles).`;
     const nameLabel = document.createElement('label');
     nameLabel.className = 'strava-heatmap-map-sheet-name';
     nameLabel.textContent = 'Sheet name';
@@ -261,14 +270,21 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
       event.stopPropagation();
       finish(null);
     };
+    const pointerPoint = (event) => {
+      const rect = container.getBoundingClientRect();
+      return fromPixel(
+        Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
+        Math.max(0, Math.min(rect.height, event.clientY - rect.top)),
+      );
+    };
     const update = (event) => {
       try {
-        const rect = container.getBoundingClientRect();
-        const corner = fromPixel(
-          Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
-          Math.max(0, Math.min(rect.height, event.clientY - rect.top)),
-        );
-        const selection = resizeMapSheetSelection(drag.region, drag.handle, corner);
+        const corner = pointerPoint(event);
+        const point = drag.handle === 'move' ? tilePoint(corner) : null;
+        const selection = point
+          ? { region: moveMapSheetSelection(drag.region, point[0] - drag.anchor[0],
+            point[1] - drag.anchor[1]), limited: false }
+          : resizeMapSheetSelection(drag.region, drag.handle, corner);
         region = selection.region;
         showSelection(selection.limited);
         draw();
@@ -282,19 +298,32 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
       ['nw', 'northwest corner', 0, 0], ['n', 'north edge', 50, 0], ['ne', 'northeast corner', 100, 0],
       ['e', 'east edge', 100, 50], ['se', 'southeast corner', 100, 100],
       ['s', 'south edge', 50, 100], ['sw', 'southwest corner', 0, 100], ['w', 'west edge', 0, 50],
+      ['move', 'selected area', 50, 50],
     ]) {
       const handle = document.createElement('button');
       handle.type = 'button';
       handle.className = `strava-heatmap-map-sheet-handle strava-heatmap-map-sheet-handle-${direction}`;
-      handle.setAttribute('aria-label', `Resize ${label}`);
+      handle.setAttribute('aria-label', `${direction === 'move' ? 'Move' : 'Resize'} ${label}`);
+      if (direction === 'move') handle.title = 'Move selected area (arrow keys move one tile)';
       handle.style.left = `${x}%`;
       handle.style.top = `${y}%`;
       handle.addEventListener('pointerdown', (event) => {
         if (drag || !region || event.button !== 0 || !event.isPrimary) return;
         event.preventDefault();
         event.stopPropagation();
+        let anchor;
+        if (direction === 'move') {
+          try {
+            anchor = tilePoint(pointerPoint(event));
+          } catch (error) {
+            status.setAttribute('role', 'alert');
+            status.textContent = error.message;
+            confirm.disabled = true;
+            return;
+          }
+        }
         handle.setPointerCapture(event.pointerId);
-        drag = { element: handle, pointer: event.pointerId, handle: direction, region };
+        drag = { element: handle, pointer: event.pointerId, handle: direction, region, anchor };
         confirm.disabled = true;
       });
       handle.addEventListener('pointermove', (event) => {
@@ -323,6 +352,12 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
         if (!delta || !region || drag) return;
         event.preventDefault();
         event.stopPropagation();
+        if (direction === 'move') {
+          region = moveMapSheetSelection(region, ...delta);
+          showSelection();
+          draw();
+          return;
+        }
         const edgeX = direction.includes('w') ? region.minX : region.maxX + 1;
         const edgeY = direction.includes('n') ? region.minY : region.maxY + 1;
         const selection = resizeMapSheetSelection(region, direction,

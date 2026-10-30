@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   mapSheetRegion, mapSheetAlignment, colorizeMapSheetPixels,
   mapSheetAvailability, renderMapSheet, uploadMapSheet,
-  installCalTopoMapSheets, limitMapSheetSelection, resizeMapSheetSelection, selectMapSheetRegion,
+  installCalTopoMapSheets, limitMapSheetSelection, resizeMapSheetSelection, moveMapSheetSelection, selectMapSheetRegion,
 } from '../src/clients/caltopo.com/map-sheet.js';
 import { getLayerConfigs } from '../src/clients/common/layers.js';
 import { PALETTES } from '../src/clients/common/palettes.js';
@@ -116,6 +116,26 @@ test('all eight resize handles preserve their opposite edges and enforce the til
       assert.ok(resized.count <= 100);
     }
   }
+});
+
+test('moving a selection snaps to whole tiles and clamps at world edges without resizing', () => {
+  for (const [columns, rows] of [[1, 1], [2, 3], [10, 10]]) {
+    const initial = mapSheetRegion(boundsFor(6200, 12000, columns, rows));
+    for (const [dx, dy, x, y] of [
+      [2.4, -3.6, 6202, 11996],
+      [0.2, -0.2, 6200, 12000],
+      [-1e6, -1e6, 0, 0],
+      [1e6, 1e6, 32768 - columns, 32768 - rows],
+    ]) {
+      const moved = moveMapSheetSelection(initial, dx, dy);
+      assert.equal(moved.minX, x);
+      assert.equal(moved.minY, y);
+      for (const key of ['columns', 'rows', 'count', 'width', 'height']) {
+        assert.equal(moved[key], initial[key], key);
+      }
+    }
+  }
+  assert.throws(() => moveMapSheetSelection(region, NaN, 1), /position/);
 });
 
 test('automatic alignment maps actual image pixels to exact Mercator coordinates, including high latitudes', () => {
@@ -493,7 +513,7 @@ for (const renderer of ['google', 'leaflet']) {
     assert.equal(panel.children.length, 5, 'no separate zoom controls');
     assert.match(confirm.className, /strava-heatmap-map-sheet-primary/);
     assert.equal(confirm.type, 'button');
-    assert.equal(box.children.length, 8);
+    assert.equal(box.children.length, 9);
     assert.match(status.textContent, /100\/100 tiles selected/);
     assert.equal(parseFloat(box.style.left), 500);
     assert.ok(Math.abs(parseFloat(box.style.width) - 1000) < 1e-6);
@@ -586,6 +606,58 @@ for (const renderer of ['google', 'leaflet']) {
     assert.equal(fixture.draggable(), false);
     assert.equal(fixture.container.children.length, 0);
     assert.equal(fixture.removed(), 1);
+  });
+
+  test(`${renderer} center handle moves without jumping or resizing and supports cancellation and arrow keys`, async (t) => {
+    const document = new Element('document');
+    document.createElement = (tag) => new Element(tag);
+    const fixture = selectionMap(renderer);
+    globalValue(t, 'document', document);
+    globalValue(t, 'window', { map: fixture.wrapper, google: fixture.google });
+    const work = selectMapSheetRegion(fixture.map, new AbortController().signal, 'Moved selection');
+    const box = selectionBox(fixture.container);
+    const handle = box.children[8];
+    const { status, confirm } = selectionControls(selectionPanel(fixture.container));
+    assert.equal(handle.attributes['aria-label'], 'Move selected area');
+    assert.equal(handle.style.left, '50%');
+    assert.equal(handle.style.top, '50%');
+    const width = box.style.width;
+    const height = box.style.height;
+    const left = parseFloat(box.style.left);
+    const top = parseFloat(box.style.top);
+    pointer(handle, 'pointerdown', 500, 500);
+    assert.equal(confirm.disabled, true);
+    pointer(handle, 'pointermove', 700, 800, { pointerId: 2 });
+    assert.equal(parseFloat(box.style.left), left, 'ignore unrelated pointers');
+    pointer(handle, 'pointermove', 500, 500);
+    assert.equal(parseFloat(box.style.left), left, 'grabbing the handle must not move the box');
+    pointer(handle, 'pointermove', 700, 800);
+    assert.ok(Math.abs(parseFloat(box.style.left) - left - 200) < 1e-6);
+    assert.ok(Math.abs(parseFloat(box.style.top) - top - 300) < 1e-6);
+    assert.equal(box.style.width, width);
+    assert.equal(box.style.height, height);
+    assert.match(status.textContent, /64\/100 tiles selected/);
+    pointer(handle, 'pointercancel', 700, 800);
+    assert.ok(Math.abs(parseFloat(box.style.left) - left) < 1e-6);
+    assert.ok(Math.abs(parseFloat(box.style.top) - top) < 1e-6);
+    assert.equal(handle.hasPointerCapture(1), false);
+    assert.equal(confirm.disabled, false);
+    handle.handlers.keydown({ key: 'ArrowRight', preventDefault() {}, stopPropagation() {} });
+    pointer(handle, 'pointerdown', 500, 500);
+    pointer(handle, 'pointermove', 700, 800);
+    pointer(handle, 'pointerup', 700, 800);
+    handle.handlers.lostpointercapture();
+    handle.handlers.keydown({ key: 'ArrowUp', preventDefault() {}, stopPropagation() {} });
+    assert.equal(box.style.width, width);
+    assert.equal(box.style.height, height);
+    assert.equal(fixture.draggable(), true);
+    confirm.handlers.click();
+    const result = await work;
+    assert.equal(result.region.minX, 6204);
+    assert.equal(result.region.minY, 12003);
+    assert.equal(result.region.columns, 8);
+    assert.equal(result.region.rows, 8);
+    assert.equal(result.region.count, 64);
   });
 
   test(`${renderer} can confirm the largest initial centered square without resizing`, async (t) => {
