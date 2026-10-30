@@ -14,20 +14,30 @@ function element(tagName) {
   };
 }
 
-for (const renderer of ['leaflet', 'google']) {
-  test(`CalTopo ${renderer} uses unshifted 256px tiles and preserves palettes across layer/auth changes`, async (t) => {
+for (const [renderer, page] of ['leaflet', 'google'].flatMap((renderer) => [
+    'https://caltopo.com/map.html',
+    'https://caltopo.com/print?map=test#preview',
+    'https://www.caltopo.com/print/',
+  ].map((page) => [renderer, page]))) {
+  const location = new URL(page);
+  const printing = location.pathname !== '/map.html';
+  test(printing
+    ? `CalTopo ${renderer} skips the heatmap overlay and controls on ${page}`
+    : `CalTopo ${renderer} uses unshifted 256px tiles and preserves palettes across layer/auth changes`, async (t) => {
     const body = element('body');
+    let ribbonQueries = 0;
     const document = {
       body,
       createElement: element,
       createElementNS: (namespace, tagName) => element(tagName),
       getElementById: () => null,
-      querySelectorAll: () => [],
+      querySelectorAll: () => { ribbonQueries++; return []; },
       querySelector: (selector) => selector === 'script#strava-heatmap-client' ? ({
         dataset: { version: '0.15.0', authenticated: 'true', layers: 'run:orange' },
       }) : null,
     };
     const listeners = [];
+    const timers = [];
     const overlays = [];
     const map = renderer === 'leaflet' ? {
       addLayer() {},
@@ -42,9 +52,10 @@ for (const renderer of ['leaflet', 'google']) {
       },
     };
     const window = {
+      location,
       map: { map: { map } },
       addEventListener: (name, callback) => listeners.push(callback),
-      setInterval() {},
+      setInterval: (callback) => timers.push(callback),
       clearInterval() {},
       setTimeout() {},
     };
@@ -80,7 +91,15 @@ for (const renderer of ['leaflet', 'google']) {
       });
     }
 
-    await import(`../src/clients/caltopo.com/index.js?colors=${renderer}`);
+    await import(`../src/clients/caltopo.com/index.js?colors=${renderer}&page=${encodeURIComponent(page)}`);
+    if (printing) {
+      assert.equal(window.__stravaHeatmapCalTopoOverlay, undefined);
+      assert.equal(body.children.length, 0);
+      assert.equal(ribbonQueries, 0, 'print previews must not register Route Discovery controls');
+      assert.equal(listeners.length, 0);
+      assert.equal(timers.length, 0, 'print previews must not start map integration retries');
+      return;
+    }
     function assertTiling(maxNativeZoom) {
       const overlay = window.__stravaHeatmapCalTopoOverlay;
       if (renderer === 'leaflet') {

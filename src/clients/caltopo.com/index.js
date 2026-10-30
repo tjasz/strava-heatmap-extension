@@ -415,6 +415,8 @@ function applyLayerConfigs(layerPresets, authenticated, version) {
 }
 
 async function main() {
+  if (/^\/print(?:\/|$)/.test(window.location.pathname)) return;
+
   const script = document.querySelector('script#strava-heatmap-client');
   const version = script.dataset.version;
   let authenticated = script.dataset.authenticated === 'true';

@@ -5,6 +5,7 @@
 ### `0.15.0.2` (Unreleased)
 
 - [CalTopo] Add ability to save a map sheet built from the Strava heatmap.
+- [CalTopo] Do not show the heatmap in the print preview, since it will not appear in printed output.
 
 ### `0.15.0.1` (2026-10-29)
 
