@@ -170,7 +170,7 @@ To enable the Strava Heatmap in GPX.studio:
 To enable the Strava Heatmap in CalTopo:
 
 1. Open a map at https://caltopo.com/.
-2. In the Map Layers panel to the right of the map, under "Route Discovery", each configured Strava heatmap has its own button. Toggle any combination of layers; each enabled layer expands to show its own opacity slider. Layers are stacked in their configured order, with later layers on top.
+2. In the Map Layers panel to the right of the map, under "Route Discovery", each configured Strava heatmap has its own button. Toggle any combination of layers; each enabled layer expands to show its own opacity slider. Most recently enabled layers appear on top. Turning a layer off and on brings it to the top; adjusting opacity does not change the stacking order. The stacking order is saved with the layer settings.
 3. Use the extension icon to log into Strava and configure the available heatmap layers.
 
 The live overlay is not shown in CalTopo's print preview because PDFs are rendered

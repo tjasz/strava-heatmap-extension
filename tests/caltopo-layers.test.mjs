@@ -147,6 +147,51 @@ function fixture(renderer, saved, initialPresets = presets) {
 }
 
 for (const renderer of ['leaflet', 'google']) {
+  test(`${renderer} stacks by activation order through refreshes, restores and map-sheet exports`, () => {
+    const f = fixture(renderer);
+    const order = (fixture) => fixture.mapOverlays
+      .filter((overlay) => overlay.template || overlay.getTile)
+      .map((overlay) => {
+        const url = renderer === 'leaflet' ? overlay.template :
+          overlay.getTile({ x: 0, y: 0 }, 1, {
+            createElement: (tag) => new Element(tag),
+          }).children[0].src;
+        if (url.includes('weeklyheat')) return 'weekly';
+        return url.includes('/ride/') ? 'ride' : 'run';
+      });
+    const expectOrder = (fixture, expected) => {
+      fixture.flush();
+      assert.deepEqual(order(fixture), expected);
+      assert.deepEqual(Array.from(fixture.getSheetLayers(), (layer) =>
+        layer.id.endsWith('-weekly') ? 'weekly' : layer.id.endsWith('-ride') ? 'ride' : 'run'), expected);
+    };
+    f.row(2).button.handlers.click();
+    f.row(1).button.handlers.click();
+    expectOrder(f, ['run', 'ride', 'weekly']);
+    f.row(0).input.value = '45';
+    f.row(0).input.handlers.input();
+    expectOrder(f, ['run', 'ride', 'weekly']);
+    f.row(2).button.handlers.click();
+    expectOrder(f, ['run', 'weekly']);
+    f.row(2).button.handlers.click();
+    expectOrder(f, ['run', 'weekly', 'ride']);
+    f.authChanged(true);
+    expectOrder(f, ['run', 'weekly', 'ride']);
+    f.presetsChanged('ride:purple;run:blue:weekly;run:orange');
+    expectOrder(f, ['run', 'weekly', 'ride']);
+    const restored = fixture(renderer, f.state(), 'ride:purple;run:blue:weekly;run:orange');
+    expectOrder(restored, ['run', 'weekly', 'ride']);
+    if (renderer === 'google') {
+      const native = {};
+      restored.map.overlayMapTypes.push(native);
+      expectOrder(restored, ['run', 'weekly', 'ride']);
+      assert.equal(restored.mapOverlays[0], native);
+    }
+    f.presetsChanged('ride:purple;run:orange');
+    expectOrder(f, ['run', 'ride']);
+    assert.deepEqual(f.state().layerOrder, ['strava-heatmap-run', 'strava-heatmap-ride']);
+  });
+
   test(`${renderer} keeps duplicate activities independent and preserves an all-hidden legacy state`, () => {
     const f = fixture(renderer, {
       layerId: 'strava-heatmap-run', enabled: false, opacity: 0,
@@ -199,7 +244,7 @@ for (const renderer of ['leaflet', 'google']) {
     assert.equal(f.getSnapLayer().id, 'strava-heatmap-run-weekly');
     assert.equal(f.row(1).output.value, '70%');
     assert.deepEqual(Array.from(f.getSheetLayers(), (layer) => [layer.id, layer.opacity]), [
-      ['strava-heatmap-run', 1], ['strava-heatmap-run-weekly', 0.7], ['strava-heatmap-ride', 1],
+      ['strava-heatmap-run-weekly', 0.7], ['strava-heatmap-run', 1], ['strava-heatmap-ride', 1],
     ]);
     assert.ok(f.invalidations() >= 3);
     f.row(1).button.handlers.click();
