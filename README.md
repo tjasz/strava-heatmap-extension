@@ -123,6 +123,10 @@ To enable the Strava Heatmap in CalTopo:
 2. In the Map Layers panel to the right of the map, under "Route Discovery", toggle the Strava Heatmap layer. Select a configured layer, toggle it, or adjust its opacity.
 3. Use the extension icon to log into Strava and configure the available heatmap layers. Grayscale layers support ordered color and opacity stops for custom gradients.
 
+The live overlay is not shown in CalTopo's print preview because PDFs are rendered
+server-side and cannot include it. To include a heatmap in a printed map, first
+[save it as a map sheet](#save-a-caltopo-heatmap-map-sheet).
+
 #### Snap drawing segments to Strava
 
 1. Sign into Strava using the extension and select the activity layer in the Strava heatmap controls.
