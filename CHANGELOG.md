@@ -12,6 +12,7 @@
 - [CalTopo] Add ability to save a map sheet built from the Strava heatmap.
 - [CalTopo] Do not show the heatmap in the print preview, since it will not appear in printed output.
 - [CalTopo] Allow multiple layers to be selected at once. Snap suggestions follow the most recently enabled or modififed layer.
+- Add support for Weekly heatmap for Strava Premium subscribers.
 
 ### `0.15.0.1` (2026-10-29)
 
