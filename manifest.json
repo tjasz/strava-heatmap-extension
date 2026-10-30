@@ -123,6 +123,7 @@
         "src/clients/caltopo.com/index.css",
         "src/clients/caltopo.com/snap.js",
         "src/clients/caltopo.com/snap-network.js",
+        "src/clients/caltopo.com/map-sheet.js",
         "src/clients/www.openstreetmap.org/slide/algorithm.js",
         "src/clients/www.openstreetmap.org/slide/png.js",
         "src/clients/www.openstreetmap.org/slide/tiles.js"

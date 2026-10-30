@@ -4,6 +4,8 @@
 
 ### `0.15.0.2` (Unreleased)
 
+- [CalTopo] Add ability to save a map sheet built from the Strava heatmap.
+
 ### `0.15.0.1` (2026-10-29)
 
 - [CalTopo] Improve display of overlay on the widest and narrowest zoom levels.

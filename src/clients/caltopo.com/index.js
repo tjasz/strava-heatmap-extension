@@ -1,6 +1,7 @@
 import { setupAuthStatusChangeListener } from '../common/auth.js';
 import { injectHeatmapColorFilters } from '../common/colors.js';
 import { installCalTopoSnap } from './snap.js';
+import { installCalTopoMapSheets } from './map-sheet.js';
 import {
   getLayerConfigs,
   parseLayerPresets,
@@ -423,6 +424,10 @@ async function main() {
   loadState();
   applyLayerConfigs(layerPresets, authenticated, version);
   setupRibbonObserver();
+  installCalTopoMapSheets(
+    () => layerConfigs.find(({ id }) => id === selectedLayerId),
+    () => getLeafletMap() || getGoogleMap(),
+  );
 
   setupAuthStatusChangeListener((newAuthenticated) => {
     authenticated = newAuthenticated;

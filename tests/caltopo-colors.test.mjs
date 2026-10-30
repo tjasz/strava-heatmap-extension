@@ -23,9 +23,9 @@ for (const renderer of ['leaflet', 'google']) {
       createElementNS: (namespace, tagName) => element(tagName),
       getElementById: () => null,
       querySelectorAll: () => [],
-      querySelector: () => ({
+      querySelector: (selector) => selector === 'script#strava-heatmap-client' ? ({
         dataset: { version: '0.15.0', authenticated: 'true', layers: 'run:orange' },
-      }),
+      }) : null,
     };
     const listeners = [];
     const overlays = [];
