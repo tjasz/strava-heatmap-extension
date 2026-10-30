@@ -17,7 +17,7 @@ If you don’t already have a Strava account, you’ll need to create one (free)
 
 ### Chrome
 
-Open the [Chrome extension page](https://chrome.google.com/webstore/detail/eglbcifjafncknmpmnelckombmgddlco) for the extension.
+Open the [Chrome extension page](https://chromewebstore.google.com/detail/strava-heatmap-for-caltop/onkfebhamefccjmidebejlgngenfeoai) for the extension.
 
 1. Click `Add to Chrome`.
 2. Confirm permissions by selecting `Add extension`.
@@ -31,7 +31,7 @@ Requires Firefox 140 or later on desktop, or Firefox 142 or later on Android.
 Firefox requests consent to transmit Strava authentication information and map
 tile coordinates for heatmap access. See the [privacy policy](PRIVACY.md).
 
-Open the [Firefox add-on](https://addons.mozilla.org/en-US/firefox/addon/strava-heatmap/) for the extension.
+Open the [Firefox add-on](https://addons.mozilla.org/en-US/firefox/addon/strava-heatmap-for-caltopo) for the extension.
 
 1. Click `Add to Firefox`.
 2. Confirm permissions by selecting `Add`.

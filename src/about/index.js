@@ -5,11 +5,10 @@ const MESSAGES = {
   update: 'Successfully updated!',
 };
 
-// TODO edit after release
 const STORE_URLS = {
   chrome:
-    'https://chromewebstore.google.com/detail/strava-heatmap/eglbcifjafncknmpmnelckombmgddlco/reviews',
-  firefox: 'https://addons.mozilla.org/en-US/firefox/addon/strava-heatmap/reviews/',
+    'https://chromewebstore.google.com/detail/strava-heatmap-for-caltop/onkfebhamefccjmidebejlgngenfeoai/reviews',
+  firefox: 'https://addons.mozilla.org/en-US/firefox/addon/strava-heatmap-for-caltopo/reviews/',
 };
 
 function isFirefox() {
