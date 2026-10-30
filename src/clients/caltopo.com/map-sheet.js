@@ -632,7 +632,7 @@ export function installCalTopoMapSheets(getLayer, getMap) {
     const layer = getLayer();
     const color = new URL(layer.template).searchParams.get('heatmap-color');
     const activity = layer.name.replace(/^\S+\s*/, '');
-    const suggestedTitle = `Strava Global Heatmap ${activity} ${color} ${new Date().toISOString()}`;
+    const suggestedTitle = `${activity} ${color} ${new Date().toISOString().slice(0, 10)}`;
     const accountId = window.sarsoft.account.id;
     const controller = new AbortController();
     const dialog = document.createElement('dialog');
