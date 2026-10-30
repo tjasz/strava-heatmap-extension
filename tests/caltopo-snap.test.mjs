@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deflateSync } from 'node:zlib';
-import { project, unproject, slidePaths } from '../src/clients/www.openstreetmap.org/slide/algorithm.js';
+import { metersPerPixel, project, unproject, slidePaths, smoothSlidePath } from '../src/clients/www.openstreetmap.org/slide/algorithm.js';
 import { loadSlideOptions, sampleSlideTargets, selectSlideOptions } from '../src/clients/caltopo.com/snap-network.js';
 import { installCalTopoSnap } from '../src/clients/caltopo.com/snap.js';
 
@@ -31,38 +31,100 @@ function path(points, costPerPixel = 1, scale = 2) {
     Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1]));
   return { points, lengths, costs: lengths.map((length) => length * costPerPixel), scale };
 }
-
-for (const zoom of [15, 16, 18, 20]) {
-  test(`first anchor samples exactly 50 directions at one tile radius at zoom ${zoom}`, () => {
-    const anchor = [-105, 40], center = project(anchor);
-    const targets = sampleSlideTargets(anchor, undefined, zoom).map((p) => project(p));
-    assert.equal(targets.length, 50);
-    const radius = 512 * 2 ** (15 - zoom);
-    targets.forEach((point, i) => {
-      const dx = point[0] - center[0], dy = point[1] - center[1];
-      assert.ok(near(Math.hypot(dx, dy), radius));
-      const bearing = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;
-      assert.ok(Math.abs(((bearing - i * 7.2 + 540) % 360) - 180) < 1e-6);
-    });
-  });
+function maxTurn(points) {
+  let maximum = 0;
+  for (let i = 1; i < points.length - 1; i++) {
+    const a = points[i].map((value, k) => value - points[i - 1][k]);
+    const b = points[i + 1].map((value, k) => value - points[i][k]);
+    if (Math.hypot(...a) < 1e-8 || Math.hypot(...b) < 1e-8) continue;
+    maximum = Math.max(maximum, Math.abs(Math.atan2(a[0] * b[1] - a[1] * b[0],
+      a[0] * b[0] + a[1] * b[1])) * 180 / Math.PI);
+  }
+  return maximum;
 }
 
-test('later anchors sample 30 forward bearings at 6 degrees and 20 backward at 9 degrees', () => {
-  const previous = [-105.01, 40], anchor = [-105, 40];
-  const targets = sampleSlideTargets(anchor, previous, 17);
-  const center = project(anchor);
-  const radians = (value) => value * Math.PI / 180;
-  const delta = radians(anchor[0] - previous[0]), lat = radians(40);
-  const heading = Math.atan2(Math.sin(delta) * Math.cos(lat),
-    Math.cos(lat) * Math.sin(lat) * (1 - Math.cos(delta))) * 180 / Math.PI;
-  const bearings = targets.map((target) => {
-    const p = project(target);
-    return (Math.atan2(p[0] - center[0], center[1] - p[1]) * 180 / Math.PI - heading + 360) % 360;
+test('selected paths smooth pixel stairs into a gently bending centerline', async () => {
+  const center = (y) => 60 + 4 * Math.sin((y - 10) * Math.PI / 100);
+  const raster = image(128, (x, y) => Math.exp(-((x - center(y)) ** 2) / 8));
+  const paths = await slidePaths(loc([60, 10]), [loc([60, 110])], raster, pathOptions());
+  const raw = selectSlideOptions(paths)[0], smoothed = selectSlideOptions(paths, raster)[0];
+  assert.ok(maxTurn(paths[0].points) >= 40, 'fixture must contain raster stair steps');
+  const points = smoothed.coordinates.map(pixel);
+  assert.ok(maxTurn(points) < 30, 'smoothing must remove the 45-degree pixel turns');
+  assert.ok(points.length < paths[0].points.length / 2);
+  assert.ok(points.every(([x, y]) => Math.abs(x - center(y)) < 1));
+  assert.deepEqual(smoothed.coordinates[0], raw.coordinates[0]);
+  assert.deepEqual(smoothed.coordinates.at(-1), raw.coordinates.at(-1));
+  assert.equal(smoothed.score, raw.score);
+});
+
+test('smoothing preserves shared forks and deduplicated branch endpoints exactly', () => {
+  const raster = image(128, () => 1);
+  const trunk = [[20, 60], [40, 60], [41, 61], [60, 61], [61, 60], [70, 60]];
+  const options = selectSlideOptions([
+    path([...trunk, [80, 55], [100, 40]]),
+    path([...trunk, [80, 65], [100, 80]]),
+  ], raster);
+  assert.equal(options.length, 2);
+  for (const option of options) {
+    assert.ok(option.coordinates.some((point) => point.every((value, k) => value === loc([70, 60])[k])));
+  }
+  const merged = selectSlideOptions([
+    path([...trunk, [110, 60], [114, 61]]),
+    path([...trunk, [110, 60], [114, 59]]),
+  ], raster);
+  assert.equal(merged.length, 1);
+  assert.deepEqual(merged[0].coordinates.at(-1), loc([110, 60]));
+});
+
+test('smoothing does not shortcut a narrow hairpin into the dark space between its arms', () => {
+  const raster = image(128, (x, y) => {
+    const distance = Math.min(
+      Math.hypot(x - Math.max(20, Math.min(100, x)), y - 40),
+      Math.hypot(x - 100, y - Math.max(40, Math.min(46, y))),
+      Math.hypot(x - Math.max(20, Math.min(100, x)), y - 46));
+    return Math.exp(-(distance ** 2) / 0.32);
   });
-  assert.equal(bearings.filter((angle) => angle < 90 || angle > 270).length, 30);
-  assert.equal(bearings.filter((angle) => angle > 90 && angle < 270).length, 20);
-  for (let i = 1; i < 30; i++) assert.ok(near((bearings[i] - bearings[i - 1] + 360) % 360, 6));
-  for (let i = 31; i < 50; i++) assert.ok(near(bearings[i] - bearings[i - 1], 9));
+  const result = smoothSlidePath([[20, 40], [100, 40], [100, 46], [20, 46]].map(loc), raster).map(pixel);
+  assert.ok(result.some(([x]) => x >= 99), 'the path must still reach the far end of the hairpin');
+  for (let i = 1; i < result.length; i++) {
+    const a = result[i - 1], b = result[i], steps = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) * 4);
+    for (let j = 0; j <= steps; j++) {
+      const x = a[0] + (b[0] - a[0]) * j / steps, y = a[1] + (b[1] - a[1]) * j / steps;
+      assert.ok(Math.min(Math.abs(y - 40), Math.abs(y - 46), Math.abs(x - 100)) < 0.6);
+    }
+  }
+});
+
+test('smoothing never rounds a covered path across a missing-imagery corner', () => {
+  const raster = image(128, () => 1);
+  for (let y = 0; y < 80; y++) for (let x = 61; x < 128; x++) raster.coverage[y * 128 + x] = 0;
+  const result = smoothSlidePath([[20, 40], [60, 40], [60, 80], [100, 80]].map(loc), raster).map(pixel);
+  for (let i = 1; i < result.length; i++) {
+    const a = result[i - 1], b = result[i], steps = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) * 4);
+    for (let j = 0; j <= steps; j++) {
+      const x = Math.floor(a[0] + (b[0] - a[0]) * j / steps + 1e-7);
+      const y = Math.floor(a[1] + (b[1] - a[1]) * j / steps + 1e-7);
+      assert.equal(raster.coverage[y * 128 + x], 1);
+    }
+  }
+});
+
+for (const latitude of [0, 40, 65]) test(`samples all 48 positions in a 1 km grid at latitude ${latitude}`, () => {
+  const anchor = [-105, latitude], center = project(anchor), scale = metersPerPixel(latitude, 15);
+  const targets = sampleSlideTargets(anchor).map((point) => project(point).map((value, i) => (value - center[i]) * scale));
+  assert.equal(targets.length, 48);
+  const actual = new Set(targets.map(([x, y]) => `${Math.round(x * 6 / 1000)},${Math.round(y * 6 / 1000)}`));
+  assert.equal(actual.size, 48);
+  for (let row = -3; row <= 3; row++) for (let col = -3; col <= 3; col++) {
+    assert.equal(actual.has(`${col},${row}`), !!(row || col));
+  }
+  for (const [x, y] of targets) {
+    assert.ok(near(x, Math.round(x * 6 / 1000) * 1000 / 6));
+    assert.ok(near(y, Math.round(y * 6 / 1000) * 1000 / 6));
+  }
+  assert.ok(near(Math.max(...targets.map(([x]) => x)) - Math.min(...targets.map(([x]) => x)), 1000));
+  assert.ok(near(Math.max(...targets.map(([, y]) => y)) - Math.min(...targets.map(([, y]) => y)), 1000));
 });
 
 test('90-percent shared paths merge into the exact common trunk ending at the fork', () => {
@@ -76,10 +138,42 @@ test('90-percent shared paths merge into the exact common trunk ending at the fo
   assert.equal(options[0].length, 190);
 });
 
-test('sharing 90 percent of only the shorter path is not a duplicate', () => {
+test('a fully contained path is removed even when it is much shorter and cheaper', () => {
+  const options = selectSlideOptions([
+    path([[0, 0], [90, 0]], 0.1), path([[0, 0], [90, 0], [200, 0]]),
+  ]);
+  assert.equal(options.length, 1);
+  assert.deepEqual(options[0].coordinates.at(-1), loc([200, 0]));
+});
+
+test('sharing 90 percent of only the shorter path is not enough to merge distinct branches', () => {
   assert.equal(selectSlideOptions([
-    path([[0, 0], [90, 0]]), path([[0, 0], [90, 0], [200, 0]]),
+    path([[0, 0], [90, 0], [90, 10]]), path([[0, 0], [90, 0], [200, 0]]),
   ]).length, 2);
+});
+
+test('containment ignores vertex spacing and removes trunks made redundant by merging', () => {
+  assert.equal(selectSlideOptions([
+    path([[0, 0], [50, 0]]), path([[0, 0], [100, 0]]),
+  ]).length, 1);
+  const options = selectSlideOptions([
+    path([[0, 0], [95, 0], [100, 5]]),
+    path([[0, 0], [95, 0], [100, -5]]),
+    path([[0, 0], [90, 0]]), path([[0, 0], [90, 0], [200, 0]]),
+  ]);
+  assert.equal(options.length, 1);
+  assert.deepEqual(options[0].coordinates.at(-1), loc([200, 0]));
+});
+
+test('deduplication repeats when truncation makes two trunks overlap by 90 percent', () => {
+  const options = selectSlideOptions([
+    path([[0, 0], [89, 0], [89, 6], [94, 6]]),
+    path([[0, 0], [89, 0], [89, 6], [89, 11]]),
+    path([[0, 0], [89, 0], [89, -6], [94, -6]]),
+    path([[0, 0], [89, 0], [89, -6], [89, -11]]),
+  ]);
+  assert.equal(options.length, 1);
+  assert.deepEqual(options[0].coordinates.at(-1), loc([89, 0]));
 });
 
 test('the 90-percent boundary merges, but less than 90 percent remains separate', () => {
@@ -101,14 +195,14 @@ test('shared trajectories tolerate one heatmap pixel and still stop at the exact
   assert.ok(near(pixel(options[0].coordinates.at(-1))[0], 89));
 });
 
-test('substantial branches remain distinct and ranking is cost per metre, not total cost', () => {
+test('all substantial branches remain visible, ordered by cost per metre rather than total cost', () => {
   const options = selectSlideOptions([
     path([[0, 0], [100, 0]], 0.5),
     path([[0, 0], [0, 10]], 1),
     ...Array.from({ length: 5 }, (_, i) =>
       path([[0, 0], [-20 - i * 10, 30 - i * 15]], 2 + i)),
   ]);
-  assert.equal(options.length, 5);
+  assert.equal(options.length, 7);
   assert.equal(options[0].cost, 50);
   assert.equal(options[0].score, 0.25);
   assert.equal(options[1].cost, 10);
@@ -297,16 +391,27 @@ test('instructs users to click anywhere and loads no tiles before the first anch
   assert.equal(installCalTopoSnap(manager, () => layer), integration);
 });
 
-test('every click passes exact anchor history, current zoom, and layer into proposals', async (t) => {
+test('every click proposes from the exact anchor and layer without direction or zoom inputs', async (t) => {
   const calls = [];
   const { manager, integration, event } = setup(t, async (...args) => { calls.push(args); return []; });
   manager.handleClick(event());
   await integration.ready;
   manager.handleClick(event(40, 80));
   await integration.ready;
-  assert.deepEqual(calls[0].slice(0, 4), [loc([20, 64]), undefined, 15, layer]);
-  assert.deepEqual(calls[1].slice(0, 4), [loc([40, 80]), loc([20, 64]), 15, layer]);
+  assert.deepEqual(calls[0].slice(0, 2), [loc([20, 64]), layer]);
+  assert.deepEqual(calls[1].slice(0, 2), [loc([40, 80]), layer]);
+  assert.equal(calls[0].length, 4);
+  assert.equal(calls[1].length, 4);
   assert.deepEqual(manager.polyline.slice(0, -1), [loc([20, 64]), loc([40, 80])]);
+});
+
+test('the drawing overlay displays every returned option rather than clipping at five', async (t) => {
+  const { auto, manager, integration, event, status } = setup(t, async () => Array.from({ length: 12 }, () => option()));
+  assert.doesNotMatch(status.textContent, /five|5/);
+  manager.handleClick(event());
+  await integration.ready;
+  assert.equal(Object.keys(auto.features).length, 12);
+  assert.equal(Object.keys(auto.mapObjs).length, 12);
 });
 
 test('hover previews without committing; clicking commits the prefix as one undo action', async (t) => {
@@ -363,7 +468,7 @@ for (const action of ['click', 'undo', 'cancel', 'release', 'finish', 'source', 
     const job = deferred();
     let signal, calls = 0;
     const context = setup(t, (...args) => {
-      if (calls++ === 0) { signal = args[4]; return job.promise; }
+      if (calls++ === 0) { signal = args[2]; return job.promise; }
       return [];
     });
     const { manager, integration, event, auto } = context;
@@ -383,7 +488,7 @@ for (const action of ['click', 'undo', 'cancel', 'release', 'finish', 'source', 
   });
 }
 
-test('panning does not rerun suggestions; changing zoom regenerates the sample radius', async (t) => {
+test('panning and changing eligible zoom levels do not rerun the fixed grid', async (t) => {
   let calls = 0;
   const { auto, manager, integration, event, zoom } = setup(t, async () => { calls++; return []; });
   manager.handleClick(event());
@@ -393,7 +498,7 @@ test('panning does not rerun suggestions; changing zoom regenerates the sample r
   assert.equal(calls, 1);
   zoom(17);
   await integration.ready;
-  assert.equal(calls, 2);
+  assert.equal(calls, 1);
 });
 
 test('below zoom 15, clicks remain available but no Slide search runs', async (t) => {
@@ -420,7 +525,7 @@ test('double-click finishes without saving a stale cursor or starting a second s
   assert.deepEqual(manager.finishedCoordinates, [loc([20, 64]), loc([80, 90])]);
 });
 
-test('undo restores the previous direction and undoing the first anchor returns to the initial prompt', async (t) => {
+test('undo restores the previous anchor and undoing the first returns to the initial prompt', async (t) => {
   const calls = [];
   const { manager, integration, event, status } = setup(t, async (...args) => { calls.push(args); return []; });
   for (const point of [[20, 64], [40, 80], [80, 100]]) {
@@ -429,7 +534,7 @@ test('undo restores the previous direction and undoing the first anchor returns 
   }
   manager.undo();
   await integration.ready;
-  assert.deepEqual(calls.at(-1).slice(0, 2), [loc([40, 80]), loc([20, 64])]);
+  assert.deepEqual(calls.at(-1).slice(0, 2), [loc([40, 80]), layer]);
   manager.undo();
   await integration.ready;
   manager.undo();
@@ -460,7 +565,7 @@ test('enabling Strava during a drawing starts suggestions at its last confirmed 
   manager.handleClick(event(40, 80));
   source('strava');
   await integration.ready;
-  assert.deepEqual(calls.at(-1).slice(0, 2), [loc([40, 80]), undefined]);
+  assert.deepEqual(calls.at(-1).slice(0, 2), [loc([40, 80]), layer]);
 });
 
 test('errors remain visible and do not prevent subsequent straight clicks', async (t) => {
@@ -512,7 +617,7 @@ function pngChunk(type, data) {
   return chunk;
 }
 
-for (const mapZoom of [15, 17]) test(`real PNG tiles yield at most five intensity-ridge options at zoom ${mapZoom}`, async (t) => {
+test('the 1 km grid fits the existing tile budget and drops contained interior targets', async (t) => {
   const anchor = loc([64, 64]), heatY = Math.round(project(anchor)[1]);
   const previous = globalThis.fetch, requests = [];
   globalThis.fetch = async (url) => {
@@ -530,8 +635,9 @@ for (const mapZoom of [15, 17]) test(`real PNG tiles yield at most five intensit
     ]));
   };
   t.after(() => { globalThis.fetch = previous; });
-  const options = await loadSlideOptions(anchor, undefined, mapZoom, layer, new AbortController().signal);
-  assert.ok(options.length > 0 && options.length <= 5);
+  const options = await loadSlideOptions(anchor, layer, new AbortController().signal);
+  assert.equal(options.length, 2);
+  assert.ok(requests.length <= 16);
   assert.ok(requests.every((zoom) => zoom === 15));
   for (const option of options) {
     assert.deepEqual(option.coordinates[0], anchor);
@@ -542,10 +648,23 @@ for (const mapZoom of [15, 17]) test(`real PNG tiles yield at most five intensit
 
 test('logged-out imagery and tile errors are surfaced, not used as suggestions', async (t) => {
   const signal = new AbortController().signal, anchor = [-105, 40];
-  await assert.rejects(loadSlideOptions(anchor, undefined, 17,
+  await assert.rejects(loadSlideOptions(anchor,
     { template: 'https://example.com/fallback/{z}/{x}/{y}.png' }, signal), /Log into Strava/);
   const previous = globalThis.fetch;
   globalThis.fetch = async () => new Response(null, { status: 401 });
   t.after(() => { globalThis.fetch = previous; });
-  await assert.rejects(loadSlideOptions(anchor, undefined, 17, layer, signal), /Strava access expired/);
+  await assert.rejects(loadSlideOptions(anchor, layer, signal), /Strava access expired/);
+});
+
+test('cancelling the grid search surfaces an abort', async (t) => {
+  const previous = globalThis.fetch, controller = new AbortController();
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    controller.abort();
+    throw new DOMException('Cancelled', 'AbortError');
+  };
+  t.after(() => { globalThis.fetch = previous; });
+  await assert.rejects(loadSlideOptions([-105, 40], layer, controller.signal), { name: 'AbortError' });
+  assert.ok(calls <= 16);
 });

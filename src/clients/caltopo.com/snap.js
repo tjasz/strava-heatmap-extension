@@ -4,7 +4,7 @@ import { project, unproject } from '../www.openstreetmap.org/slide/algorithm.js'
 const SOURCE = 'strava';
 const NORMAL = { stroke: '#F0F000', 'stroke-opacity': 0.4, 'stroke-width': 7 };
 const HOVER = { stroke: '#FFFF00', 'stroke-opacity': 0.8, 'stroke-width': 10 };
-const BEGIN = 'Click anywhere to begin. Strava will suggest up to five Slide paths.';
+const BEGIN = 'Click anywhere to begin. Strava will suggest paths within a 1 km grid.';
 
 export function installCalTopoSnap(manager, getLayer, propose = loadSlideOptions) {
   const auto = manager.autoDrawOverlay;
@@ -74,7 +74,7 @@ export function installCalTopoSnap(manager, getLayer, propose = loadSlideOptions
     // Native double-click finishing removes the moving cursor when snap exists.
     if (anchors.length) auto.reference = { coordinates: anchors.at(-1), snap: {} };
   };
-  const signature = () => JSON.stringify([anchors.at(-1), anchors.at(-2), map.getZoom(), getLayer()?.template]);
+  const signature = () => JSON.stringify([anchors.at(-1), map.getZoom() >= 15, getLayer()?.template]);
   const generate = () => {
     clearOptions();
     if (auto.source !== SOURCE || !auto.map) return;
@@ -92,8 +92,8 @@ export function installCalTopoSnap(manager, getLayer, propose = loadSlideOptions
       showStatus('Choose a Strava heatmap layer first.', true);
       return;
     }
-    const anchor = anchors.at(-1).slice(), previous = anchors.at(-2)?.slice();
-    const zoom = map.getZoom(), polyline = manager.polyline, handler = manager.handler;
+    const anchor = anchors.at(-1).slice();
+    const polyline = manager.polyline, handler = manager.handler;
     const current = new AbortController();
     controller = current;
     request = signature();
@@ -102,7 +102,7 @@ export function installCalTopoSnap(manager, getLayer, propose = loadSlideOptions
       if (!current.signal.aborted) showStatus(message);
     };
     work = Promise.resolve().then(() => {
-      if (!current.signal.aborted) return propose(anchor, previous, zoom, layer, current.signal, progress);
+      if (!current.signal.aborted) return propose(anchor, layer, current.signal, progress);
     }).then((options) => {
       if (current.signal.aborted || auto.source !== SOURCE || !auto.map ||
           manager.polyline !== polyline || manager.handler !== handler || request !== signature()) return;
