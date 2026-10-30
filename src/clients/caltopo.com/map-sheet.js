@@ -20,29 +20,273 @@ function latitude(y) {
   return Math.atan(Math.sinh(Math.PI * (1 - 2 * y / TILE_COUNT))) * 180 / Math.PI;
 }
 
-export function mapSheetRegion({ west, south, east, north } = {}) {
-  if (![west, south, east, north].every(Number.isFinite) ||
-      south >= north || south < -MAX_LATITUDE || north > MAX_LATITUDE ||
-      west < -180 || east > 180 || west >= east) {
-    throw new Error('Move the view inside the world map, away from the poles and date line.');
-  }
-  const tileY = (lat) => {
-    const radians = lat * Math.PI / 180;
-    return (1 - Math.asinh(Math.tan(radians)) / Math.PI) / 2 * TILE_COUNT;
-  };
-  // Snap round-off at exact tile edges before selecting intersecting tiles.
-  const snap = (value) => Math.abs(value - Math.round(value)) < 1e-8
-    ? Math.round(value) : value;
-  const minX = Math.floor(snap((west + 180) / 360 * TILE_COUNT));
-  const maxX = Math.ceil(snap((east + 180) / 360 * TILE_COUNT)) - 1;
-  const minY = Math.max(0, Math.floor(snap(tileY(north))));
-  const maxY = Math.min(TILE_COUNT - 1, Math.ceil(snap(tileY(south))) - 1);
+function tileY(lat) {
+  const radians = lat * Math.PI / 180;
+  return (1 - Math.asinh(Math.tan(radians)) / Math.PI) / 2 * TILE_COUNT;
+}
+
+function snapTileEdge(value) {
+  return Math.abs(value - Math.round(value)) < 1e-8 ? Math.round(value) : value;
+}
+
+function regionFromTiles(minX, maxX, minY, maxY) {
   const columns = maxX - minX + 1;
   const rows = maxY - minY + 1;
   return {
     minX, maxX, minY, maxY, columns, rows, count: columns * rows,
     width: columns * TILE_SIZE, height: rows * TILE_SIZE,
   };
+}
+
+export function mapSheetRegion({ west, south, east, north } = {}) {
+  if (![west, south, east, north].every(Number.isFinite) ||
+      south >= north || south < -MAX_LATITUDE || north > MAX_LATITUDE ||
+      west < -180 || east > 180 || west >= east) {
+    throw new Error('Move the view inside the world map, away from the poles and date line.');
+  }
+  // Snap round-off at exact tile edges before selecting intersecting tiles.
+  const minX = Math.floor(snapTileEdge((west + 180) / 360 * TILE_COUNT));
+  const maxX = Math.ceil(snapTileEdge((east + 180) / 360 * TILE_COUNT)) - 1;
+  const minY = Math.max(0, Math.floor(snapTileEdge(tileY(north))));
+  const maxY = Math.min(TILE_COUNT - 1, Math.ceil(snapTileEdge(tileY(south))) - 1);
+  return regionFromTiles(minX, maxX, minY, maxY);
+}
+
+export function limitMapSheetSelection(anchor, corner) {
+  const project = ([lng, lat]) => {
+    if (!Number.isFinite(lng) || !Number.isFinite(lat) || lng < -180 || lng > 180 ||
+        Math.abs(lat) > MAX_LATITUDE) {
+      throw new Error('Draw inside the world map, away from the poles and date line.');
+    }
+    return [(lng + 180) / 360 * TILE_COUNT, tileY(lat)];
+  };
+  const start = project(anchor);
+  const end = project(corner);
+  const at = (fraction) => {
+    const point = start.map((value, i) => value + (end[i] - value) * fraction);
+    const clamp = (value) => Math.max(0, Math.min(TILE_COUNT - 1, value));
+    const min = start.map((value, i) => clamp(Math.floor(snapTileEdge(Math.min(value, point[i])))));
+    const max = start.map((value, i) => Math.max(min[i],
+      clamp(Math.ceil(snapTileEdge(Math.max(value, point[i]))) - 1)));
+    return regionFromTiles(min[0], max[0], min[1], max[1]);
+  };
+  const requested = at(1);
+  if (requested.count <= MAX_TILES) return { region: requested, limited: false };
+  // Keep the drag's direction and aspect ratio, stopping at the last legal tile edge.
+  let low = 0;
+  let high = 1;
+  for (let i = 0; i < 48; i++) {
+    const middle = (low + high) / 2;
+    if (at(middle).count <= MAX_TILES) low = middle;
+    else high = middle;
+  }
+  return { region: at(low), limited: true };
+}
+
+export function selectMapSheetRegion(map, signal) {
+  const container = map?.getContainer?.() || map?.getDiv?.();
+  const leaflet = typeof map?.containerPointToLatLng === 'function';
+  const wrapper = window.map;
+  if (!container || (!leaflet && (
+    typeof wrapper?.fromContainerPixel !== 'function' ||
+    typeof wrapper?.toContainerPixel !== 'function'
+  ))) {
+    return Promise.reject(new Error('CalTopo area selection is unavailable. Reload the map and try again.'));
+  }
+  const fromPixel = (x, y) => {
+    if (!leaflet) {
+      if (typeof map.getProjection === 'function' && !map.getProjection()) {
+        throw new Error('Wait for the map to finish loading before drawing.');
+      }
+      return wrapper.fromContainerPixel([x, y]);
+    }
+    const point = map.containerPointToLatLng([x, y]);
+    return [point.lng, point.lat];
+  };
+  const toPixel = (x, y) => {
+    if (!leaflet) return wrapper.toContainerPixel([longitude(x), latitude(y)]);
+    const point = map.latLngToContainerPoint([latitude(y), longitude(x)]);
+    return [point.x, point.y];
+  };
+  return new Promise((resolve, reject) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'strava-heatmap-map-sheet-selection';
+    const box = document.createElement('div');
+    box.className = 'strava-heatmap-map-sheet-box';
+    box.hidden = true;
+    const panel = document.createElement('section');
+    panel.className = 'strava-heatmap-map-sheet-selection-panel';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-label', 'Select heatmap area');
+    const instructions = document.createElement('p');
+    instructions.textContent = `Drag a box around the area to capture (up to ${MAX_TILES} zoom-${MAX_ZOOM} tiles). Use the zoom buttons or mouse wheel for precision.`;
+    const status = document.createElement('p');
+    status.setAttribute('role', 'status');
+    status.textContent = 'Draw a box, then confirm. Drag again to replace it.';
+    const confirm = document.createElement('button');
+    confirm.textContent = 'Capture selected area';
+    confirm.disabled = true;
+    const cancel = document.createElement('button');
+    cancel.textContent = 'Cancel';
+    const zoomOut = document.createElement('button');
+    zoomOut.textContent = '-';
+    zoomOut.setAttribute('aria-label', 'Zoom out');
+    const zoomIn = document.createElement('button');
+    zoomIn.textContent = '+';
+    zoomIn.setAttribute('aria-label', 'Zoom in');
+    panel.append(instructions, status, confirm, cancel, zoomOut, zoomIn);
+    overlay.append(box, panel);
+    let anchor;
+    let pointer;
+    let region;
+    let listener;
+    let wheelTimer;
+    let restoreDragging = () => {};
+    const draw = () => {
+      if (!region) return;
+      const a = toPixel(region.minX, region.minY);
+      const b = toPixel(region.maxX + 1, region.maxY + 1);
+      box.hidden = false;
+      box.style.left = `${Math.min(a[0], b[0])}px`;
+      box.style.top = `${Math.min(a[1], b[1])}px`;
+      box.style.width = `${Math.abs(b[0] - a[0])}px`;
+      box.style.height = `${Math.abs(b[1] - a[1])}px`;
+    };
+    const finish = (result, error) => {
+      if (pointer !== undefined && overlay.hasPointerCapture(pointer)) overlay.releasePointerCapture(pointer);
+      pointer = undefined;
+      clearTimeout(wheelTimer);
+      signal.removeEventListener('abort', abort);
+      document.removeEventListener('keydown', keydown, true);
+      if (leaflet) map.off('move zoom resize', draw);
+      else listener?.remove();
+      overlay.remove();
+      restoreDragging();
+      if (error) reject(error);
+      else resolve(result);
+    };
+    const abort = () => finish(null, new DOMException('Area selection cancelled.', 'AbortError'));
+    const keydown = (event) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      finish(null);
+    };
+    const update = (event) => {
+      try {
+        const rect = container.getBoundingClientRect();
+        const corner = fromPixel(
+          Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
+          Math.max(0, Math.min(rect.height, event.clientY - rect.top)),
+        );
+        if (corner[0] === anchor[0] && corner[1] === anchor[1]) return;
+        const selection = limitMapSheetSelection(anchor, corner);
+        region = selection.region;
+        status.setAttribute('role', 'status');
+        status.textContent = `${region.count}/${MAX_TILES} tiles selected.${selection.limited
+          ? ' Limit reached; the box cannot grow further. Zoom in for a more precise selection.' : ''}`;
+        draw();
+      } catch (error) {
+        region = undefined;
+        box.hidden = true;
+        status.setAttribute('role', 'alert');
+        status.textContent = error.message;
+      }
+    };
+    overlay.addEventListener('pointerdown', (event) => {
+      if (pointer !== undefined || event.button !== 0 || !event.isPrimary) return;
+      event.preventDefault();
+      event.stopPropagation();
+      region = undefined;
+      box.hidden = true;
+      confirm.disabled = true;
+      try {
+        const rect = container.getBoundingClientRect();
+        anchor = fromPixel(event.clientX - rect.left, event.clientY - rect.top);
+        limitMapSheetSelection(anchor, anchor);
+      } catch (error) {
+        status.setAttribute('role', 'alert');
+        status.textContent = error.message;
+        return;
+      }
+      pointer = event.pointerId;
+      overlay.setPointerCapture(pointer);
+    });
+    overlay.addEventListener('pointermove', (event) => {
+      if (event.pointerId !== pointer) return;
+      event.stopPropagation();
+      update(event);
+    });
+    overlay.addEventListener('pointerup', (event) => {
+      if (event.pointerId !== pointer) return;
+      event.stopPropagation();
+      update(event);
+      overlay.releasePointerCapture(pointer);
+      pointer = undefined;
+      confirm.disabled = !region;
+    });
+    overlay.addEventListener('pointercancel', (event) => {
+      if (event.pointerId !== pointer) return;
+      overlay.releasePointerCapture(pointer);
+      pointer = undefined;
+      region = undefined;
+      box.hidden = true;
+      confirm.disabled = true;
+      status.setAttribute('role', 'status');
+      status.textContent = 'Drawing cancelled. Drag again to select an area.';
+    });
+    const zoom = (direction) => {
+      if (region) {
+        const lat = latitude((region.minY + region.maxY + 1) / 2);
+        const lng = longitude((region.minX + region.maxX + 1) / 2);
+        if (leaflet) map.panTo([lat, lng], { animate: false });
+        else map.setCenter({ lat, lng });
+      }
+      map.setZoom(Math.max(0, Math.min(21, map.getZoom() + direction)));
+    };
+    overlay.addEventListener('wheel', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!event.deltaY || wheelTimer !== undefined) return;
+      zoom(-Math.sign(event.deltaY));
+      wheelTimer = setTimeout(() => { wheelTimer = undefined; }, 150);
+    }, { passive: false });
+    for (const name of ['click', 'dblclick', 'mousedown', 'mouseup', 'contextmenu']) {
+      overlay.addEventListener(name, (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      });
+    }
+    for (const name of ['pointerdown', 'pointerup', 'click', 'dblclick']) {
+      panel.addEventListener(name, (event) => event.stopPropagation());
+    }
+    confirm.addEventListener('click', () => { if (!confirm.disabled) finish(region); });
+    cancel.addEventListener('click', () => finish(null));
+    zoomOut.addEventListener('click', () => zoom(-1));
+    zoomIn.addEventListener('click', () => zoom(1));
+    try {
+      checkAbort(signal);
+      if (leaflet) {
+        const draggable = map.dragging.enabled();
+        if (draggable) {
+          map.dragging.disable();
+          restoreDragging = () => map.dragging.enable();
+        }
+        map.on('move zoom resize', draw);
+      } else {
+        const draggable = map.get('draggable');
+        map.setOptions({ draggable: false });
+        restoreDragging = () => map.setOptions({ draggable: draggable ?? true });
+        listener = map.addListener('bounds_changed', draw);
+      }
+      signal.addEventListener('abort', abort, { once: true });
+      document.addEventListener('keydown', keydown, true);
+      container.appendChild(overlay);
+      cancel.focus();
+    } catch (error) {
+      finish(null, error);
+    }
+  });
 }
 
 export function mapSheetAlignment(region, id, title) {
@@ -112,7 +356,7 @@ async function api(url, data, signal) {
 
 export async function renderMapSheet(region, layer, signal, progress) {
   if (region.count > MAX_TILES || region.count < 1) {
-    throw new Error(`Zoom in until the view contains at most ${MAX_TILES} zoom-${MAX_ZOOM} tiles.`);
+    throw new Error(`Select an area containing at most ${MAX_TILES} zoom-${MAX_ZOOM} tiles.`);
   }
   const color = new URL(layer.template).searchParams.get('heatmap-color');
   if (!PALETTES[color]) throw new Error('Choose a supported Strava heatmap color.');
@@ -164,7 +408,7 @@ export async function renderMapSheet(region, layer, signal, progress) {
     checkAbort(signal);
     const image = canvas.toDataURL('image/png');
     if (!image.startsWith('data:image/png;base64,')) {
-      throw new Error('The browser could not encode this map sheet. Zoom in and try again.');
+      throw new Error('The browser could not encode this map sheet. Select a smaller area and try again.');
     }
     return image;
   } finally {
@@ -210,35 +454,16 @@ export async function uploadMapSheet({ region, title, image, accountId, signal, 
   throw new Error('CalTopo is still rendering. Check your account before trying again.');
 }
 
-export function mapSheetBounds(map) {
-  const bounds = map?.getBounds?.();
-  if (!bounds) throw new Error('Wait for the map to finish loading.');
-  const sw = bounds.getSouthWest();
-  const ne = bounds.getNorthEast();
-  const value = (point, key) => typeof point[key] === 'function' ? point[key]() : point[key];
-  return {
-    west: value(sw, 'lng'), south: value(sw, 'lat'),
-    east: value(ne, 'lng'), north: value(ne, 'lat'),
-  };
-}
-
-export function mapSheetAvailability({ pro, accountId, layer, bounds, busy }) {
+export function mapSheetAvailability({ pro, accountId, layer, busy }) {
   if (!pro || !accountId) return { enabled: false, pro: false, message: 'Save a private heatmap to your CalTopo account (Pro required).' };
   if (busy) return { enabled: false, pro: true, message: 'A Strava map sheet is being saved...' };
   if (!layer || !new URL(layer.template).pathname.startsWith('/identified/globalheat/')) {
     return { enabled: false, pro: true, message: 'Sign into Strava using the extension and choose a heatmap layer.' };
   }
-  try {
-    const region = mapSheetRegion(bounds);
-    return {
-      enabled: region.count <= MAX_TILES, pro: true, region,
-      message: region.count <= MAX_TILES
-        ? `Save ${region.count} heatmap tiles privately for mobile, downloads, and printing.`
-        : `Zoom in to include ${MAX_TILES} or fewer zoom-${MAX_ZOOM} heatmap tiles.`,
-    };
-  } catch (error) {
-    return { enabled: false, pro: true, message: error.message };
-  }
+  return {
+    enabled: true, pro: true,
+    message: `Draw an area of up to ${MAX_TILES} zoom-${MAX_ZOOM} heatmap tiles to save privately.`,
+  };
 }
 
 async function addToMap(image, title, signal) {
@@ -291,15 +516,10 @@ export function installCalTopoMapSheets(getLayer, getMap) {
     const pro = !!window.sarsoft?.features?.pro;
     const accountId = window.sarsoft?.account?.id;
     if (!pro || !accountId) return mapSheetAvailability({ pro, accountId });
-    let bounds;
-    try {
-      bounds = mapSheetBounds(getMap());
-    } catch (error) {
-      return { enabled: false, pro: true, message: error.message };
-    }
+    if (!getMap()) return { enabled: false, pro: true, message: 'Wait for the map to finish loading.' };
     return mapSheetAvailability({
       pro, accountId,
-      layer: getLayer(), bounds, busy,
+      layer: getLayer(), busy,
     });
   };
   const refresh = () => {
@@ -317,6 +537,7 @@ export function installCalTopoMapSheets(getLayer, getMap) {
     if (!state.enabled) return;
     busy = true;
     refresh();
+    document.querySelector('.expandedMenu img[src$="/menu-close.svg"]')?.click();
     const layer = getLayer();
     const color = new URL(layer.template).searchParams.get('heatmap-color');
     const activity = layer.name.replace(/^\S+\s*/, '');
@@ -346,17 +567,20 @@ export function installCalTopoMapSheets(getLayer, getMap) {
     });
     dialog.addEventListener('close', () => dialog.remove());
     dialog.append(heading, name, privacy, status, close);
-    document.body.appendChild(dialog);
-    dialog.showModal();
-    const timer = setTimeout(() => controller.abort(), 5 * 60 * 1000);
+    let timer;
     let saved = false;
     try {
       const progress = (message) => { status.textContent = message; };
-      const image = await renderMapSheet(state.region, layer, controller.signal, progress);
+      const region = await selectMapSheetRegion(getMap(), controller.signal);
+      if (!region) return;
+      document.body.appendChild(dialog);
+      dialog.showModal();
+      timer = setTimeout(() => controller.abort(), 5 * 60 * 1000);
+      const image = await renderMapSheet(region, layer, controller.signal, progress);
       uploading = true;
       close.disabled = true;
       const result = await uploadMapSheet({
-        region: state.region, title: sheetTitle, image, accountId,
+        region, title: sheetTitle, image, accountId,
         signal: controller.signal, progress,
       });
       saved = true;
@@ -366,6 +590,10 @@ export function installCalTopoMapSheets(getLayer, getMap) {
     } catch (error) {
       if (!uploading && controller.signal.aborted && !dialog.open) return;
       console.warn('[StravaHeatmapExt] Could not finish saving CalTopo map sheet.', error);
+      if (!dialog.isConnected) {
+        document.body.appendChild(dialog);
+        dialog.showModal();
+      }
       status.setAttribute('role', 'alert');
       status.textContent = saved
         ? `Saved privately to your CalTopo account, but not added to this map. ${error.message}`
