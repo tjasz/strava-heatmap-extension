@@ -5,6 +5,31 @@
   flex-direction: column;
 }
 
+.strava-heatmap-map-sheet-disabled {
+  cursor: default;
+}
+
+.strava-heatmap-map-sheet-disabled .line1 {
+  color: #777;
+}
+
+.strava-heatmap-map-sheet-dialog {
+  max-width: 32em;
+  border: 1px solid #888;
+  border-radius: 6px;
+  padding: 1.5em;
+  color: #222;
+  background: #fff;
+}
+
+.strava-heatmap-map-sheet-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.strava-heatmap-map-sheet-dialog [role="alert"] {
+  color: #b3261e;
+}
+
 .strava-heatmap-snap-status {
   display: inline-block;
   max-width: 28em;

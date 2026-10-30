@@ -159,6 +159,27 @@ Missing tiles or expired login shows an error beside **Snap To** without
 preventing straight drawing. Zoom in, click off the options to draw across a
 gap, or choose **OSM** for mapped-trail routing.
 
+### Save a CalTopo heatmap map sheet
+
+With a CalTopo Pro account and the extension signed into Strava, choose your
+activity and color in the Strava Heatmap layer controls. Open **Add > Map Sheet
+from Strava Heatmap**, directly below **Map Sheet**. Zoom in until the view
+contains no more than 49 tiles at zoom 15; the menu explains when you need to
+zoom in further.
+
+The extension stitches the full tiles intersecting your view, applies the
+selected color (independent of the overlay opacity), and uploads and aligns the
+image automatically. It saves the sheet privately to your CalTopo account and
+adds it to the current map. **Share publicly is always off.** The title includes
+the activity, color, and timestamp. Account map sheets can be used on mobile,
+downloaded there, and included in printed PDFs using CalTopo's normal controls.
+
+You can cancel while tiles are being prepared. Once uploading starts, wait for
+the result. If a request times out, check your account before retrying to avoid
+duplicates. If the current map cannot be edited, the account copy remains
+available through **Map Sheet > From Account**. Views crossing the date line or
+extending outside Web Mercator's latitude limits must be repositioned first.
+
 ### Geotab
 
 To enable the Strava Heatmap in Geotab:
