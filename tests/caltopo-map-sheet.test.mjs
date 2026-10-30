@@ -305,6 +305,9 @@ class Element {
   append(...elements) {
     this.children.push(...elements);
     for (const el of elements) {
+      if (el.parentElement) {
+        el.parentElement.children.splice(el.parentElement.children.indexOf(el), 1);
+      }
       el.parentElement = this;
       el.isConnected = this.isConnected;
     }
@@ -335,22 +338,27 @@ class Element {
   }
 }
 
-function selectionMap(renderer = 'google', initiallyDraggable = true) {
+function selectionMap(renderer = 'google', initiallyDraggable = true, deferOverlay = false) {
   const container = new Element('div');
   let draggable = initiallyDraggable;
   let zoom = 1;
+  let renderedZoom = 1;
   let originX = 6200;
   let originY = 12000;
   let centered = 0;
   let move;
+  let boundsChanged;
+  let paneX = 0;
+  let paneY = 0;
+  let attachOverlay;
   let removed = 0;
   const wrapper = {
-    fromContainerPixel: ([x, y]) => [lng(originX + x / (100 * 2 ** (zoom - 1))),
-      lat(originY + y / (100 * 2 ** (zoom - 1)))],
+    fromContainerPixel: ([x, y]) => [lng(originX + x / (100 * 2 ** (renderedZoom - 1))),
+      lat(originY + y / (100 * 2 ** (renderedZoom - 1)))],
     toContainerPixel: ([longitude, latitude]) => {
       const x = (longitude + 180) / 360 * 32768;
       const y = (1 - Math.asinh(Math.tan(latitude * Math.PI / 180)) / Math.PI) / 2 * 32768;
-      return [(x - originX) * 100 * 2 ** (zoom - 1), (y - originY) * 100 * 2 ** (zoom - 1)];
+      return [(x - originX) * 100 * 2 ** (renderedZoom - 1), (y - originY) * 100 * 2 ** (renderedZoom - 1)];
     },
   };
   const map = renderer === 'google' ? {
@@ -359,7 +367,7 @@ function selectionMap(renderer = 'google', initiallyDraggable = true) {
     setOptions: (options) => { draggable = options.draggable; },
     addListener: (name, callback) => {
       assert.equal(name, 'bounds_changed');
-      move = callback;
+      boundsChanged = callback;
       return { remove: () => removed++ };
     },
   } : {
@@ -381,12 +389,60 @@ function selectionMap(renderer = 'google', initiallyDraggable = true) {
     off: () => removed++,
   };
   map.getZoom = () => zoom;
-  map.setZoom = (value) => { zoom = value; };
+  map.setZoom = (value) => { zoom = value; boundsChanged?.(); };
   map.setCenter = () => centered++;
   map.panTo = () => centered++;
-  return { map, wrapper, container, draggable: () => draggable,
-    move: () => move(), removed: () => removed, centered: () => centered,
-    pan: (x, y) => { originX += x; originY += y; move(); } };
+  const render = () => { renderedZoom = zoom; move?.(); };
+  const pane = new Element('div');
+  if (renderer === 'google') container.selectionPane = pane;
+  const google = { maps: {
+    Point: class { constructor(x, y) { this.x = x; this.y = y; } },
+    LatLng: class {
+      constructor(latitude, longitude) { this.latitude = latitude; this.longitude = longitude; }
+      lat() { return this.latitude; }
+      lng() { return this.longitude; }
+    },
+    OverlayView: class {
+      getProjection() {
+        if (map.getProjection?.() === null) return undefined;
+        return {
+          fromContainerPixelToLatLng: ({ x, y }) => {
+            const [lng, lat] = wrapper.fromContainerPixel([x, y]);
+            return { lng: () => lng, lat: () => lat };
+          },
+          fromLatLngToDivPixel: (point) => {
+            const [x, y] = wrapper.toContainerPixel([point.lng(), point.lat()]);
+            return { x: x - paneX, y: y - paneY };
+          },
+        };
+      }
+      getPanes() { return { overlayMouseTarget: pane }; }
+      setMap(value) {
+        if (value) {
+          move = () => this.draw();
+          attachOverlay = () => { this.onAdd(); render(); };
+          if (!deferOverlay) attachOverlay();
+        } else {
+          move = undefined;
+          this.onRemove();
+          removed++;
+        }
+      }
+    },
+  } };
+  return { map, wrapper, container, google, pane, draggable: () => draggable,
+    move: render, removed: () => removed, centered: () => centered,
+    attachOverlay: () => attachOverlay(),
+    pan: (x, y) => { originX += x; originY += y; render(); },
+    shiftPane: (x, y) => { paneX = x; paneY = y; render(); } };
+}
+
+function selectionBox(container) {
+  return container.selectionPane ? container.selectionPane.children[0] : container.children[0].children[0];
+}
+
+function selectionPanel(container) {
+  return container.children[0].children.at(-1);
 }
 
 function pointer(overlay, type, x, y, overrides = {}) {
@@ -397,14 +453,13 @@ function pointer(overlay, type, x, y, overrides = {}) {
 }
 
 function resizeSelection(container) {
-  const overlay = container.children[0];
-  const box = overlay.children[0];
+  const box = selectionBox(container);
   const handle = box.children[4];
   const end = [parseFloat(box.style.left) + 100, parseFloat(box.style.top) + 100];
   pointer(handle, 'pointerdown', 0, 0);
   pointer(handle, 'pointermove', ...end);
   pointer(handle, 'pointerup', ...end);
-  return overlay.children[1];
+  return selectionPanel(container);
 }
 
 function selectionControls(panel) {
@@ -422,15 +477,15 @@ for (const renderer of ['google', 'leaflet']) {
     const fixture = selectionMap(renderer);
     fixture.container.getBoundingClientRect = () => ({ left: 0, top: 0, width: 2000, height: 2000 });
     globalValue(t, 'document', document);
-    globalValue(t, 'window', { map: fixture.wrapper });
+    globalValue(t, 'window', { map: fixture.wrapper, google: fixture.google });
     let completed = false;
     const work = selectMapSheetRegion(fixture.map, new AbortController().signal, 'Suggested sheet name')
       .then((result) => { completed = true; return result; });
     assert.equal(fixture.draggable(), true);
     const overlay = fixture.container.children[0];
-    const box = overlay.children[0];
+    const box = selectionBox(fixture.container);
     const handle = box.children[4];
-    const panel = overlay.children[1];
+    const panel = selectionPanel(fixture.container);
     const { heading, instructions, nameInput, status, confirm } = selectionControls(panel);
     assert.equal(heading.textContent, 'Map Sheet from Strava Heatmap');
     assert.doesNotMatch(instructions.textContent, /zoom buttons|mouse wheel/);
@@ -509,19 +564,20 @@ for (const renderer of ['google', 'leaflet']) {
     document.createElement = (tag) => new Element(tag);
     const fixture = selectionMap(renderer, false);
     globalValue(t, 'document', document);
-    globalValue(t, 'window', { map: fixture.wrapper });
+    globalValue(t, 'window', { map: fixture.wrapper, google: fixture.google });
     const work = selectMapSheetRegion(fixture.map, new AbortController().signal, 'Suggested sheet name');
     const overlay = fixture.container.children[0];
-    const handle = overlay.children[0].children[4];
+    const box = selectionBox(fixture.container);
+    const handle = box.children[4];
     pointer(handle, 'pointerdown', 800, 800);
     pointer(handle, 'pointermove', 1000, 1000);
     pointer(handle, 'pointercancel', 1000, 1000);
-    const { status, confirm } = selectionControls(overlay.children[1]);
+    const { status, confirm } = selectionControls(selectionPanel(fixture.container));
     assert.match(status.textContent, /25\/100 tiles selected/);
     assert.equal(confirm.disabled, false);
-    assert.equal(overlay.children[0].hidden, false);
+    assert.equal(box.hidden, false);
     assert.equal(handle.pointers.size, 0);
-    const east = overlay.children[0].children[3];
+    const east = box.children[3];
     east.handlers.keydown({ key: 'ArrowRight', preventDefault() {}, stopPropagation() {} });
     assert.match(status.textContent, /30\/100 tiles selected/, 'edge handles also support keyboard resizing');
     document.handlers.keydown({ key: 'Escape', preventDefault() {}, stopPropagation() {} });
@@ -536,9 +592,9 @@ for (const renderer of ['google', 'leaflet']) {
     document.createElement = (tag) => new Element(tag);
     const fixture = selectionMap(renderer);
     globalValue(t, 'document', document);
-    globalValue(t, 'window', { map: fixture.wrapper });
+    globalValue(t, 'window', { map: fixture.wrapper, google: fixture.google });
     const work = selectMapSheetRegion(fixture.map, new AbortController().signal, 'Initial selection');
-    selectionControls(fixture.container.children[0].children[1]).confirm.handlers.click();
+    selectionControls(selectionPanel(fixture.container)).confirm.handlers.click();
     const result = await work;
     assert.equal(result.region.columns, 5);
     assert.equal(result.region.rows, 5);
@@ -554,9 +610,9 @@ test('initial selection waits for the Google projection and recovers when the ma
   const fixture = selectionMap();
   fixture.map.getProjection = () => null;
   globalValue(t, 'document', document);
-  globalValue(t, 'window', { map: fixture.wrapper });
+  globalValue(t, 'window', { map: fixture.wrapper, google: fixture.google });
   const work = selectMapSheetRegion(fixture.map, new AbortController().signal, 'Initial selection');
-  const { status, confirm, cancel } = selectionControls(fixture.container.children[0].children[1]);
+  const { status, confirm, cancel } = selectionControls(selectionPanel(fixture.container));
   assert.match(status.textContent, /finish loading/);
   assert.equal(confirm.disabled, true);
   fixture.map.getProjection = () => ({});
@@ -567,15 +623,71 @@ test('initial selection waits for the Google projection and recovers when the ma
   assert.equal(await work, null);
 });
 
+test('Google selection follows render-time projection and native pane offsets through zoom in and out', async (t) => {
+  const document = new Element('document');
+  document.createElement = (tag) => new Element(tag);
+  const fixture = selectionMap();
+  globalValue(t, 'document', document);
+  globalValue(t, 'window', { map: fixture.wrapper, google: fixture.google });
+  const work = selectMapSheetRegion(fixture.map, new AbortController().signal, 'Anchored selection');
+  const box = selectionBox(fixture.container);
+  const { confirm, status } = selectionControls(selectionPanel(fixture.container));
+  assert.equal(box.parentElement, fixture.pane, 'geometry must share the basemap pane transforms');
+  assert.ok(Math.abs(parseFloat(box.style.width) - 500) < 1e-6);
+  fixture.map.setZoom(2);
+  assert.ok(Math.abs(parseFloat(box.style.width) - 500) < 1e-6,
+    'zoom state can change before the rendered projection updates');
+  fixture.move();
+  assert.ok(Math.abs(parseFloat(box.style.width) - 1000) < 1e-6);
+  fixture.shiftPane(75, -40);
+  fixture.pan(1, 2);
+  assert.ok(Math.abs(parseFloat(box.style.left) - 325) < 1e-6);
+  assert.ok(Math.abs(parseFloat(box.style.top) - 240) < 1e-6);
+  fixture.map.setZoom(0);
+  fixture.move();
+  assert.ok(Math.abs(parseFloat(box.style.width) - 250) < 1e-6);
+  assert.ok(Math.abs(parseFloat(box.style.left) - 25) < 1e-6);
+  assert.ok(Math.abs(parseFloat(box.style.top) - 90) < 1e-6);
+  assert.match(status.textContent, /25\/100 tiles selected/);
+  confirm.handlers.click();
+  const result = await work;
+  assert.equal(result.region.minX, 6203);
+  assert.equal(result.region.minY, 12003);
+  assert.equal(result.region.count, 25);
+  assert.equal(fixture.pane.children.length, 0, 'remove native geometry when selection ends');
+  assert.equal(fixture.removed(), 1);
+});
+
+test('Google selection waits for native overlay attachment before initializing its geographic bounds', async (t) => {
+  const document = new Element('document');
+  document.createElement = (tag) => new Element(tag);
+  const fixture = selectionMap('google', true, true);
+  globalValue(t, 'document', document);
+  globalValue(t, 'window', { map: fixture.wrapper, google: fixture.google });
+  const work = selectMapSheetRegion(fixture.map, new AbortController().signal, 'Deferred selection');
+  const { status, confirm } = selectionControls(selectionPanel(fixture.container));
+  assert.equal(confirm.disabled, true);
+  assert.match(status.textContent, /finish loading/);
+  fixture.map.setZoom(2);
+  fixture.attachOverlay();
+  assert.equal(selectionBox(fixture.container).parentElement, fixture.pane);
+  assert.equal(confirm.disabled, false);
+  confirm.handlers.click();
+  const result = await work;
+  assert.equal(result.region.minX, 6200);
+  assert.equal(result.region.minY, 12000);
+  assert.equal(result.region.count, 25);
+});
+
 test('aborting an active resize releases pointer capture and leaves map dragging unchanged', async (t) => {
   const document = new Element('document');
   document.createElement = (tag) => new Element(tag);
   const fixture = selectionMap();
   globalValue(t, 'document', document);
-  globalValue(t, 'window', { map: fixture.wrapper });
+  globalValue(t, 'window', { map: fixture.wrapper, google: fixture.google });
   const controller = new AbortController();
   const work = selectMapSheetRegion(fixture.map, controller.signal, 'Suggested sheet name');
-  const handle = fixture.container.children[0].children[0].children[4];
+  const handle = selectionBox(fixture.container).children[4];
   pointer(handle, 'pointerdown', 800, 800);
   assert.equal(handle.hasPointerCapture(1), true);
   controller.abort();
@@ -638,6 +750,7 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
     sarsoft: { features: { pro: false }, account: { id: 'account' } },
     org: { sarsoft: native },
     map: selection.wrapper,
+    google: selection.google,
     setInterval: (callback) => { refresh = callback; },
   };
   globalValue(t, 'window', window);
@@ -695,7 +808,7 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   assert.equal(blockedCreations, 2, 'native forms must be blocked during heatmap selection');
   assert.equal(selectedStore.editingObjects.length, 0);
   assert.equal(body.children.length, 0, 'selection must precede the upload dialog');
-  selectionControls(selection.container.children[0].children[1]).cancel.handlers.click();
+  selectionControls(selectionPanel(selection.container)).cancel.handlers.click();
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(selectedStore.hasInProgressNewObject, false);
   assert.deepEqual(Object.getOwnPropertyDescriptor(selectedStore, 'hasInProgressNewObject'), creationDescriptor,
@@ -774,7 +887,7 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   assert.equal(selectedStore.hasInProgressNewObject, false, 'save errors release the native creation guard');
   dialog.close();
   failedDialog.close();
-  selection.map.addListener = () => { throw new Error('Selection setup failed.'); };
+  selection.google.maps.OverlayView = class { constructor() { throw new Error('Selection setup failed.'); } };
   button.handlers.click();
   await new Promise((resolve) => setImmediate(resolve));
   assert.match(body.children[0].children[3].textContent, /Selection setup failed/);
