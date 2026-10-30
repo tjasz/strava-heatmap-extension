@@ -265,12 +265,18 @@ class Element {
     this.attributes = {};
     this.handlers = {};
     this.textContent = '';
-    this.isConnected = true;
+    this.isConnected = tagName !== 'dialog';
     this.classList = { toggle() {} };
     this.style = {};
     this.pointers = new Set();
   }
-  append(...elements) { this.children.push(...elements); for (const el of elements) el.parentElement = this; }
+  append(...elements) {
+    this.children.push(...elements);
+    for (const el of elements) {
+      el.parentElement = this;
+      el.isConnected = this.isConnected;
+    }
+  }
   appendChild(el) { this.append(el); return el; }
   after(el) { const i = this.parentElement.children.indexOf(this); this.parentElement.children.splice(i + 1, 0, el); el.parentElement = this.parentElement; }
   cloneNode() { return new Element(this.tagName); }
@@ -361,6 +367,15 @@ function drawSelection(container, start = [10, 10], end = [80, 80]) {
   return overlay.children[1];
 }
 
+function selectionControls(panel) {
+  const [heading, instructions, nameLabel, status, zoom, actions] = panel.children;
+  return {
+    heading, instructions, nameInput: nameLabel.children[0], status,
+    zoomOut: zoom.children[0], zoomIn: zoom.children[1],
+    cancel: actions.children[0], confirm: actions.children[1],
+  };
+}
+
 for (const renderer of ['google', 'leaflet']) {
   test(`${renderer} area drawing caps expansion, previews tiles, and requires explicit confirmation`, async (t) => {
     const document = new Element('document');
@@ -375,11 +390,15 @@ for (const renderer of ['google', 'leaflet']) {
     assert.equal(fixture.draggable(), false);
     const overlay = fixture.container.children[0];
     const panel = overlay.children[1];
+    const { heading, nameInput, status, confirm, zoomIn } = selectionControls(panel);
+    assert.equal(heading.textContent, 'Map Sheet from Strava Heatmap');
+    assert.match(confirm.className, /strava-heatmap-map-sheet-primary/);
+    assert.equal(confirm.type, 'button');
     if (renderer === 'google') {
       fixture.map.getProjection = () => null;
       pointer(overlay, 'pointerdown', 10, 10);
-      assert.match(panel.children[2].textContent, /finish loading/);
-      assert.equal(panel.children[3].disabled, true);
+      assert.match(status.textContent, /finish loading/);
+      assert.equal(confirm.disabled, true);
       fixture.map.getProjection = () => ({});
     }
     for (const name of ['click', 'dblclick', 'mousedown', 'mouseup', 'contextmenu']) {
@@ -397,20 +416,19 @@ for (const renderer of ['google', 'leaflet']) {
       assert.equal(stopped, true, `${name} in the panel must not reach the selection overlay`);
       assert.equal(defaultPrevented, false, `${name} must preserve native text-field editing`);
     }
-    const nameInput = panel.children[1].children[0];
     assert.equal(nameInput.value, 'Suggested sheet name');
     assert.equal(nameInput.required, true);
-    assert.equal(panel.children[3].disabled, true);
+    assert.equal(confirm.disabled, true);
     pointer(overlay, 'pointerdown', 10, 10);
     pointer(overlay, 'pointermove', 100000, 100000);
-    assert.match(panel.children[2].textContent, /100\/100 tiles selected/);
-    assert.match(panel.children[2].textContent, /Limit reached/);
-    assert.equal(panel.children[3].disabled, true, 'cannot confirm during a drag');
+    assert.match(status.textContent, /100\/100 tiles selected/);
+    assert.match(status.textContent, /Limit reached/);
+    assert.equal(confirm.disabled, true, 'cannot confirm during a drag');
     fixture.move();
     assert.ok(parseFloat(overlay.children[0].style.width) <= 1000.00001);
     pointer(overlay, 'pointerup', 100000, 100000);
-    assert.equal(panel.children[3].disabled, false);
-    panel.children[6].handlers.click();
+    assert.equal(confirm.disabled, false);
+    zoomIn.handlers.click();
     assert.equal(fixture.map.getZoom(), 2);
     assert.equal(fixture.centered(), 1);
     overlay.handlers.wheel({ deltaY: -10, preventDefault() {}, stopPropagation() {} });
@@ -420,16 +438,16 @@ for (const renderer of ['google', 'leaflet']) {
     await Promise.resolve();
     assert.equal(completed, false);
     drawSelection(fixture.container);
-    assert.match(panel.children[2].textContent, /1\/100 tiles selected/);
+    assert.match(status.textContent, /1\/100 tiles selected/);
     nameInput.value = '   ';
-    panel.children[3].handlers.click();
+    confirm.handlers.click();
     await Promise.resolve();
     assert.equal(completed, false, 'blank names must not confirm the capture');
     assert.equal(nameInput.validationMessage, 'Enter a sheet name.');
     nameInput.value = renderer === 'google' ? '  My trail map  ' : 'Suggested sheet name';
     nameInput.handlers.input();
     assert.equal(nameInput.validationMessage, '');
-    panel.children[3].handlers.click();
+    confirm.handlers.click();
     const result = await work;
     assert.equal(result.region.count, 1);
     assert.equal(result.region.minX, 6200);
@@ -452,7 +470,7 @@ for (const renderer of ['google', 'leaflet']) {
     pointer(overlay, 'pointerdown', 10, 10);
     pointer(overlay, 'pointermove', 80, 80);
     pointer(overlay, 'pointercancel', 80, 80);
-    assert.equal(overlay.children[1].children[3].disabled, true);
+    assert.equal(selectionControls(overlay.children[1]).confirm.disabled, true);
     assert.equal(overlay.children[0].hidden, true);
     document.handlers.keydown({ key: 'Escape', preventDefault() {}, stopPropagation() {} });
     assert.equal(await work, null);
@@ -506,7 +524,21 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   let observer;
   const added = [];
   let savedFeature;
+  let blockedCreations = 0;
+  const selectedStore = {
+    editingObjects: [],
+    get hasInProgressNewObject() { return this.editingObjects.some((object) => object.isNewObject); },
+  };
+  const creationDescriptor = Object.getOwnPropertyDescriptor(selectedStore, 'hasInProgressNewObject');
+  const cardsUiStore = {
+    selectedStore,
+    showNewCard() {
+      if (selectedStore.hasInProgressNewObject) blockedCreations++;
+      else selectedStore.editingObjects.push({ isNewObject: true });
+    },
+  };
   const native = {
+    MapState: { controllers: { MapGeoImage: { cardsUiStore } } },
     MapObjectDAO: { save: (feature, type, success) => { savedFeature = feature; assert.equal(type, 'MapGeoImage'); success(); } },
     mapViewStore: { addToStack: (...args) => added.push(args) },
   };
@@ -559,11 +591,29 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   refresh();
   assert.equal(button.attributes['aria-disabled'], 'false');
   assert.match(description.textContent, /Draw an area/);
+  cardsUiStore.showNewCard();
   button.handlers.click();
-  assert.equal(body.children.length, 0, 'selection must precede the upload dialog');
-  selection.container.children[0].children[1].children[4].handlers.click();
   await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(blockedCreations, 1, 'reuse the native creation guard when another form is open');
+  assert.equal(selection.container.children.length, 0, 'do not open selection over a native creation form');
+  assert.equal(body.children.length, 0);
+  selectedStore.editingObjects = [];
+  button.handlers.click();
+  assert.equal(selectedStore.hasInProgressNewObject, true);
+  cardsUiStore.showNewCard();
+  assert.equal(blockedCreations, 2, 'native forms must be blocked during heatmap selection');
+  assert.equal(selectedStore.editingObjects.length, 0);
+  assert.equal(body.children.length, 0, 'selection must precede the upload dialog');
+  selectionControls(selection.container.children[0].children[1]).cancel.handlers.click();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(selectedStore.hasInProgressNewObject, false);
+  assert.deepEqual(Object.getOwnPropertyDescriptor(selectedStore, 'hasInProgressNewObject'), creationDescriptor,
+    'restore the native getter on cancel');
   assert.equal(button.attributes['aria-disabled'], 'false', 'cancel permits another selection');
+  button.handlers.click();
+  document.handlers.keydown({ key: 'Escape', preventDefault() {}, stopPropagation() {} });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(selectedStore.hasInProgressNewObject, false, 'Escape releases the native creation guard');
   let requests = 0;
   let expectedTitle;
   t.mock.method(globalThis, 'fetch', async (url, options) => {
@@ -588,18 +638,21 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   const panel = drawSelection(selection.container);
   assert.equal(requests, 0, 'no downloads or uploads before confirmation');
   assert.equal(body.children.length, 0);
-  const nameInput = panel.children[1].children[0];
+  const { nameInput, confirm } = selectionControls(panel);
   assert.match(nameInput.value, /^Strava Global Heatmap All Foot Sports orange \d{4}-\d\d-\d\dT/);
   expectedTitle = 'Wasatch & <hike> "Loop"';
   nameInput.value = `  ${expectedTitle}  `;
   nameInput.handlers.input();
-  panel.children[3].handlers.click();
+  confirm.handlers.click();
   await new Promise((resolve) => setImmediate(resolve));
   const dialog = body.children[0];
   for (let i = 0; i < 100 && !dialog.children[3].textContent.includes('and added'); i++) {
     await new Promise((resolve) => setImmediate(resolve));
   }
   assert.match(dialog.children[3].textContent, /saved privately.*and added/i);
+  assert.equal(selectedStore.hasInProgressNewObject, false);
+  assert.deepEqual(Object.getOwnPropertyDescriptor(selectedStore, 'hasInProgressNewObject'), creationDescriptor,
+    'restore the native getter after capture');
   assert.equal(dialog.children[1].textContent, expectedTitle);
   assert.match(dialog.children[2].textContent, /Share publicly: Off/);
   assert.equal(savedFeature.properties.backendImageId, 'image');
@@ -615,9 +668,10 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   native.MapObjectDAO.save = (feature, type, success, failure) => failure();
   button.handlers.click();
   const nextPanel = drawSelection(selection.container);
-  expectedTitle = nextPanel.children[1].children[0].value;
+  const nextControls = selectionControls(nextPanel);
+  expectedTitle = nextControls.nameInput.value;
   assert.match(expectedTitle, /^Strava Global Heatmap All Foot Sports orange \d{4}-\d\d-\d\dT/);
-  nextPanel.children[3].handlers.click();
+  nextControls.confirm.handlers.click();
   await new Promise((resolve) => setImmediate(resolve));
   const failedDialog = body.children[1];
   for (let i = 0; i < 100 && failedDialog.children[3].attributes.role !== 'alert'; i++) {
@@ -626,4 +680,14 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   assert.match(failedDialog.children[3].textContent, /Saved privately.*but not added/);
   assert.match(failedDialog.children[3].textContent, /editable map/);
   assert.equal(added.length, 1, 'failed map additions must not be put on the layer stack');
+  assert.equal(selectedStore.hasInProgressNewObject, false, 'save errors release the native creation guard');
+  dialog.close();
+  failedDialog.close();
+  selection.map.addListener = () => { throw new Error('Selection setup failed.'); };
+  button.handlers.click();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.match(body.children[0].children[3].textContent, /Selection setup failed/);
+  assert.equal(selection.container.children.length, 0);
+  assert.equal(selectedStore.hasInProgressNewObject, false, 'selection errors release the native creation guard');
+  assert.deepEqual(Object.getOwnPropertyDescriptor(selectedStore, 'hasInProgressNewObject'), creationDescriptor);
 });
