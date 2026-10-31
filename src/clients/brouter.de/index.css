@@ -3,3 +3,27 @@
 #layers-control-wrapper .leaflet-control-layers-overlays label {
   overflow-wrap: anywhere;
 }
+
+.strava-slide-icon {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  vertical-align: middle;
+  background: currentColor;
+  mask: url('../../../icons/slide.svg') center / contain no-repeat;
+}
+
+.strava-slide-active .strava-slide-icon {
+  color: #e85b25;
+}
+
+.strava-slide-status {
+  max-width: 230px;
+  padding: 6px 10px;
+  background: white;
+  color: #333;
+}
+
+.strava-slide-status[hidden] {
+  display: none;
+}

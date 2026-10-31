@@ -285,6 +285,17 @@ To enable the Strava Heatmap in Geotab:
 3. Use BRouter's overlay transparency slider to adjust opacity.
 4. Use the extension icon to log into Strava and configure layers in **Layers**. Define custom palettes with ordered color and opacity stops in **Gradients**.
 
+Click **Slide** directly below the straight-line button, or press **S** while
+drawing, to toggle Slide mode. Each new segment follows the selected Strava
+heatmap between your clicked points; the endpoints stay fixed. With several
+overlays enabled, Slide follows the most recently enabled overlay.
+If there is no usable trail, the segment stays straight. Tile, login, and
+area-limit errors are shown beside the map controls and also leave the segment
+straight. Press **B** to switch to ordinary straight-line drawing.
+Download the route with BRouter's normal **Export** to retain the slid geometry;
+permalinks and the deprecated server export retain only the clicked points
+and straight-line flags, not the Slide geometry.
+
 ### Troubleshooting
 
 #### Blank or incomplete heatmap at low zoom levels

@@ -140,6 +140,10 @@ export async function loadSlideTiles(locations, source, signal, onProgress) {
   // an error: the padded buffer legitimately includes areas Strava has no
   // heatmap for, and the algorithm never traces through uncovered pixels.
   const tiles = [...new Set((await Promise.all(requests)).filter(Boolean))];
-  if (!tiles.length) throw new Error('No heatmap tiles are available in this area.');
+  if (!tiles.length) {
+    const error = new Error('No heatmap tiles are available in this area.');
+    error.code = 'SLIDE_NO_SIGNAL';
+    throw error;
+  }
   return { tiles, bounds, zoom };
 }
