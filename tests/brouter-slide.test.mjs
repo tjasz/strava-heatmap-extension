@@ -151,6 +151,9 @@ test('S toggles Slide; native straight-line and routed modes remain independent'
   assert.equal(f.button.attributes['aria-pressed'], 'false');
   f.key();
   assert.equal(f.button.attributes['aria-pressed'], 'true');
+  assert.equal(f.button['strava-slide-active'], true);
+  const css = readFileSync(new URL('../src/clients/brouter.de/index.css', import.meta.url), 'utf8');
+  assert.match(css, /\.strava-slide-active \.strava-slide-icon\s*\{\s*color:\s*#2074b6;\s*\}/);
   assert.equal(f.routing._draw._beelineMode, true);
   f.click(at(0)); f.click(at(1));
   await f.settle();
