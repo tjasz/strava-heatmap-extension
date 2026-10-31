@@ -132,12 +132,20 @@ test('every named palette matches its tile URL; custom gradients are not filtere
   assert.ok(rules.every(([, selector]) => !unauthenticated.template.includes(selector)));
 });
 
-test('GPX Studio retains its legacy pre-colored Sunset tiles', async () => {
+test('GPX Studio requests grayscale tiles and enables exact palette recoloring', async () => {
   const script = await read('src/clients/gpx.studio/index.js');
-  assert.match(script, /getLayerConfigs\(layerPresets, authenticated, version, true, true\)/);
-  const [config] = getLayerConfigs(
-    [{ activity: 'ride', color: 'sunset' }], true, '0.14.0', true, true
-  );
-  assert.ok(config.template.includes('/ride/hot/'));
-  assert.ok(!config.template.includes('heatmap-color='));
+  assert.match(script, /getLayerConfigs\(layerPresets, authenticated, version, true\)/);
+  assert.match(script, /installGradientTileRecoloring\(\{ recolorPalettes: true \}\)/);
+  for (const period of ['global', 'weekly']) {
+    const configs = getLayerConfigs(
+      palettes.map((color) => ({ activity: 'ride', color, period })),
+      true, '0.14.0', true
+    );
+    configs.forEach(({ template }, index) => {
+      assert.ok(template.includes(`heatmap-color=${palettes[index]}&`));
+      assert.ok(period === 'weekly'
+        ? template.includes('colormap=grayscale')
+        : template.includes('/ride/grayscale/'));
+    });
+  }
 });

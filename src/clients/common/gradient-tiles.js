@@ -1,3 +1,12 @@
+import { PALETTES } from './palettes.js';
+
+const PALETTE_RAMPS = Object.fromEntries(
+  Object.entries(PALETTES).map(([name, ramp]) => [
+    name,
+    ramp.match(/.{8}/g).map(hexToRgba),
+  ])
+);
+
 const GRADIENT_HASH_PATTERN =
   /(?:^|&)strava-gradient=([0-9a-f]{6}(?:[0-9a-f]{2})?(?:-[0-9a-f]{6}(?:[0-9a-f]{2})?)+)(?:&|$)/i;
 
@@ -21,7 +30,22 @@ function hexToRgba(hex) {
   return rgba;
 }
 
-async function recolorBlob(blob, gradient) {
+function getColorRamp(url, recolorPalettes) {
+  const gradient = getGradient(url);
+  if (gradient) return { stops: gradient, palette: false };
+  if (
+    !recolorPalettes ||
+    typeof url !== 'string' ||
+    !/^https:\/\/content-[a-c]\.strava\.com\/(?:identified\/globalheat|weeklyheat)\//.test(url)
+  ) return null;
+
+  const color = new URL(url).searchParams.get('heatmap-color');
+  return Object.hasOwn(PALETTE_RAMPS, color)
+    ? { stops: PALETTE_RAMPS[color], palette: true }
+    : null;
+}
+
+async function recolorBlob(blob, { stops: gradient, palette }) {
   const bitmap = await createImageBitmap(blob);
   try {
     const canvas = document.createElement('canvas');
@@ -35,8 +59,10 @@ async function recolorBlob(blob, gradient) {
     const { data } = imageData;
 
     for (let offset = 0; offset < data.length; offset += 4) {
-      const intensity =
-        (data[offset] + data[offset + 1] + data[offset + 2]) / (3 * 255);
+      // Named palettes match the SVG filters: red indexes both color and alpha.
+      const intensity = palette
+        ? data[offset] / 255
+        : (data[offset] + data[offset + 1] + data[offset + 2]) / (3 * 255);
       const scaledIntensity = intensity * (gradient.length - 1);
       const stopIndex = Math.min(
         Math.floor(scaledIntensity),
@@ -49,7 +75,7 @@ async function recolorBlob(blob, gradient) {
       data[offset + 1] = interpolate(start[1], end[1], segmentIntensity);
       data[offset + 2] = interpolate(start[2], end[2], segmentIntensity);
       data[offset + 3] = Math.round(
-        (data[offset + 3] / 255) *
+        (palette ? 1 : data[offset + 3] / 255) *
           interpolate(start[3], end[3], segmentIntensity)
       );
     }
@@ -71,12 +97,12 @@ function interpolate(start, end, intensity) {
   return Math.round(start + (end - start) * intensity);
 }
 
-function installFetchInterceptor(nativeFetch) {
+function installFetchInterceptor(nativeFetch, getColors) {
   window.fetch = async function (...args) {
     const input = args[0];
     const url =
       typeof input === 'string' || input instanceof URL ? String(input) : input?.url;
-    const gradient = getGradient(url);
+    const gradient = getColors(url);
     if (!gradient) return nativeFetch(...args);
 
     const response = await nativeFetch(...args);
@@ -96,7 +122,7 @@ function installFetchInterceptor(nativeFetch) {
   };
 }
 
-function installImageInterceptor(nativeFetch) {
+function installImageInterceptor(nativeFetch, getColors) {
   const imageStates = new WeakMap();
   const sourceDescriptor = Object.getOwnPropertyDescriptor(
     HTMLImageElement.prototype,
@@ -114,7 +140,7 @@ function installImageInterceptor(nativeFetch) {
   async function processImage(image, source) {
     if (source === null && imageStates.has(image)) return;
 
-    const gradient = getGradient(source);
+    const gradient = getColors(source);
     if (!gradient) {
       cancelPendingImage(image, source);
       return;
@@ -167,7 +193,7 @@ function installImageInterceptor(nativeFetch) {
     ...sourceDescriptor,
     set(value) {
       const source = String(value);
-      if (getGradient(source)) {
+      if (getColors(source)) {
         const state = imageStates.get(this);
         if (state?.source === source && state.failed) {
           sourceDescriptor.set.call(this, value);
@@ -216,11 +242,12 @@ function installImageInterceptor(nativeFetch) {
     .forEach((image) => processImage(image, image.getAttribute('src')));
 }
 
-export function installGradientTileRecoloring() {
+export function installGradientTileRecoloring({ recolorPalettes = false } = {}) {
   if (window.__stravaGradientTileRecoloringInstalled) return;
   window.__stravaGradientTileRecoloringInstalled = true;
 
   const nativeFetch = window.fetch.bind(window);
-  installFetchInterceptor(nativeFetch);
-  installImageInterceptor(nativeFetch);
+  const getColors = (url) => getColorRamp(url, recolorPalettes);
+  installFetchInterceptor(nativeFetch, getColors);
+  installImageInterceptor(nativeFetch, getColors);
 }

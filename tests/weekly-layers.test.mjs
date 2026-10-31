@@ -173,7 +173,7 @@ test('duplicate sports retain unique layer IDs across colors, periods and client
   }
 });
 
-test('gpx.studio weekly layers use the same pre-colored palettes as global layers', () => {
+test('legacy weekly layers use the same pre-colored palettes as global layers', () => {
   for (const [color] of COLOR_OPTIONS) {
     const [global, weekly] = configs([
       { ...globalLayer, color }, { ...weeklyLayer, color },

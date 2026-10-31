@@ -10,8 +10,7 @@ const COLORS = {
   grayscale: ['⚫', 'Custom Gradient'],
 };
 
-// Closest pre-colored legacy tile flavor, for clients that can't colorize
-// grayscale tiles (gpx.studio)
+// Closest pre-colored legacy tile flavor, retained for legacy tile consumers.
 const LEGACY_COLORS = {
   blue: 'blue',
   purple: 'purple',

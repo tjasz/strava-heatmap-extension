@@ -2,7 +2,7 @@ import { setupAuthStatusChangeListener } from '../common/auth.js';
 import { parseLayerPresets, setupLayerPresetsChangeListener, getLayerConfigs } from '../common/layers.js';
 import { installGradientTileRecoloring } from '../common/gradient-tiles.js';
 
-installGradientTileRecoloring();
+installGradientTileRecoloring({ recolorPalettes: true });
 
 async function waitForGpxStudio(maxAttempts = 50, interval = 100) {
   for (let i = 0; i < maxAttempts; i++) {
@@ -18,8 +18,7 @@ async function waitForGpxStudio(maxAttempts = 50, interval = 100) {
 async function applyOverlays(layerPresets, authenticated, version) {
   console.log('[StravaHeatmapExt] Applying overlays to gpx.studio', { layerPresets, authenticated });
 
-  // gpx.studio can't colorize grayscale tiles yet, use legacy pre-colored tiles
-  const layerConfigs = getLayerConfigs(layerPresets, authenticated, version, true, true);
+  const layerConfigs = getLayerConfigs(layerPresets, authenticated, version, true);
 
   window.gpxstudio.filterOverlays(layerConfigs.map((config) => config.id));
 

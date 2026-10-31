@@ -6,6 +6,7 @@
 
 - [CalTopo, Geotab, BRouter] Add support for additional clients.
 - Add custom gradient option.
+- [gpx.studio] Render the exact preset palettes for global and weekly heatmaps instead of legacy color approximations.
 
 ### `0.15.0.2` (Unreleased)
 
