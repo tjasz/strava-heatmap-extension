@@ -4,6 +4,15 @@
   overflow-wrap: anywhere;
 }
 
+button.slide-active {
+  transition-duration: 0.3s;
+}
+
+button.slide-active.disabled {
+  height: 0;
+  border-bottom-width: 0;
+}
+
 .strava-slide-icon {
   display: inline-block;
   width: 24px;

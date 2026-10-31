@@ -286,7 +286,8 @@ To enable the Strava Heatmap in Geotab:
 4. Use the extension icon to log into Strava and configure layers in **Layers**. Define custom palettes with ordered color and opacity stops in **Gradients**.
 
 Click **Slide** directly below the straight-line button, or press **S** while
-drawing, to toggle Slide mode. Each new segment follows the selected Strava
+drawing, to toggle Slide mode. Like straight-line mode, the Slide button is
+hidden when not editing. Each new segment follows the selected Strava
 heatmap between your clicked points; the endpoints stay fixed. With several
 overlays enabled, Slide follows the most recently enabled overlay.
 If there is no usable trail, the segment stays straight. Tile, login, and

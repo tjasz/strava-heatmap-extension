@@ -119,12 +119,31 @@ function fixture(t, fit) {
   const integration = installBrouterSlide(routing, map, () => selectedLayer, fit);
   return {
     routing, button, markers, integration,
+    setDrawing: (drawing) => {
+      routing._draw._enabled = drawing;
+      mapListeners[drawing ? 'routing:draw-start' : 'routing:draw-end']();
+    },
     selectLayer: (value) => { selectedLayer = value; integration.invalidate(); },
     key: (extra = {}) => listeners.keydown({ key: 's', preventDefault() {}, ...extra }),
     click: (point, shiftKey = false) => routing._draw._onMouseClick({ latlng: point, originalEvent: { shiftKey } }),
     settle: () => new Promise((resolve) => setImmediate(resolve)),
   };
 }
+
+test('Slide hides like straight-line mode when drawing stops and returns when it resumes', (t) => {
+  const f = fixture(t);
+  assert.equal(f.button.disabled, false);
+  f.key();
+  f.setDrawing(false);
+  assert.equal(f.button.disabled, true);
+  f.key();
+  assert.equal(f.button.attributes['aria-pressed'], 'true', 'shortcut does not change mode outside editing');
+  f.setDrawing(true);
+  assert.equal(f.button.disabled, false);
+  assert.equal(f.button.attributes['aria-pressed'], 'true', 'resuming editing preserves Slide mode');
+  const css = readFileSync(new URL('../src/clients/brouter.de/index.css', import.meta.url), 'utf8');
+  assert.match(css, /button\.slide-active\.disabled\s*\{\s*height:\s*0;\s*border-bottom-width:\s*0;\s*\}/);
+});
 
 test('S toggles Slide; native straight-line and routed modes remain independent', async (t) => {
   const f = fixture(t, async (points) => ({ coordinates: [points[0], [0.5, 1], points[1]] }));
