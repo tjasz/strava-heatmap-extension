@@ -166,10 +166,11 @@ function getLayerConfig(
   version,
   short,
   legacy,
-  period
+  period,
+  gradientEmoji
 ) {
   const activityName = ACTIVITIES[activity];
-  const [colorEmoji] = COLORS[color] || '❓';
+  const colorEmoji = gradientEmoji ?? (COLORS[color] || ['❓'])[0];
 
   const template = getTileTemplate(activity, color, timestamp, authenticated, version, legacy, period);
   
@@ -233,7 +234,8 @@ export function getLayerConfigs(
       version,
       short,
       legacy,
-      period
+      period,
+      layer.gradientEmoji
     );
     const occurrence = (occurrences.get(config.id) ?? 0) + 1;
     occurrences.set(config.id, occurrence);
@@ -260,12 +262,16 @@ export function parseLayerPresets(string) {
         !gradientFields[0].startsWith('#') &&
         !gradientFields[0].includes(','));
     const period = hasPeriod ? gradientFields.shift() : undefined;
+    const metadataIndex = gradientFields.findIndex((field) => field.startsWith('gradient='));
+    const metadata = metadataIndex === -1
+      ? {}
+      : JSON.parse(decodeURIComponent(gradientFields.splice(metadataIndex, 1)[0].slice(9)));
     return {
       activity,
       color,
       ...(period === undefined ? {} : { period }),
       ...(color === 'grayscale'
-        ? { gradientStops: parseGradientStops(gradientFields) }
+        ? { gradientStops: parseGradientStops(gradientFields), ...metadata }
         : {}),
     };
   });

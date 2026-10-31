@@ -10,7 +10,11 @@
         <h2 id="settings-title"></h2>
         <h2 id="close-settings">✖️</h2>
       </div>
-      <div>
+      <div class="tabs" role="tablist" aria-label="Settings">
+        <button id="layers-tab" role="tab" aria-selected="true" aria-controls="layers-panel">Layers</button>
+        <button id="gradients-tab" role="tab" aria-selected="false" aria-controls="gradients-panel" tabindex="-1">Gradients</button>
+      </div>
+      <div id="layers-panel" role="tabpanel" aria-labelledby="layers-tab">
         <h3>Configure Layers</h3>
         <p>Weekly layers require you to be a Strava Premium subscriber. Sport and color options are the same for both heatmap types.</p>
         <ul id="layer-list"></ul>
@@ -19,6 +23,13 @@
           ↺ Reset to Defaults
         </button>
       </div>
+      <div id="gradients-panel" role="tabpanel" aria-labelledby="gradients-tab" hidden>
+        <h3>Gradients</h3>
+        <p>Choose a gradient in the Layers tab. Editing a custom gradient updates every layer that uses it.</p>
+        <ul id="gradient-list"></ul>
+        <button id="add-gradient" disabled>+ Add Gradient</button>
+      </div>
+      <p id="settings-error" role="alert" hidden></p>
       <button id="apply-settings" disabled>Apply changes</button>
     </div>
     <script src="../../lib/browser-polyfill.min.js"></script>

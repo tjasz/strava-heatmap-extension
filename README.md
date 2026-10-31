@@ -115,9 +115,17 @@ same heatmap type with different colors. Weekly tiles
 require you to be a Strava Premium subscriber and authenticate through the
 extension; the extension does not unlock subscription-only data.
 
-**Custom Gradient** works with both Global and Weekly layers. Color and opacity
-stops can be edited, added, removed, and reordered independently for each layer;
-existing saved Global gradients are preserved.
+Settings have two tabs: **Layers** for heatmap type, sport, color, and layer order,
+and **Gradients** for palettes. The built-in palettes always appear with a
+256-by-10-pixel preview, name, and emoji.
+
+In **Gradients**, click **Add Gradient** to create a custom palette with a name
+and emoji. Edit, add, remove, and reorder its color and opacity stops, then click
+**Done** to return to its preview. Use **Edit** to change it again. Select the
+named palette from a layer's color dropdown, then click **Apply changes** to save.
+Custom palettes work with both Global and Weekly layers; editing a palette updates
+every layer using it. Existing saved per-layer gradients are preserved as separate
+custom palettes. Resetting layers to defaults does not delete custom palettes.
 
 ## OpenStreetMap iD editor
 
@@ -127,7 +135,7 @@ To enable the Strava Heatmap in the iD editor:
 2. Press B or click Background settings, then scroll to Overlays.
 3. Select a Strava Heatmap overlay from the list.
 4. If you see the message "Click the Strava Heatmap extension icon to log into Strava…", click the red extension icon to authenticate.
-5. After logging in, use the extension icon to configure heatmap layers: choose activity type and color, and manage layer order or deletion. Custom gradient layers support ordered color and opacity stops for custom gradients, allowing precise control over the heatmap appearance.
+5. After logging in, use the extension icon's **Layers** tab to choose activity type and color and manage layer order or deletion. Define custom palettes with ordered color and opacity stops in **Gradients**.
 6. In the editor, press Shift + Q to toggle all overlays (including the heatmap), and Shift + W to toggle data visibility.
 
 ### Strava Slide (iD)
@@ -169,7 +177,7 @@ To enable the Strava Heatmap in GPX.studio:
 2. Hover over the layers menu icon, then scroll to Overlays.
 3. Choose a Strava Heatmap overlay from the list.
 4. If you see the message "Click the Strava Heatmap extension icon to log into Strava…", click the red extension icon to authenticate.
-5. Once logged in, use the green extension icon to configure, reorder, or delete heatmap layers by activity and color. Custom gradient layers support ordered color and opacity stops.
+5. Once logged in, use the green extension icon's **Layers** tab to configure, reorder, or delete heatmap layers by activity and color. Define custom palettes with ordered color and opacity stops in **Gradients**.
 
 ### CalTopo
 
@@ -179,7 +187,7 @@ To enable the Strava Heatmap in CalTopo:
 
 1. Open a map at https://caltopo.com/.
 2. In the Map Layers panel to the right of the map, under "Route Discovery", each configured Strava heatmap has its own button. Toggle any combination of layers; each enabled layer expands to show its own opacity slider. Most recently enabled layers appear on top. Turning a layer off and on brings it to the top; adjusting opacity does not change the stacking order. The stacking order is saved with the layer settings.
-3. Use the extension icon to log into Strava and configure the available heatmap layers. Custom gradient layers support ordered color and opacity stops.
+3. Use the extension icon to log into Strava and configure the available heatmap layers in **Layers**. Define custom palettes with ordered color and opacity stops in **Gradients**.
 
 The live overlay is not shown in CalTopo's print preview because PDFs are rendered
 server-side and cannot include it. To include a heatmap in a printed map, first
@@ -267,14 +275,14 @@ To enable the Strava Heatmap in Geotab:
 
 1. Open https://tjasz.github.io/geotab/.
 2. Open the Leaflet layers control and select a configured Strava Heatmap overlay.
-3. Use the extension icon to log into Strava and configure the available heatmap layers. Custom gradient layers support ordered color and opacity stops.
+3. Use the extension icon to log into Strava and configure the available heatmap layers in **Layers**. Define custom palettes with ordered color and opacity stops in **Gradients**.
 
 ### BRouter
 
 1. Open https://brouter.de/brouter-web/.
 2. Open the Layers sidebar and select a configured Strava Heatmap overlay.
 3. Use BRouter's overlay transparency slider to adjust opacity.
-4. Use the extension icon to log into Strava and configure layers. Custom gradient layers support ordered color and opacity stops.
+4. Use the extension icon to log into Strava and configure layers in **Layers**. Define custom palettes with ordered color and opacity stops in **Gradients**.
 
 ### Troubleshooting
 

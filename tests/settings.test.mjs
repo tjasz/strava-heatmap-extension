@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { ACTIVITY_OPTIONS, COLOR_OPTIONS, normalizeGradientStops } from '../src/clients/common/layers.js';
-import { formatLayerPresets, validateLayerPresets } from '../src/background/layers.js';
+import {
+  formatLayerPresets, validateLayerPresets, validateCustomGradients, resolveGradientLayers,
+} from '../src/background/layers.js';
+import { PALETTES } from '../src/clients/common/palettes.js';
 
 function element(tagName) {
   const node = {
@@ -12,6 +15,7 @@ function element(tagName) {
     append(...children) { this.children.push(...children); },
     setAttribute(name, value) { this[name] = value; },
     addEventListener(name, callback) { this[`on${name}`] = callback; },
+    focus() { this.focused = true; },
     querySelector(selector) {
       return this.querySelectorAll(selector)[0];
     },
@@ -26,6 +30,12 @@ function element(tagName) {
     get innerHTML() { return ''; },
     set innerHTML(value) { assert.equal(value, ''); this.children = []; },
   };
+  if (tagName === 'canvas') {
+    node.getContext = () => ({
+      createImageData(width, height) { return { data: new Uint8ClampedArray(width * height * 4) }; },
+      putImageData(image) { node.image = image; },
+    });
+  }
   node.classList = {
     add(name) { this.toggle(name, true); },
     toggle(name, enabled) {
@@ -50,13 +60,16 @@ function element(tagName) {
 test('settings preserve weekly types through editing, adding, sorting, applying and resetting', async () => {
   const ids = Object.fromEntries([
     'layer-list', 'settings-title', 'add-layer', 'apply-settings',
-    'close-settings', 'reset-settings',
+    'close-settings', 'reset-settings', 'gradient-list', 'add-gradient',
+    'layers-tab', 'gradients-tab', 'layers-panel', 'gradients-panel', 'settings-error',
   ].map((id) => [id, element(id === 'layer-list' ? 'ul' : 'button')]));
   const list = ids['layer-list'];
   let onReady;
   let sorting;
   const gradientSorting = new WeakMap();
   let closed = false;
+  let gradients = [];
+  let nextGradient = 0;
   let presets = [
     { activity: 'run', color: 'orange' },
     { activity: 'run', color: 'blue', period: 'weekly' },
@@ -89,10 +102,16 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
         gradientSorting.set(node, options);
       }
     } },
-    ACTIVITY_OPTIONS, COLOR_OPTIONS, normalizeGradientStops, formatLayerPresets, validateLayerPresets,
+    ACTIVITY_OPTIONS, COLOR_OPTIONS, PALETTES, normalizeGradientStops,
+    formatLayerPresets, validateLayerPresets, validateCustomGradients, resolveGradientLayers,
+    crypto: { randomUUID: () => `custom-${++nextGradient}` },
+    console,
     getExtensionName: () => 'Strava Heatmap',
-    getLayerPresets: async () => presets,
-    setLayerPresets: async (value) => { presets = value; },
+    getGradientSettings: async () => structuredClone({ layers: presets, gradients }),
+    setGradientSettings: async (value, palettes) => {
+      presets = structuredClone(value);
+      gradients = structuredClone(palettes);
+    },
     resetLayerPresets: async () => { presets = [{ activity: 'all', color: 'orange' }]; },
   });
   await onReady();
@@ -141,9 +160,38 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
   assert.equal(select(0, 'period').value, 'global');
   assert.equal(ids['apply-settings'].disabled, true);
 
-  select(0, 'color').value = 'grayscale';
-  await select(0, 'color').onchange();
-  const stops = (index) => list.children[index].querySelectorAll('.gradient-stop');
+  assert.ok(!select(0, 'color').options.some((option) => option.value === 'grayscale'));
+  await ids['gradients-tab'].onclick();
+  assert.equal(ids['layers-panel'].hidden, true);
+  assert.equal(ids['gradients-panel'].hidden, false);
+  assert.equal(ids['gradients-tab']['aria-selected'], 'true');
+  ids['gradients-tab'].onkeydown({ key: 'ArrowLeft', preventDefault() {} });
+  assert.equal(ids['layers-tab'].focused, true);
+  assert.equal(ids['layers-panel'].hidden, false);
+  const gradientList = ids['gradient-list'];
+  assert.equal(gradientList.children.length, Object.keys(PALETTES).length);
+  for (const [index, ramp] of Object.values(PALETTES).entries()) {
+    const item = gradientList.children[index];
+    assert.equal(item.querySelector('.gradient-edit'), undefined);
+    assert.ok(item.querySelector('.gradient-label').textContent.length > 0);
+    const preview = item.querySelector('canvas');
+    assert.equal(preview.width, 256);
+    assert.equal(preview.height, 10);
+    assert.equal(Buffer.from(preview.image.data.slice(0, 1024)).toString('hex'), ramp);
+  }
+
+  await ids['add-gradient'].onclick();
+  const customItem = (index = 0) => gradientList.children[Object.keys(PALETTES).length + index];
+  assert.equal(customItem().querySelector('canvas'), undefined);
+  const name = customItem().querySelector('.gradient-name');
+  name.value = 'Trail: colors; 🌲';
+  await name.oninput();
+  const emoji = customItem().querySelector('.gradient-emoji');
+  emoji.value = '🌲';
+  await emoji.oninput();
+  assert.equal(select(0, 'color').options.find((option) => option.value === 'custom-1').textContent,
+    '🌲 Trail: colors; 🌲');
+  const stops = (index) => customItem(index).querySelectorAll('.gradient-stop');
   const input = (index, stop, kind) => stops(index)[stop].querySelector(`.gradient-stop-${kind}`);
   assert.equal(stops(0).length, 2);
   assert.equal(stops(0)[0].querySelector('.gradient-stop-remove').disabled, true);
@@ -157,44 +205,73 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
   assert.equal(stops(0).length, 3);
   assert.equal(input(0, 1, 'color').value, '#899aab');
   assert.equal(input(0, 1, 'opacity').value, '60');
-  const controls = list.children[0].querySelector('.gradient-controls');
+  const controls = customItem().querySelector('.gradient-controls');
   controls.children.reverse();
   await gradientSorting.get(controls).onEnd();
   assert.equal(input(0, 0, 'color').value, '#ffffff');
   await stops(0)[1].querySelector('.gradient-stop-remove').onclick();
   assert.equal(stops(0).length, 2);
 
+  await customItem().querySelector('.gradient-done').onclick();
+  assert.equal(stops(0).length, 0);
+  const customPreview = customItem().querySelector('canvas');
+  assert.deepEqual([...customPreview.image.data.slice(0, 4)], [255, 255, 255, 255]);
+  assert.deepEqual([...customPreview.image.data.slice(1020, 1024)], [18, 52, 86, 51]);
+  select(0, 'color').value = 'custom-1';
+  await select(0, 'color').onchange();
+  assert.equal(list.children[0].querySelector('.gradient-controls'), undefined);
   await ids['add-layer'].onclick();
   select(1, 'period').value = 'weekly';
   await select(1, 'period').onchange();
   select(1, 'activity').value = 'all';
   await select(1, 'activity').onchange();
-  select(1, 'color').value = 'grayscale';
+  select(1, 'color').value = 'custom-1';
   await select(1, 'color').onchange();
-  input(1, 0, 'color').value = '#abcdef';
-  await input(1, 0, 'color').onchange();
-  input(1, 1, 'opacity').value = '50';
-  await input(1, 1, 'opacity').onchange();
-  assert.equal(input(0, 1, 'color').value, '#123456', 'weekly edits must not change global stops');
+  await customItem().querySelector('.gradient-edit').onclick();
+  input(0, 0, 'color').value = '#abcdef';
+  await input(0, 0, 'color').onchange();
+  input(0, 1, 'opacity').value = '50';
+  await input(0, 1, 'opacity').onchange();
   list.children.reverse();
   await sorting.onEnd();
   assert.equal(select(0, 'period').value, 'weekly');
-  assert.equal(input(0, 0, 'color').value, '#abcdef');
   await ids['apply-settings'].onclick();
-  assert.equal(formatLayerPresets(presets),
-    'all:grayscale:weekly:#abcdef,1|#ffffff,0.5;all:grayscale:#ffffff,1|#123456,0.2');
+  assert.equal(presets[0].gradientId, 'custom-1');
+  assert.deepEqual(presets[0].gradientStops, presets[1].gradientStops);
+  assert.equal(presets[0].gradientStops[0].color, '#abcdef');
+  assert.equal(presets[0].gradientEmoji, '🌲');
+  assert.equal(gradients[0].name, 'Trail: colors; 🌲');
   await onReady();
   assert.equal(ids['apply-settings'].disabled, true, 'saved gradients and periods must reload unchanged');
+  assert.equal(select(0, 'color').value, 'custom-1');
+  assert.equal(select(1, 'color').value, 'custom-1');
   assert.equal(input(0, 1, 'opacity').value, '50');
-  assert.equal(input(1, 1, 'color').value, '#123456');
   select(1, 'period').value = 'weekly';
   await select(1, 'period').onchange();
   assert.equal(ids['apply-settings'].disabled, false);
   await ids['apply-settings'].onclick();
-  assert.equal(formatLayerPresets(presets),
-    'all:grayscale:weekly:#abcdef,1|#ffffff,0.5;all:grayscale:weekly:#ffffff,1|#123456,0.2');
+  assert.ok(presets.every((preset) => preset.period === 'weekly'));
   await onReady();
   assert.equal(ids['apply-settings'].disabled, true);
   assert.equal(input(0, 0, 'color').value, '#abcdef');
-  assert.equal(input(1, 1, 'color').value, '#123456');
+  const emptyName = customItem().querySelector('.gradient-name');
+  emptyName.value = ' ';
+  await emptyName.oninput();
+  assert.equal(ids['apply-settings'].disabled, true, 'unnamed gradients cannot be saved');
+  emptyName.value = 'Renamed';
+  await emptyName.oninput();
+  assert.equal(ids['apply-settings'].disabled, false);
+  await customItem().querySelector('.gradient-done').onclick();
+  assert.equal(customItem().querySelector('.gradient-label').textContent, '🌲 Renamed');
+  await ids['apply-settings'].onclick();
+  await ids['reset-settings'].onclick();
+  assert.equal(gradients.length, 1, 'resetting layers preserves custom palettes');
+  assert.equal(select(0, 'color').value, 'orange');
+  assert.equal(ids['apply-settings'].disabled, true);
+
+  await ids['add-gradient'].onclick();
+  await ids['apply-settings'].onclick();
+  assert.equal(gradients.length, 2, 'unused custom palettes are saved');
+  await onReady();
+  assert.equal(ids['apply-settings'].disabled, true);
 });

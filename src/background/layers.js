@@ -71,6 +71,12 @@ export function formatLayerPresets(layerPresets) {
 					)
 					.join('|');
 				fields.push(serializedStops);
+				if (layer.gradientId !== undefined) {
+					fields.push(`gradient=${encodeURIComponent(JSON.stringify({
+						gradientId: layer.gradientId,
+						gradientEmoji: layer.gradientEmoji,
+					}))}`);
+				}
 			}
 			return fields.join(':');
 		})
@@ -102,4 +108,64 @@ export function validateLayerPresets(layerPresets) {
 function isValidOpacity(value) {
 	const opacity = Number(value);
 	return Number.isFinite(opacity) && opacity >= 0 && opacity <= 1;
+}
+
+export function validateCustomGradients(gradients) {
+	return Array.isArray(gradients) &&
+		new Set(gradients.map((gradient) => gradient.id)).size === gradients.length &&
+		gradients.every((gradient) =>
+			typeof gradient.id === 'string' && gradient.id.length > 0 &&
+			typeof gradient.name === 'string' && gradient.name.trim().length > 0 &&
+			typeof gradient.emoji === 'string' && gradient.emoji.trim().length > 0 &&
+			validateLayerPresets([{
+				activity: 'all', color: 'grayscale', gradientStops: gradient.gradientStops,
+			}])
+		);
+}
+
+export function resolveGradientLayers(layers, gradients) {
+	return layers.map((layer) => {
+		if (layer.color !== 'grayscale' || layer.gradientId === undefined) return layer;
+		const gradient = gradients.find(({ id }) => id === layer.gradientId);
+		if (!gradient) throw new Error(`Unknown gradient: ${layer.gradientId}`);
+		return {
+			...layer,
+			gradientStops: normalizeGradientStops(gradient.gradientStops),
+			gradientEmoji: gradient.emoji,
+		};
+	});
+}
+
+export async function setGradientSettings(layers, gradients) {
+	if (!validateCustomGradients(gradients) || !validateLayerPresets(layers)) {
+		throw new Error('Invalid layer or gradient settings.');
+	}
+	await browser.storage.local.set({
+		layers: formatLayerPresets(resolveGradientLayers(layers, gradients)),
+		gradients,
+	});
+}
+
+export async function getGradientSettings() {
+	const stored = await browser.storage.local.get(['layers', 'gradients']);
+	const layers = typeof stored.layers === 'string' ? parseLayerPresets(stored.layers) : [];
+	const gradients = stored.gradients ?? [];
+	if (!validateCustomGradients(gradients)) throw new Error('Invalid saved gradients.');
+	let migrated = false;
+	for (const layer of layers) {
+		if (layer.color !== 'grayscale' || layer.gradientId !== undefined) continue;
+		const gradient = {
+			id: crypto.randomUUID(),
+			name: `Custom Gradient ${gradients.length + 1}`,
+			emoji: '⚫',
+			gradientStops: normalizeGradientStops(layer.gradientStops),
+		};
+		gradients.push(gradient);
+		layer.gradientId = gradient.id;
+		layer.gradientEmoji = gradient.emoji;
+		migrated = true;
+	}
+	const resolved = resolveGradientLayers(layers, gradients);
+	if (migrated) await setGradientSettings(resolved, gradients);
+	return { layers: resolved, gradients };
 }

@@ -29,12 +29,20 @@ Firefox requests consent to transmit Strava authentication information and map t
 
 1. Click the extension icon to sign into Strava and authorize heatmap access.
 2. Click the extension icon again to open the layer settings.
-3. In the extension's layer settings, choose **Global** (the default) or **Weekly (Premium)** for each layer.
+3. In the **Layers** tab, choose **Global** (the default) or **Weekly (Premium)** for each layer.
 4. Choose the sport and color, then click **Apply changes**.
 
 You can configure multiple layers for the same sport, including layers of the same heatmap type with different colors. Use the extension settings to manage the available layers.
 
-**Custom Gradient** works with both Global and Weekly layers. Edit, add, remove, and reorder color and opacity stops independently for each layer. Existing saved Global gradients are preserved.
+The **Gradients** tab shows every built-in palette with a 256-by-10-pixel preview,
+name, and emoji. Click **Add Gradient** to define a custom palette: enter its name
+and emoji, then edit, add, remove, and reorder color and opacity stops. **Done**
+returns to its preview; **Edit** reopens the controls. Choose the named palette
+from a layer's color dropdown and click **Apply changes** to save.
+
+Custom palettes work with both Global and Weekly layers. Editing a palette updates
+every layer using it. Existing saved per-layer gradients are preserved as separate
+custom palettes. Resetting layers to defaults leaves your custom palettes intact.
 
 ## Show heatmaps in CalTopo
 
