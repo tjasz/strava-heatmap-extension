@@ -1,6 +1,6 @@
 # Strava Heatmap extension
 
-This browser extension seamlessly integrates the [Strava Global Heatmap](https://www.strava.com/maps/global-heatmap) into popular mapping editors, including the OpenStreetMap [iD editor](https://www.openstreetmap.org/edit?editor=id), [GPX Studio](https://gpx.studio/app), [CalTopo](https://caltopo.com/), [Geotab](https://tjasz.github.io/geotab/), and [BRouter](https://brouter.de/brouter-web/), enhancing your mapping and route analysis capabilities. In iD and Caltopo, [Strava Slide](#strava-slide-id) snaps a roughly drawn line onto the heatmap trail.
+This browser extension seamlessly integrates the [Strava Global Heatmap](https://www.strava.com/maps/global-heatmap) into popular mapping editors, including the OpenStreetMap [iD editor](https://www.openstreetmap.org/edit?editor=id), [GPX Studio](https://gpx.studio/app), [CalTopo](https://caltopo.com/), [Geotab](https://tjasz.github.io/geotab/), and [BRouter](https://brouter.de/brouter-web/), enhancing your mapping and route analysis capabilities. In iD, [Strava Slide](#strava-slide-id) snaps a roughly drawn line onto the heatmap trail. In CalTopo, Slide suggests continuations along the heatmap trails.
 
 <img src="./images/screenshot1.png" width="48%"/>&nbsp;<img src="./images/screenshot2.png" width="48%"/>
 
@@ -60,6 +60,46 @@ The build works on Windows, macOS, and Linux without external shell or ZIP tools
 It creates Chrome and Firefox ZIP packages in `dist/` and an unpacked Chrome
 extension in `dist/<version>-chrome/`. In Chrome's extension manager, enable
 Developer mode and use **Load unpacked** to select that folder.
+
+To build only the CalTopo integration, run:
+
+```sh
+npm run build -- --caltopo-only
+```
+
+This creates `dist/<version>-caltopo-only-chrome.zip`,
+`dist/<version>-caltopo-only-firefox.zip`, and the unpacked Chrome extension in
+`dist/<version>-caltopo-only-chrome/`, without replacing the full builds.
+These packages omit the iD and GPX.studio integrations and their site permissions,
+but retain Strava authentication, settings, and the shared snapping modules needed
+by CalTopo.
+
+### Icon artwork
+
+The CalTopo fork's source icon is [icons/icon.svg](./icons/icon.svg): a flaming
+compass designed for 48 x 48 and 128 x 128 pixels, in color or grayscale.
+It is a self-contained SVG with a transparent background and no external fonts
+or images. After editing the SVG, regenerate all four PNG icons with:
+
+```sh
+npm run icons
+```
+
+This replaces `icons/icon-48.png`, `icons/icon-128.png`, and their
+`-grayscale.png` variants, preserving transparency. It uses Sharp on Windows,
+macOS, and Linux without external image tools. PNG generation is separate from
+`npm run build`; regenerate and commit the icons when the source artwork changes.
+
+### Store promotional image
+
+[images/promo-small.png](./images/promo-small.png) is the store's 440 x 280
+small promo tile: a 24-bit RGB PNG without alpha. It pairs the source icon with
+original illustrated contours and heatmap trails, not copied map imagery.
+
+Run `npm run promo` to regenerate the PNG and its self-contained
+[SVG](./images/promo-small.svg) from [scripts/promo.js](./scripts/promo.js)
+and the current source icon. The SVG is also suitable for editing in a vector
+editor; regeneration replaces both outputs.
 
 ### Instructions
 
@@ -127,7 +167,7 @@ To enable the Strava Heatmap in GPX.studio:
 2. Hover over the layers menu icon, then scroll to Overlays.
 3. Choose a Strava Heatmap overlay from the list.
 4. If you see the message "Click the Strava Heatmap extension icon to log into Strava…", click the red extension icon to authenticate.
-5. Once logged in, use the green extension icon to configure, reorder, or delete heatmap layers by activity and color. Grayscale layers support ordered color and opacity stops for custom gradients.
+5. Once logged in, use the green extension icon to configure, reorder, or delete heatmap layers by activity and color. Custom gradient layers support ordered color and opacity stops.
 
 ### CalTopo
 
@@ -223,14 +263,14 @@ To enable the Strava Heatmap in Geotab:
 
 1. Open https://tjasz.github.io/geotab/.
 2. Open the Leaflet layers control and select a configured Strava Heatmap overlay.
-3. Use the extension icon to log into Strava and configure the available heatmap layers. Grayscale layers support ordered color and opacity stops for custom gradients.
+3. Use the extension icon to log into Strava and configure the available heatmap layers. Custom gradient layers support ordered color and opacity stops.
 
 ### BRouter
 
 1. Open https://brouter.de/brouter-web/.
 2. Open the Layers sidebar and select a configured Strava Heatmap overlay.
 3. Use BRouter's overlay transparency slider to adjust opacity.
-4. Use the extension icon to log into Strava and configure layers. Grayscale layers support ordered color and opacity stops for custom gradients.
+4. Use the extension icon to log into Strava and configure layers. Custom gradient layers support ordered color and opacity stops.
 
 ### Troubleshooting
 
@@ -254,7 +294,7 @@ displayed map zoom may differ if it uses a tile zoom offset. CalTopo uses
 
 ### Feature and Bug Requests
 
-Submit issues and feature requests in the [Issues](https://github.com/julcnx/strava-heatmap-extension/issues) section above.
+Submit issues and feature requests in the [Issues](https://github.com/tjasz/strava-heatmap-extension/issues) section above.
 
 ## Extension Background
 
