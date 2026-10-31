@@ -111,6 +111,7 @@ function fixture(renderer, saved, initialPresets = presets) {
       constructor(callback) { observe = callback; }
       observe() {}
     },
+    installGradientTileRecoloring() {},
     injectHeatmapColorFilters() {},
     setupAuthStatusChangeListener: (callback) => { authChanged = callback; },
     setupLayerPresetsChangeListener: (callback) => { presetsChanged = callback; },

@@ -52,6 +52,8 @@ for (const [renderer, page] of ['leaflet', 'google'].flatMap((renderer) => [
       },
     };
     const window = {
+      // Tile recoloring is outside these overlay and palette tests.
+      __stravaGradientTileRecoloringInstalled: true,
       location,
       map: { map: { map } },
       addEventListener: (name, callback) => listeners.push(callback),
