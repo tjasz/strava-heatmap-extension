@@ -1,13 +1,6 @@
 import { showNotification } from './notifications.js';
 
-const REQUIRED_ORIGINS = [
-  '*://www.strava.com/*',
-  '*://content-a.strava.com/*',
-  '*://gpx.studio/*',
-  '*://www.openstreetmap.org/*',
-  '*://tjasz.github.io/*',
-  '*://brouter.de/*',
-];
+const REQUIRED_ORIGINS = browser.runtime.getManifest().host_permissions;
 
 export async function checkPermissions(showSuccess = false) {
   console.log('[StravaHeatmapExt] Checking permissions...', {
