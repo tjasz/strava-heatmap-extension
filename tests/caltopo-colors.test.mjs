@@ -223,7 +223,7 @@ test('both clients load shared palette CSS and expose its extension resources', 
     ['www.openstreetmap.org', ['*://www.openstreetmap.org/*']],
   ]) {
     const clientCSS = await readFile(new URL(`../src/clients/${client}/index.css`, import.meta.url), 'utf8');
-    assert.ok(clientCSS.startsWith("@import url('../common/colors.css');"));
+    assert.ok(clientCSS.startsWith("@import '../common/colors.css';"));
     for (const host of hosts) {
       const resources = manifest.web_accessible_resources
         .filter(({ matches }) => matches.includes(host))
