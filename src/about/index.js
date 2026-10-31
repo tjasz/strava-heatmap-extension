@@ -40,7 +40,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Update version-dependent links
   const readmeLink = document.querySelector('a[href*="#readme"]');
   if (readmeLink) {
-    readmeLink.href = `https://github.com/tjasz/strava-heatmap-extension/blob/v${version}/README.md`;
+    const guide = readmeLink.dataset.guide || 'README.md';
+    readmeLink.href = `https://github.com/tjasz/strava-heatmap-extension/blob/v${version}/${guide}`;
   }
 
   const changelogLink = document.querySelector('a[href*="#changelog"]');

@@ -67,7 +67,8 @@ function createZip(zipFileName, manifest) {
       .replace(/<a\b([^>]*)>[\s\S]*?<\/a>/g, (link, attributes) => {
         const id = attributes.match(/(?:^|\s)id=["'](try-[^"']+)["']/);
         return id && id[1] !== 'try-caltopo' ? '' : link;
-      });
+      })
+      .replace('href="#readme"', 'href="#readme" data-guide="doc/userguides/caltopo.md"');
     zip.updateFile(aboutFile, Buffer.from(aboutHtml));
     for (const file of files) {
       zip.addLocalFile(path.join(process.cwd(), file), path.posix.dirname(file));

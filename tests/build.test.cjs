@@ -5,7 +5,40 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const { pathToFileURL } = require('node:url');
+const vm = require('node:vm');
 const AdmZip = require('adm-zip');
+
+function assertAboutHelpLink(zip, version, guide) {
+  const html = zip.readAsText('src/about/index.html');
+  const helpTag = html.match(/<a\b[^>]*href="#readme"[^>]*>/);
+  assert.ok(helpTag, 'about page has a help link');
+  const dataGuide = helpTag[0].match(/\bdata-guide="([^"]+)"/);
+  const helpLink = { dataset: dataGuide ? { guide: dataGuide[1] } : {} };
+  const changelogLink = {};
+  const source = zip.readAsText('src/about/index.js')
+    .replace("import { getExtensionName } from '../extension.js';", '');
+  vm.runInNewContext(source, {
+    getExtensionName: () => 'Strava Heatmap',
+    browser: { runtime: { getManifest: () => ({ version }) } },
+    navigator: { userAgent: 'Firefox' },
+    window: { location: { search: '' } },
+    URLSearchParams,
+    document: {
+      addEventListener: (event, callback) => {
+        assert.equal(event, 'DOMContentLoaded');
+        callback();
+      },
+      getElementById: () => ({}),
+      querySelector: (selector) => {
+        if (selector === 'a[href*="#readme"]') return helpLink;
+        if (selector === 'a[href*="#changelog"]') return changelogLink;
+        return null;
+      },
+    },
+  });
+  assert.equal(helpLink.href, `https://github.com/tjasz/strava-heatmap-extension/blob/v${version}/${guide}`);
+  assert.equal(changelogLink.href, `https://github.com/tjasz/strava-heatmap-extension/blob/v${version}/CHANGELOG.md`);
+}
 
 test('builds both packages and replaces unpacked output without shell tools', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'heatmap build '));
@@ -33,6 +66,7 @@ test('builds both packages and replaces unpacked output without shell tools', (t
     'src/background/index.js': Buffer.from('/* background */'),
     'src/clients/common/colors.css': Buffer.from('/* palette filters */'),
     'src/about/index.html': fs.readFileSync(path.resolve(__dirname, '..', 'src', 'about', 'index.html')),
+    'src/about/index.js': fs.readFileSync(path.resolve(__dirname, '..', 'src', 'about', 'index.js')),
   };
   for (const [file, contents] of Object.entries(files)) {
     const destination = path.join(root, file);
@@ -51,6 +85,7 @@ test('builds both packages and replaces unpacked output without shell tools', (t
   const chromeManifest = { ...manifest, name: 'Strava Heatmap' };
   for (const browser of ['chrome', 'firefox']) {
     const zip = new AdmZip(path.join(dist, `0.14.0-${browser}.zip`));
+    assertAboutHelpLink(zip, manifest.version, 'README.md');
     const expectedManifest = browser === 'chrome' ? chromeManifest : {
       ...chromeManifest,
       background: firefox.background,
@@ -102,7 +137,8 @@ test('CalTopo-only packages retain their dependencies without other client integ
   const excludedLinks = [...originalAbout.matchAll(/<a\s+id="(try-[^"]+)"[\s\S]*?<\/a>/g)]
     .filter(([, id]) => id !== 'try-caltopo');
   assert.ok(excludedLinks.length > 0);
-  const expectedAbout = excludedLinks.reduce((html, [link]) => html.replace(link, ''), originalAbout);
+  const expectedAbout = excludedLinks.reduce((html, [link]) => html.replace(link, ''), originalAbout)
+    .replace('href="#readme"', 'href="#readme" data-guide="doc/userguides/caltopo.md"');
   const manifest = JSON.parse(original);
   const version = manifest.version;
   const dist = path.join(root, 'dist');
@@ -130,6 +166,7 @@ test('CalTopo-only packages retain their dependencies without other client integ
   let chromeManifest;
   for (const browser of ['chrome', 'firefox']) {
     const zip = new AdmZip(path.join(dist, `${version}-caltopo-only-${browser}.zip`));
+    assertAboutHelpLink(zip, version, 'doc/userguides/caltopo.md');
     const built = JSON.parse(zip.readAsText('manifest.json'));
     assert.equal(built.name, manifest.name.replace(/\s*\[DEV\]\s*$/, '').trim());
     assert.equal(built.description, 'Overlay Strava Global Heatmap in CalTopo to reveal popular routes and patterns.');

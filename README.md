@@ -71,8 +71,9 @@ This creates `dist/<version>-caltopo-only-chrome.zip`,
 `dist/<version>-caltopo-only-firefox.zip`, and the unpacked Chrome extension in
 `dist/<version>-caltopo-only-chrome/`, without replacing the full builds.
 These packages omit the other client integrations, their site permissions, and
-their "Try with" links on the about page,
-but retain Strava authentication, settings, and the shared snapping modules needed
+their "Try with" links on the about page. The about page's **Help & Instructions**
+link opens the [CalTopo user guide](./doc/userguides/caltopo.md) instead of this README.
+They retain Strava authentication, settings, and the shared snapping modules needed
 by CalTopo.
 
 ### Icon artwork
