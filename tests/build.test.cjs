@@ -28,7 +28,8 @@ function assertAboutHelpLink(zip, version, guide) {
         assert.equal(event, 'DOMContentLoaded');
         callback();
       },
-      getElementById: () => ({}),
+      createElement: () => ({}),
+      getElementById: () => ({ appendChild() {} }),
       querySelector: (selector) => {
         if (selector === 'a[href*="#readme"]') return helpLink;
         if (selector === 'a[href*="#changelog"]') return changelogLink;

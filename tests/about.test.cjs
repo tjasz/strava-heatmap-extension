@@ -11,6 +11,7 @@ const source = fs.readFileSync(
 function createElement(tagName) {
   return {
     tagName,
+    dataset: {},
     textContent: '',
     children: [],
     appendChild(child) { this.children.push(child); },
@@ -66,6 +67,6 @@ for (const [reason, expected] of [
     assert.equal(links['a[href*="#changelog"]'].href,
       `https://github.com/tjasz/strava-heatmap-extension/blob/v${version}/CHANGELOG.md`);
     assert.equal(links['.actions a[href="#rate"]'].href,
-      'https://addons.mozilla.org/en-US/firefox/addon/strava-heatmap/reviews/');
+      'https://addons.mozilla.org/en-US/firefox/addon/strava-heatmap-for-caltopo/reviews/');
   });
 }
