@@ -97,7 +97,10 @@ for (const [renderer, page] of ['leaflet', 'google'].flatMap((renderer) => [
     await import(`../src/clients/caltopo.com/index.js?colors=${renderer}&page=${encodeURIComponent(page)}`);
     if (printing) {
       assert.equal(window.__stravaHeatmapCalTopoOverlay, undefined);
-      assert.equal(body.children.length, 0);
+      // Palette filters are injected before the print-page guard skips overlays and controls.
+      assert.equal(body.children.length, 1);
+      assert.equal(body.children[0].tagName, 'svg');
+      assert.equal(body.children[0].id, 'strava-heatmap-filters');
       assert.equal(ribbonQueries, 0, 'print previews must not register Route Discovery controls');
       assert.equal(listeners.length, 0);
       assert.equal(timers.length, 0, 'print previews must not start map integration retries');
