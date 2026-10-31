@@ -4,7 +4,7 @@
 
 ### Unreleased
 
-- [CalTopo, Geotab, BRouter] Add support for additional clients.
+- [Geotab, BRouter] Add support for additional clients.
 - [BRouter] Add Slide drawing mode below straight-line mode, toggled with S. Follow the selected heatmap between clicked points, keeping straight segments when no trail is available.
 - Add custom gradient option.
 - [gpx.studio] Render the exact preset palettes for global and weekly heatmaps instead of legacy color approximations.
@@ -15,6 +15,7 @@
 - [CalTopo] Do not show the heatmap in the print preview, since it will not appear in printed output.
 - [CalTopo] Allow multiple layers to be selected at once. Snap suggestions follow the most recently enabled or modififed layer.
 - Add support for Weekly heatmap for Strava Premium subscribers.
+- Support custom gradients.
 
 ### `0.15.0.1` (2026-10-29)
 
