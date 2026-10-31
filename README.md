@@ -120,7 +120,8 @@ and **Gradients** for palettes. The built-in palettes always appear with a
 256-by-10-pixel preview, name, and emoji.
 
 In **Gradients**, click **Add Gradient** to create a custom palette with a name
-and emoji. Edit, add, remove, and reorder its color and opacity stops, then click
+and emoji. Its preview remains visible while editing and updates when stops change.
+Edit, add, remove, and reorder its color and opacity stops, then click
 **Done** to return to its preview. Use **Edit** to change it again. Select the
 named palette from a layer's color dropdown, then click **Apply changes** to save.
 Custom palettes work with both Global and Weekly layers; editing a palette updates

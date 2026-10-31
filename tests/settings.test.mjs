@@ -182,7 +182,8 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
 
   await ids['add-gradient'].onclick();
   const customItem = (index = 0) => gradientList.children[Object.keys(PALETTES).length + index];
-  assert.equal(customItem().querySelector('canvas'), undefined);
+  assert.equal(customItem().querySelector('canvas').width, 256);
+  assert.equal(customItem().querySelector('canvas').height, 10);
   const name = customItem().querySelector('.gradient-name');
   name.value = 'Trail: colors; 🌲';
   await name.oninput();
@@ -197,10 +198,14 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
   assert.equal(stops(0)[0].querySelector('.gradient-stop-remove').disabled, true);
   input(0, 0, 'color').value = '#123456';
   await input(0, 0, 'color').onchange();
+  assert.deepEqual([...customItem().querySelector('canvas').image.data.slice(0, 4)],
+    [18, 52, 86, 255]);
   input(0, 0, 'opacity').value = '20';
   input(0, 0, 'opacity').oninput();
   assert.equal(stops(0)[0].querySelector('output').value, '20%');
   await input(0, 0, 'opacity').onchange();
+  assert.deepEqual([...customItem().querySelector('canvas').image.data.slice(0, 4)],
+    [18, 52, 86, 51]);
   await stops(0)[0].querySelector('.gradient-stop-add').onclick();
   assert.equal(stops(0).length, 3);
   assert.equal(input(0, 1, 'color').value, '#899aab');
@@ -209,6 +214,8 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
   controls.children.reverse();
   await gradientSorting.get(controls).onEnd();
   assert.equal(input(0, 0, 'color').value, '#ffffff');
+  assert.deepEqual([...customItem().querySelector('canvas').image.data.slice(0, 4)],
+    [255, 255, 255, 255]);
   await stops(0)[1].querySelector('.gradient-stop-remove').onclick();
   assert.equal(stops(0).length, 2);
 
@@ -228,6 +235,8 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
   select(1, 'color').value = 'custom-1';
   await select(1, 'color').onchange();
   await customItem().querySelector('.gradient-edit').onclick();
+  assert.equal(customItem().querySelector('canvas').width, 256);
+  assert.equal(customItem().querySelector('canvas').height, 10);
   input(0, 0, 'color').value = '#abcdef';
   await input(0, 0, 'color').onchange();
   input(0, 1, 'opacity').value = '50';

@@ -36,7 +36,8 @@ You can configure multiple layers for the same sport, including layers of the sa
 
 The **Gradients** tab shows every built-in palette with a 256-by-10-pixel preview,
 name, and emoji. Click **Add Gradient** to define a custom palette: enter its name
-and emoji, then edit, add, remove, and reorder color and opacity stops. **Done**
+and emoji, then edit, add, remove, and reorder color and opacity stops. The preview
+remains visible while editing and updates when stops change. **Done**
 returns to its preview; **Edit** reopens the controls. Choose the named palette
 from a layer's color dropdown and click **Apply changes** to save.
 

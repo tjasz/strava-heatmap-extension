@@ -387,6 +387,7 @@ function renderGradients() {
         fields.appendChild(field);
       }
       item.appendChild(fields);
+      item.appendChild(createGradientPreview(gradient));
       item.appendChild(createGradientControls(gradient, async (update) => {
         readGradientEditor(item, gradient);
         if (typeof update === 'function') update(gradient);
