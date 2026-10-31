@@ -62,6 +62,13 @@ function createZip(zipFileName, manifest) {
     for (const folder of folders) {
       zip.addLocalFolder(path.join(process.cwd(), folder), folder);
     }
+    const aboutFile = 'src/about/index.html';
+    const aboutHtml = fs.readFileSync(path.join(process.cwd(), aboutFile), 'utf-8')
+      .replace(/<a\b([^>]*)>[\s\S]*?<\/a>/g, (link, attributes) => {
+        const id = attributes.match(/(?:^|\s)id=["'](try-[^"']+)["']/);
+        return id && id[1] !== 'try-caltopo' ? '' : link;
+      });
+    zip.updateFile(aboutFile, Buffer.from(aboutHtml));
     for (const file of files) {
       zip.addLocalFile(path.join(process.cwd(), file), path.posix.dirname(file));
     }

@@ -32,6 +32,7 @@ test('builds both packages and replaces unpacked output without shell tools', (t
     'lib/library.js': Buffer.from('/* library */'),
     'src/background/index.js': Buffer.from('/* background */'),
     'src/clients/common/colors.css': Buffer.from('/* palette filters */'),
+    'src/about/index.html': fs.readFileSync(path.resolve(__dirname, '..', 'src', 'about', 'index.html')),
   };
   for (const [file, contents] of Object.entries(files)) {
     const destination = path.join(root, file);
@@ -96,6 +97,12 @@ test('CalTopo-only packages retain their dependencies without other client integ
     fs.cpSync(path.join(repository, entry), path.join(root, entry), { recursive: true });
   }
   const original = fs.readFileSync(path.join(root, 'manifest.json'), 'utf8');
+  const aboutFile = path.join(root, 'src', 'about', 'index.html');
+  const originalAbout = fs.readFileSync(aboutFile, 'utf8');
+  const excludedLinks = [...originalAbout.matchAll(/<a\s+id="(try-[^"]+)"[\s\S]*?<\/a>/g)]
+    .filter(([, id]) => id !== 'try-caltopo');
+  assert.ok(excludedLinks.length > 0);
+  const expectedAbout = excludedLinks.reduce((html, [link]) => html.replace(link, ''), originalAbout);
   const manifest = JSON.parse(original);
   const version = manifest.version;
   const dist = path.join(root, 'dist');
@@ -116,7 +123,7 @@ test('CalTopo-only packages retain their dependencies without other client integ
     'src/clients/caltopo.com/snap.js',
     'src/clients/caltopo.com/snap-network.js',
     'src/clients/caltopo.com/map-sheet.js',
-    ...['auth.js', 'colors.js', 'colors.css', 'layers.js', 'palettes.js']
+    ...['auth.js', 'colors.js', 'colors.css', 'gradient-tiles.js', 'layers.js', 'palettes.js']
       .map((file) => `src/clients/common/${file}`),
     ...sharedSlideFiles,
   ];
@@ -131,7 +138,7 @@ test('CalTopo-only packages retain their dependencies without other client integ
       '*://caltopo.com/*', '*://www.caltopo.com/*',
     ]);
     assert.deepEqual(built.content_scripts, manifest.content_scripts.filter(
-      (entry) => !entry.matches.some((match) => /openstreetmap|gpx\.studio/.test(match))
+      (entry) => !entry.matches.some((match) => /openstreetmap|gpx\.studio|tjasz\.github\.io|brouter\.de/.test(match))
     ));
     assert.deepEqual(built.web_accessible_resources, manifest.web_accessible_resources
       .filter((entry) => entry.matches.includes('*://caltopo.com/*'))
@@ -151,12 +158,18 @@ test('CalTopo-only packages retain their dependencies without other client integ
     }
     const entries = zip.getEntries().filter((entry) => !entry.isDirectory);
     const names = entries.map((entry) => entry.entryName);
+    assert.equal(zip.readAsText('src/about/index.html'), expectedAbout);
+    assert.deepEqual(
+      [...zip.readAsText('src/about/index.html').matchAll(/\bid="(try-[^"]+)"/g)]
+        .map(([, id]) => id),
+      ['try-caltopo']
+    );
     assert.deepEqual(names.filter((file) => file.startsWith('src/clients/')).sort(), clientFiles.sort());
     assert.equal(names.includes('icons/slide.svg'), false);
     for (const file of [
       ...clientFiles,
       'src/background/index.js', 'src/background/permissions.js', 'src/extension.js',
-      'src/about/index.html', 'src/about/index.js', 'src/about/index.css',
+      'src/about/index.js', 'src/about/index.css',
       'src/popups/settings.html', 'src/popups/settings.js', 'src/popups/settings.css',
       'lib/browser-polyfill.min.js', 'lib/sortablejs@1.15.0.esm.min.js',
       'icons/icon-48.png', 'icons/icon-48-grayscale.png',
@@ -178,6 +191,8 @@ test('CalTopo-only packages retain their dependencies without other client integ
   }
   const unpacked = path.join(dist, `${version}-caltopo-only-chrome`);
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(unpacked, 'manifest.json'), 'utf8')), chromeManifest);
+  assert.equal(fs.readFileSync(path.join(unpacked, 'src', 'about', 'index.html'), 'utf8'), expectedAbout);
+  assert.equal(fs.readFileSync(aboutFile, 'utf8'), originalAbout);
   fs.writeFileSync(path.join(unpacked, 'stale.js'), 'stale');
   build();
   assert.equal(fs.existsSync(path.join(unpacked, 'stale.js')), false);

@@ -70,7 +70,8 @@ npm run build -- --caltopo-only
 This creates `dist/<version>-caltopo-only-chrome.zip`,
 `dist/<version>-caltopo-only-firefox.zip`, and the unpacked Chrome extension in
 `dist/<version>-caltopo-only-chrome/`, without replacing the full builds.
-These packages omit the iD and GPX.studio integrations and their site permissions,
+These packages omit the other client integrations, their site permissions, and
+their "Try with" links on the about page,
 but retain Strava authentication, settings, and the shared snapping modules needed
 by CalTopo.
 
