@@ -172,6 +172,8 @@ To enable the Strava Heatmap in GPX.studio:
 
 ### CalTopo
 
+For a standalone guide covering installation, layers, snapping, and map sheets, see the [CalTopo user guide](./doc/userguides/caltopo.md).
+
 To enable the Strava Heatmap in CalTopo:
 
 1. Open a map at https://caltopo.com/.
