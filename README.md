@@ -292,7 +292,9 @@ heatmap between your clicked points; the endpoints stay fixed. With several
 overlays enabled, Slide follows the most recently enabled overlay.
 If there is no usable trail, the segment stays straight. Tile, login, and
 area-limit errors are shown beside the map controls and also leave the segment
-straight. Press **B** to switch to ordinary straight-line drawing.
+straight. Slide and straight-line mode are mutually exclusive: turning one on
+turns the other off, and toggling the active mode off restores normal routing.
+Press **B** to switch to ordinary straight-line drawing.
 Download the route with BRouter's normal **Export** to retain the slid geometry;
 permalinks and the deprecated server export retain only the clicked points
 and straight-line flags, not the Slide geometry.

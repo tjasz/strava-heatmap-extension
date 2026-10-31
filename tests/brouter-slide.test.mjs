@@ -29,9 +29,15 @@ function fixture(t, fit) {
   const listeners = {};
   const mapListeners = {};
   const map = {
-    on: (names, fn) => { for (const name of names.split(' ')) mapListeners[name] = fn; },
+    on: (names, fn) => {
+      for (const name of names.split(' ')) (mapListeners[name] ??= []).push(fn);
+    },
+    fire: (name) => { for (const fn of mapListeners[name] ?? []) fn(); },
     off() {},
   };
+  map.on('routing:beeline-start', () => { straight.active = true; });
+  map.on('routing:beeline-end', () => { straight.active = false; });
+  straight.active = false;
   const markers = new Set();
   const routing = {
     _waypoints: { hasLayer: (marker) => markers.has(marker) },
@@ -40,7 +46,12 @@ function fixture(t, fit) {
     getLast: () => [...markers].at(-1),
     getWaypoints: () => [...markers].map((marker) => marker.getLatLng()),
     _distance: (a, b) => Math.hypot(a.lng - b.lng, a.lat - b.lat),
-    toggleBeelineDrawing() { return this._draw._beelineMode = !this._draw._beelineMode; },
+    toggleBeelineDrawing() {
+      if (!this.isDrawing()) return this._draw._beelineMode;
+      this._draw._beelineMode = !this._draw._beelineMode;
+      map.fire(this._draw._beelineMode ? 'routing:beeline-start' : 'routing:beeline-end');
+      return this._draw._beelineMode;
+    },
     nativeCalls: 0,
     _routeSegment(a, b, cb) { this.nativeCalls++; cb(); },
     _updateLayer(a, b, line) { a._routing.nextLine = line; },
@@ -118,10 +129,10 @@ function fixture(t, fit) {
   let selectedLayer = layer;
   const integration = installBrouterSlide(routing, map, () => selectedLayer, fit);
   return {
-    routing, button, markers, integration,
+    routing, button, straight, markers, integration,
     setDrawing: (drawing) => {
       routing._draw._enabled = drawing;
-      mapListeners[drawing ? 'routing:draw-start' : 'routing:draw-end']();
+      map.fire(drawing ? 'routing:draw-start' : 'routing:draw-end');
     },
     selectLayer: (value) => { selectedLayer = value; integration.invalidate(); },
     key: (extra = {}) => listeners.keydown({ key: 's', preventDefault() {}, ...extra }),
@@ -143,6 +154,30 @@ test('Slide hides like straight-line mode when drawing stops and returns when it
   assert.equal(f.button.attributes['aria-pressed'], 'true', 'resuming editing preserves Slide mode');
   const css = readFileSync(new URL('../src/clients/brouter.de/index.css', import.meta.url), 'utf8');
   assert.match(css, /button\.slide-active\.disabled\s*\{\s*height:\s*0;\s*border-bottom-width:\s*0;\s*\}/);
+});
+
+test('straight and Slide buttons and shortcuts allow only off, straight, or Slide', (t) => {
+  const f = fixture(t);
+  const check = (mode) => {
+    assert.equal(f.straight.active, mode === 'straight');
+    assert.equal(f.button.attributes['aria-pressed'], String(mode === 'slide'));
+    assert.equal(f.routing._draw._beelineMode, mode !== 'off');
+  };
+  check('off');
+  f.key(); check('slide');
+  f.key(); check('off');
+  f.routing.toggleBeelineDrawing(); check('straight');
+  f.routing.toggleBeelineDrawing(); check('off');
+  f.routing.toggleBeelineDrawing(); check('straight');
+  f.button.click(); check('slide');
+  assert.equal(f.routing.toggleBeelineDrawing(), true); check('straight');
+  f.key(); check('slide');
+  f.button.click(); check('off');
+  f.button.click(); check('slide');
+  f.setDrawing(false);
+  assert.equal(f.routing.toggleBeelineDrawing(), false);
+  check('slide');
+  f.setDrawing(true); check('slide');
 });
 
 test('S toggles Slide; native straight-line and routed modes remain independent', async (t) => {

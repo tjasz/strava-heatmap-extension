@@ -61,18 +61,25 @@ export function installBrouterSlide(routing, map, getLayer, fit = slideSegment) 
     if (!routing.isDrawing()) return;
     enabled = !enabled;
     if (routing._draw._beelineMode !== enabled) toggleBeeline.call(routing);
+    // Slide needs native beelines internally, but must not activate their UI.
+    if (enabled) map.fire('routing:beeline-end');
     syncButton();
     showStatus(enabled ? 'Slide mode: click the next point to follow the selected heatmap.' : '');
   };
   map.on('routing:draw-start routing:draw-end', syncButton);
   syncButton();
   routing.toggleBeelineDrawing = function (...args) {
+    if (!this.isDrawing()) return this._draw._beelineMode && !enabled;
     // B, or the native straight-line button, switches out of Slide.
     const wasSlide = enabled;
     enabled = false;
     syncButton();
     showStatus('');
-    return wasSlide ? this._draw._beelineMode : toggleBeeline.apply(this, args);
+    if (wasSlide) {
+      map.fire('routing:beeline-start');
+      return true;
+    }
+    return toggleBeeline.apply(this, args);
   };
   const keydown = (event) => {
     if ((event.key?.toLowerCase() !== 's' && event.keyCode !== 83) ||
