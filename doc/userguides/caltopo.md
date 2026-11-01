@@ -1,8 +1,21 @@
 # Strava Heatmap for CalTopo
 
-This guide covers using the Strava Heatmap extension in [CalTopo](https://caltopo.com/) to display heatmap layers and draw along heatmap paths.
+The Strava Heatmap for Caltopo extension allows displaying Strava heeatmap layers on [CalTopo](https://caltopo.com/) maps in the web browser and drawing lines based on heatmap paths.
+
+This guide covers using the Strava Heatmap extension in CalTopo.
 
 ![Strava Heatmap in CalTopo](../../images/screenshot1.png)
+
+### Features
+
+- Display Strava heatmap layers on CalTopo maps in the web browser.
+- Draw lines based on heatmap paths.
+
+### Limitations
+
+- Requires (free) Strava account.
+- Cannot display heatmap layers in CalTopo's mobile app.
+- Cannot download heatmap tiles for offline use.
 
 ## Requirements
 
@@ -32,30 +45,9 @@ Other Chromium-based browsers, such as Brave and Opera, have not been tested.
 
 Firefox requests consent to transmit Strava authentication information and map tile coordinates for heatmap access. See the [privacy policy](../../PRIVACY.md).
 
-## Sign in and configure heatmap layers
+## Sign in to Strava
 
-1. Click the extension icon to sign into Strava and authorize heatmap access.
-2. Click the extension icon again to open the layer settings.
-3. In the **Layers** tab, choose **Global** (the default) or **Weekly (Premium)** for each layer.
-4. Choose the sport and color, then click **Apply changes**.
-
-You can configure multiple layers for the same sport, including layers of the same heatmap type with different colors. Use the extension settings to manage the available layers.
-
-![Strava Heatmap in CalTopo](../../images/screenshot3.png)
-
-The **Gradients** tab shows every built-in palette with a 256-by-10-pixel preview,
-name, and emoji. Click **Add Gradient** to define a custom palette: enter its name
-and emoji, then edit, add, remove, and reorder color and opacity stops. The preview
-remains visible while editing and updates when stops change. **Done**
-returns to its preview; **Edit** reopens the controls. Choose the named palette
-from a layer's color dropdown and click **Apply changes** to save.
-You may have to refresh open CalTopo tabs to get the updated configuration.
-
-![Strava Heatmap in CalTopo](../../images/screenshot4.png)
-
-Custom palettes work with both Global and Weekly layers. Editing a palette updates
-every layer using it. Existing saved per-layer gradients are preserved as separate
-custom palettes. Resetting layers to defaults leaves your custom palettes intact.
+Click the extension icon (either next to or within the browser's puzzle piece icon by the address bar) to sign into Strava and authorize heatmap access.
 
 ## Show heatmaps in CalTopo
 
@@ -63,21 +55,23 @@ custom palettes. Resetting layers to defaults leaves your custom palettes intact
 2. In the **Map Layers** panel to the right of the map, find **Route Discovery**. Each configured Strava heatmap has its own button.
 3. Toggle any combination of layers. Each enabled layer expands to show its own opacity slider.
 
-Each layer's visibility and opacity are saved separately. Most recently enabled layers appear on top. To bring a layer to the top, turn it off and on again; adjusting opacity does not change its stacking order. The stacking order is saved with the layer settings.
+Each layer's visibility and opacity are saved separately. The most recently enabled layers appear on top. To bring a layer to the top, turn it off and on again; adjusting opacity does not change its stacking order.
 
-![Strava Heatmap in CalTopo](../../images/screenshot5.png)
+![Multiple Strava Heatmaps in CalTopo](../../images/screenshot5.png)
 
-The live overlay does **not** appear in CalTopo's print preview: PDFs are rendered server-side and cannot include it.
+The live overlay does **not** appear in CalTopo's print preview. PDFs are rendered server-side and cannot include it, so it would be misleading to show it in the print preview.
 
 ## Snap drawing segments to Strava
 
+The extension adds a "Strava" option to the line and polygon tools' **Snap To** dropdown. Selecting it enables route suggestions that follow paths on the topmost enabled Strava heatmap layer.
+
 Strava snapping suggests continuations along heatmap trails as you draw. These suggestions come from heatmap imagery, not mapped trail data, so always review them before saving, especially at forks.
 
-![Strava Heatmap in CalTopo](../../images/screenshot2.png)
+![Snapping to Strava Heatmap in CalTopo](../../images/screenshot2.png)
 
 1. Sign into Strava using the extension and select the activity layer in the Strava heatmap controls.
 2. Choose **Add > Line**, **Polygon**, or **Buffer** (and enter its radius), then choose **Strava** in the map's **Snap To** dropdown. The measure tool also supports Strava snapping.
-3. Zoom to **z=15 or higher**, then click anywhere to begin. Your clicked starting point remains exact.
+3. Zoom to **Z15 or higher**, then click anywhere to begin. Your clicked starting point remains exact.
 4. Suggested paths appear in semitransparent yellow. Hover over an option to make it wider and brighter and preview the path up to your cursor. Click to confirm that draft.
 5. Every confirmed point generates fresh suggestions. Click away from highlighted options to add a straight segment, just as with CalTopo's other snap sources.
 6. Use CalTopo's normal **Undo** or **Esc** to remove a segment. Double-click to finish, and save normally.
@@ -97,6 +91,37 @@ Snapping uses the topmost enabled Strava layer: the one you most recently enable
 
 If suggestions cannot cross a gap, click off the options to draw a straight segment, or choose **OSM** for mapped-trail routing. Missing tiles or expired login show an error beside **Snap To** without preventing straight drawing. Check your sign-in and zoom level when suggestions are unavailable.
 
+## Configure Heatmap Layers
+
+1. Click the extension icon again to open the layer settings.
+2. In the **Layers** tab, choose **Global** (the default) or **Weekly (Premium)** for each layer.
+3. Choose the sport and color, then click **Apply changes**.
+
+You can configure multiple layers for the same sport, including layers of the same heatmap type with different colors. Use the extension settings to manage the available layers.
+
+![Configuring Strava Heatmap Layers](../../images/screenshot3.png)
+
+## Configuring Custom Gradients
+
+The **Gradients** tab shows every built-in palette with a 256-by-10-pixel preview,
+name, and emoji.
+
+![Viewing Gradients](../../images/screenshot4.png)
+
+Click **Add Gradient** to define a custom palette: enter its name
+and emoji, then edit, add, remove, and reorder color and opacity stops. The preview
+remains visible while editing and updates when stops change. **Done**
+returns to its preview; **Edit** reopens the controls. Choose the named palette
+from a layer's color dropdown and click **Apply changes** to save.
+You may have to refresh open CalTopo tabs to get the updated configuration.
+
+![Configuring Custom a Gradient](../../images/screenshot-custom-gradient.png)
+
+Stops are evenly spaced. Defining two stops defines a continuous gradient between 0% and 100% heat. Defining three stops defines two gradients: one from 0% to 50% and another from 50% to 100%. Additional stops divide the heat range further.
+
+Custom palettes work with both Global and Weekly layers. Editing a palette updates
+every layer using it. Resetting layers to defaults leaves your custom palettes intact.
+
 ## Troubleshooting
 
 ### The extension asks me to sign into Strava
@@ -110,7 +135,7 @@ Strava's tile service has known low-zoom issues:
 - **Zoom 0:** Strava returns a fully black image with no heatmap data. The effective minimum tile zoom is **1**.
 - **Zoom 1:** Strava returns incomplete global coverage. Parts of Norway, South Africa, and the Pacific show heat, while North America and most of Europe do not.
 
-These are upstream Strava issues, not CalTopo rendering problems. Zoom in further to view local heatmap data. CalTopo's map and Strava tile zoom levels match because CalTopo uses 256-pixel display tiles with no zoom offset.
+These are upstream Strava issues, not CalTopo rendering problems. Zoom in further to view local heatmap data.
 
 ### The heatmap is missing from print preview
 
