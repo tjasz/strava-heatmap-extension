@@ -213,9 +213,14 @@ function canvasFixture(t) {
   let canvasCount = 0;
   const createCanvas = () => {
     const index = canvasCount++;
+    let contextOptions;
     const canvas = {
       width: 0, height: 0,
-      getContext: () => context,
+      getContext: (type, options) => {
+        assert.equal(type, '2d');
+        contextOptions = options;
+        return context;
+      },
       toDataURL: (type) => { assert.equal(type, 'image/png'); return 'data:image/png;base64,cG5n'; },
     };
     const context = {
@@ -225,7 +230,11 @@ function canvasFixture(t) {
         if (index === 0) draws.push([image, left, top]);
         else if (image.getContext) composites.push({ opacity: this.globalAlpha, pixels: image.pixels });
       },
-      getImageData: () => ({ data: new Uint8ClampedArray([128, 128, 128, 255]) }),
+      getImageData: () => {
+        assert.equal(contextOptions?.willReadFrequently, true,
+          'pixel-reading canvases must request readback optimization when creating their context');
+        return { data: new Uint8ClampedArray([128, 128, 128, 255]) };
+      },
       putImageData(data, left, top) {
         canvas.pixels = Buffer.from(data.data).toString('hex');
         puts.push([data, left, top]);

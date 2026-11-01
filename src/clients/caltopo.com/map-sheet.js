@@ -514,7 +514,7 @@ export async function renderMapSheet(region, layer, signal, progress, maxTiles) 
     tile.width = colorTile.width = TILE_SIZE;
     tile.height = colorTile.height = TILE_SIZE;
     const tileContext = tile.getContext('2d');
-    const colorContext = colorTile.getContext('2d');
+    const colorContext = colorTile.getContext('2d', { willReadFrequently: true });
     if (!tileContext || !colorContext) throw new Error('Could not create the map sheet image.');
     while (next < jobs.length) {
       checkAbort(controller.signal);
