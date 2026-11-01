@@ -718,7 +718,7 @@ export function installCalTopoMapSheets(getLayers, getMap, maxTiles = 0) {
     const selected = getLayers();
     const layers = Array.isArray(selected) ? selected : [selected];
     const names = layers.map((layer) =>
-      `${layer.name.replace(/^\S+\s*/, '')} ${new URL(layer.template).searchParams.get('heatmap-color')}`);
+      `${layer.name.replace(/^\S+\s*/, '')} ${layer.gradientName ?? new URL(layer.template).searchParams.get('heatmap-color')}`);
     const suggestedTitle = `${names.join(' + ')} ${new Date().toISOString().slice(0, 10)}`;
     const accountId = window.sarsoft.account.id;
     const controller = new AbortController();

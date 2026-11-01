@@ -7,12 +7,13 @@ import {
   resetCredentials,
 } from './credentials.js';
 import { showInstalledNotification } from './installs.js';
-import { migrateLayerPresets, resetLayerPresets } from './layers.js';
+import { migrateLayerPresets, requestLayerPresets, resetLayerPresets } from './layers.js';
 import { checkPermissions } from './permissions.js';
 import { redirectComplete, openLogin } from './tabs.js';
 
 async function onMessage(message, sender) {
   const MESSAGE_HANDLERS = {
+    requestLayerPresets,
     requestCredentials,
     resetCredentials,
     expireCredentials,

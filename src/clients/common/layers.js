@@ -237,6 +237,9 @@ export function getLayerConfigs(
       layer.gradientEmoji
     );
     const occurrence = (occurrences.get(config.id) ?? 0) + 1;
+    if (color === 'grayscale' && layer.gradientName !== undefined) {
+      config.gradientName = layer.gradientName;
+    }
     occurrences.set(config.id, occurrence);
     if (occurrence > 1) config.id += `-${occurrence}`;
     return config;

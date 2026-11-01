@@ -513,7 +513,8 @@ test('client injection captures the URL before asynchronous authentication rewri
       runtime: {
         getManifest: () => ({ version: '0.15.0.2' }),
         getURL: (path) => `chrome-extension://test/${path}`,
-        sendMessage: async () => {
+        sendMessage: async ({ type }) => {
+          if (type === 'requestLayerPresets') return 'run:blue:global';
           window.location.hash = initialHash.replace('&slide=0', '');
           return true;
         },

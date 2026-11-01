@@ -21,11 +21,10 @@ async function inject(stored, failure) {
       runtime: {
         getManifest: () => ({ version: '0' }),
         getURL: (path) => `chrome-extension://test/${path}`,
-        sendMessage: async () => true,
+        sendMessage: async ({ type }) => type === 'requestLayerPresets' ? 'run:orange' : true,
       },
       storage: { local: {
         get: async (key) => {
-          if (key === 'layers') return { layers: 'run:orange' };
           assert.equal(key, 'mapsheetmaxsize');
           if (failure === 'get') throw new Error('Storage read failed');
           return stored === undefined ? {} : { mapsheetmaxsize: stored };
@@ -51,6 +50,7 @@ test('client injection persists a missing map-sheet limit as zero and passes it 
   const result = await inject();
   assert.deepEqual(result.writes, [{ mapsheetmaxsize: 0 }]);
   assert.equal(result.script.dataset.mapsheetmaxsize, 0);
+  assert.equal(result.script.dataset.layers, 'run:orange');
   assert.equal(result.errors.length, 0);
 });
 

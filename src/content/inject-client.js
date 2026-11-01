@@ -18,8 +18,7 @@
 
   async function retrieveLayerPresets() {
     try {
-      // Send message to request credentials
-      const { layers } = await browser.storage.local.get('layers');
+      const layers = await browser.runtime.sendMessage({ type: 'requestLayerPresets' });
       console.log('[StravaHeatmapExt] Layer presets retrieved.', layers);
       return layers;
     } catch (error) {

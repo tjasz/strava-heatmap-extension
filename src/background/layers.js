@@ -75,6 +75,7 @@ export function formatLayerPresets(layerPresets) {
 					fields.push(`gradient=${encodeURIComponent(JSON.stringify({
 						gradientId: layer.gradientId,
 						gradientEmoji: layer.gradientEmoji,
+						gradientName: layer.gradientName,
 					}))}`);
 				}
 			}
@@ -132,6 +133,7 @@ export function resolveGradientLayers(layers, gradients) {
 			...layer,
 			gradientStops: normalizeGradientStops(gradient.gradientStops),
 			gradientEmoji: gradient.emoji,
+			gradientName: gradient.name,
 		};
 	});
 }
@@ -168,4 +170,9 @@ export async function getGradientSettings() {
 	const resolved = resolveGradientLayers(layers, gradients);
 	if (migrated) await setGradientSettings(resolved, gradients);
 	return { layers: resolved, gradients };
+}
+
+export async function requestLayerPresets() {
+	const { layers } = await getGradientSettings();
+	return formatLayerPresets(layers);
 }

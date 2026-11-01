@@ -1042,7 +1042,8 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
     constructor(callback) { observer = callback; }
     observe() {}
   });
-  installCalTopoMapSheets(() => layer, () => selection.map, 100);
+  let activeLayers = layer;
+  installCalTopoMapSheets(() => activeLayers, () => selection.map, 100);
   const menu = group.children[1];
   assert.equal(menu.id, 'strava-heatmap-map-sheet');
   const button = menu.children[0];
@@ -1102,6 +1103,24 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   document.handlers.keydown({ key: 'Escape', preventDefault() {}, stopPropagation() {} });
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(selectedStore.hasInProgressNewObject, false, 'Escape releases the native creation guard');
+  const gradientName = 'Forest: mist; <green>';
+  for (const period of ['global', 'weekly']) {
+    const custom = getLayerConfigs([{
+      activity: 'run', color: 'grayscale', period, gradientName,
+      gradientEmoji: '🌲',
+    }], true, '0', true)[0];
+    for (const multiple of [false, true]) {
+      activeLayers = multiple ? [custom, layer] : custom;
+      button.handlers.click();
+      const controls = selectionControls(selectionPanel(selection.container));
+      const expected = `All Foot Sports${period === 'weekly' ? ' (Weekly)' : ''} ${gradientName}` +
+        `${multiple ? ' + All Foot Sports orange' : ''} ${new Date().toISOString().slice(0, 10)}`;
+      assert.equal(controls.nameInput.value, expected);
+      controls.cancel.handlers.click();
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+  }
+  activeLayers = layer;
   let requests = 0;
   let expectedTitle;
   t.mock.method(globalThis, 'fetch', async (url, options) => {
