@@ -31,21 +31,44 @@ function createPaletteFilter(name, ramp) {
   filter.id = `strava-heatmap-${name}`;
   filter.setAttribute('color-interpolation-filters', 'sRGB');
 
-  // Copy intensity (red) into all channels, including alpha
+  // Keep intensity opaque until lookup: premultiplying faint RGB by intensity
+  // can lose its color precision on 8-bit filter surfaces.
   const matrix = document.createElementNS(SVG_NS, 'feColorMatrix');
   matrix.setAttribute('type', 'matrix');
-  matrix.setAttribute('values', '1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0');
+  matrix.setAttribute('values', '1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 0 1');
+  matrix.setAttribute('result', 'intensity');
   filter.appendChild(matrix);
 
-  // Map intensity through the palette ramp
   const transfer = document.createElementNS(SVG_NS, 'feComponentTransfer');
-  ['R', 'G', 'B', 'A'].forEach((component, offset) => {
+  transfer.setAttribute('in', 'intensity');
+  transfer.setAttribute('result', 'palette-color');
+  ['R', 'G', 'B'].forEach((component, offset) => {
     const func = document.createElementNS(SVG_NS, `feFunc${component}`);
     func.setAttribute('type', 'table');
     func.setAttribute('tableValues', channel(offset));
     transfer.appendChild(func);
   });
   filter.appendChild(transfer);
+
+  const alphaMatrix = document.createElementNS(SVG_NS, 'feColorMatrix');
+  alphaMatrix.setAttribute('in', 'intensity');
+  alphaMatrix.setAttribute('type', 'matrix');
+  alphaMatrix.setAttribute('values', '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0');
+  filter.appendChild(alphaMatrix);
+
+  const alphaTransfer = document.createElementNS(SVG_NS, 'feComponentTransfer');
+  const alpha = document.createElementNS(SVG_NS, 'feFuncA');
+  alpha.setAttribute('type', 'table');
+  alpha.setAttribute('tableValues', channel(3));
+  alphaTransfer.appendChild(alpha);
+  alphaTransfer.setAttribute('result', 'palette-alpha');
+  filter.appendChild(alphaTransfer);
+
+  const composite = document.createElementNS(SVG_NS, 'feComposite');
+  composite.setAttribute('in', 'palette-color');
+  composite.setAttribute('in2', 'palette-alpha');
+  composite.setAttribute('operator', 'in');
+  filter.appendChild(composite);
 
   return filter;
 }

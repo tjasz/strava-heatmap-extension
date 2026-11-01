@@ -174,8 +174,11 @@ for (const [renderer, page] of ['leaflet', 'google'].flatMap((renderer) => [
       const filter = svg.children.find(({ id }) => id === `strava-heatmap-${name}`);
       assert.equal(filter.attributes['color-interpolation-filters'], 'sRGB');
       assert.equal(filter.children[0].attributes.values,
-        '1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0');
-      const functions = filter.children[1].children;
+        '1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 0 1');
+      const functions = [
+        ...filter.children[1].children,
+        ...filter.children[3].children,
+      ];
       assert.deepEqual(functions.map(({ tagName }) => tagName),
         ['feFuncR', 'feFuncG', 'feFuncB', 'feFuncA']);
       functions.forEach((func, channel) => {

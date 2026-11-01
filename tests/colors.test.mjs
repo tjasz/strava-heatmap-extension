@@ -32,6 +32,45 @@ function createElement(namespaceURI, localName) {
   };
 }
 
+function renderWithByteSurfaces(filter, intensity) {
+  let previous = [intensity, intensity, intensity, 255];
+  const results = new Map();
+  const clamp = (value) => Math.min(1, Math.max(0, value));
+  for (const { localName, attributes, children } of filter.children) {
+    const input = attributes.in ? results.get(attributes.in) : previous;
+    const straight = input.map((value, channel) =>
+      channel === 3 ? value / 255 : input[3] ? value / input[3] : 0
+    );
+    let output;
+    if (localName === 'feColorMatrix') {
+      const matrix = attributes.values.split(' ').map(Number);
+      output = [0, 1, 2, 3].map((row) => clamp(
+        straight.reduce((sum, value, column) => sum + value * matrix[row * 5 + column], matrix[row * 5 + 4])
+      ));
+    } else if (localName === 'feComponentTransfer') {
+      output = [...straight];
+      for (const child of children) {
+        const channel = 'RGBA'.indexOf(child.localName.slice(-1));
+        const table = child.attributes.tableValues.split(' ').map(Number);
+        const position = straight[channel] * (table.length - 1);
+        const index = Math.min(Math.floor(position), table.length - 2);
+        output[channel] = table[index] + (table[index + 1] - table[index]) * (position - index);
+      }
+    } else {
+      assert.equal(localName, 'feComposite');
+      assert.equal(attributes.operator, 'in');
+      const mask = results.get(attributes.in2)[3] / 255;
+      previous = input.map((value) => Math.round(value * mask));
+      continue;
+    }
+    previous = output.map((value, channel) =>
+      Math.round(value * (channel === 3 ? 1 : output[3]) * 255)
+    );
+    if (attributes.result) results.set(attributes.result, previous);
+  }
+  return previous;
+}
+
 test('Rainbow preserves the exact weekly ramp from Strava engines 34.0.0 and 35.1.0', () => {
   const rgba = Buffer.from(PALETTES.rainbow, 'hex');
   assert.equal(rgba.length, 256 * 4);
@@ -63,18 +102,34 @@ test('shared filters preserve every Strava palette channel and opacity', (t) => 
     const filter = svg.children[index];
     assert.equal(filter.id, `strava-heatmap-${name}`);
     assert.equal(filter.attributes['color-interpolation-filters'], 'sRGB');
-    const [matrix, transfer] = filter.children;
+    const [matrix, transfer, alphaMatrix, alphaTransfer, composite] = filter.children;
+    assert.equal(filter.children.length, 5);
     assert.equal(matrix.localName, 'feColorMatrix');
     assert.equal(matrix.attributes.type, 'matrix');
     assert.equal(
       matrix.attributes.values,
-      '1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0'
+      '1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 0 1'
     );
+    assert.equal(matrix.attributes.result, 'intensity');
     assert.equal(transfer.localName, 'feComponentTransfer');
+    assert.equal(transfer.attributes.in, 'intensity');
+    assert.equal(transfer.attributes.result, 'palette-color');
+    assert.equal(alphaMatrix.localName, 'feColorMatrix');
+    assert.equal(alphaMatrix.attributes.in, 'intensity');
+    assert.equal(alphaMatrix.attributes.type, 'matrix');
+    assert.equal(alphaMatrix.attributes.values,
+      '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0');
+    assert.equal(alphaTransfer.localName, 'feComponentTransfer');
+    assert.equal(alphaTransfer.attributes.result, 'palette-alpha');
+    assert.equal(alphaTransfer.children.length, 1);
+    assert.equal(composite.localName, 'feComposite');
+    assert.deepEqual(composite.attributes, {
+      in: 'palette-color', in2: 'palette-alpha', operator: 'in',
+    });
     const bytes = PALETTES[name].match(/../g).map((hex) => parseInt(hex, 16));
     assert.equal(bytes.length, 256 * 4);
-    assert.equal(transfer.children.length, 4);
-    transfer.children.forEach((channel, offset) => {
+    assert.equal(transfer.children.length, 3);
+    [...transfer.children, ...alphaTransfer.children].forEach((channel, offset) => {
       assert.equal(channel.localName, `feFunc${'RGBA'[offset]}`);
       assert.equal(channel.attributes.type, 'table');
       const values = channel.attributes.tableValues.split(' ').map(Number);
@@ -87,6 +142,16 @@ test('shared filters preserve every Strava palette channel and opacity', (t) => 
         );
       });
     });
+    for (let intensity = 0; intensity < 256; intensity++) {
+      const rgba = bytes.slice(intensity * 4, intensity * 4 + 4);
+      const expected = rgba.map((value, channel) =>
+        channel === 3 ? value : Math.round(value * rgba[3] / 255)
+      );
+      assert.deepEqual(
+        renderWithByteSurfaces(filter, intensity), expected,
+        `${name} intensity ${intensity} must survive 8-bit premultiplied intermediates`
+      );
+    }
   }
 });
 
