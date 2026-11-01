@@ -273,12 +273,12 @@ test('a fractional anchor at the raster edge does not wrap into the next row', a
   assert.ok(results[0].points.every(([x]) => x - origin[0] >= 100));
 });
 
-function setup(t, propose = async () => []) {
+function setup(t, propose = async () => [], initialLayer = layer) {
   const status = { setAttribute(key, value) { this[key] = value; } };
   const previous = globalThis.document;
   globalThis.document = { createElement: () => status };
   t.after(() => { globalThis.document = previous; });
-  let currentLayer = layer, zoom = 15;
+  let currentLayer = initialLayer, zoom = 15;
   const changes = [];
   const select = { style: {}, after() {}, addEventListener(name, fn, capture) { changes.push({ fn, capture }); } };
   const map = {
@@ -494,7 +494,7 @@ test('native touch previews cannot replace a prepared click or its undo boundary
   assert.deepEqual(manager.polyline.slice(0, -1), [loc([20, 64]), loc([90, 100])]);
 });
 
-for (const action of ['click', 'undo', 'cancel', 'release', 'finish', 'source', 'layer', 'zoom']) {
+for (const action of ['click', 'undo', 'cancel', 'release', 'finish', 'source', 'layer', 'disable layer', 'zoom']) {
   test(`${action} rejects stale suggestions and aborts their calculation`, async (t) => {
     const job = deferred();
     let signal, calls = 0;
@@ -509,6 +509,7 @@ for (const action of ['click', 'undo', 'cancel', 'release', 'finish', 'source', 
     if (action === 'click') manager.handleClick(event(40, 100));
     else if (action === 'source') context.source('osm');
     else if (action === 'layer') context.layer({ template: 'different' });
+    else if (action === 'disable layer') context.layer(undefined);
     else if (action === 'zoom') context.zoom(14);
     else await manager[action]();
     assert.equal(signal.aborted, true);
@@ -541,6 +542,56 @@ test('below zoom 15, clicks remain available but no Slide search runs', async (t
   assert.equal(calls, 0);
   assert.match(status.textContent, /level 15/);
   assert.equal(manager.polyline.length, 2);
+});
+
+for (const zoom of [14, 15]) {
+  test(`with no enabled layer at zoom ${zoom}, prompts to enable one and still draws straight segments`, async (t) => {
+    let calls = 0;
+    const f = setup(t, async () => { calls++; return []; }, null);
+    assert.match(f.status.textContent, /Enable a Strava heatmap layer/);
+    f.zoom(zoom);
+    f.source('osm');
+    assert.equal(f.status.textContent, '');
+    f.source('strava');
+    assert.match(f.status.textContent, /Enable a Strava heatmap layer/);
+    f.manager.handleClick(f.event());
+    await f.integration.ready;
+    assert.equal(calls, 0);
+    assert.match(f.status.textContent, /Enable a Strava heatmap layer/);
+    assert.equal(f.status.role, 'status');
+    f.manager.handleClick(f.event(80, 90));
+    await f.integration.ready;
+    assert.deepEqual(f.manager.polyline.slice(0, -1), [loc([20, 64]), loc([80, 90])]);
+    f.layer(layer);
+    f.zoom(15);
+    await f.integration.ready;
+    assert.equal(calls, 1);
+    assert.ok(f.status.textContent.startsWith(`Snapping to ${layer.name}.`));
+  });
+}
+
+test('disabling the last layer removes suggestions and previews, and re-enabling reloads from the anchor', async (t) => {
+  const calls = [];
+  const f = setup(t, async (anchor) => { calls.push(anchor); return [option()]; });
+  f.manager.handleClick(f.event());
+  await f.integration.ready;
+  const suggestion = f.auto.mapObjs['strava-option-0'];
+  f.auto.select(loc([80, 64]), 'strava-option-0');
+  const preview = f.auto.selected;
+  f.layer(undefined);
+  assert.equal(suggestion.removed, true);
+  assert.equal(preview.removed, true);
+  assert.equal(f.manager.override, false);
+  assert.equal(f.auto.coordinates, undefined);
+  assert.equal(Object.keys(f.auto.mapObjs).length, 0);
+  assert.match(f.status.textContent, /Enable a Strava heatmap layer/);
+  f.auto.fetch();
+  await f.integration.ready;
+  assert.equal(calls.length, 1);
+  f.layer(layer);
+  await f.integration.ready;
+  assert.deepEqual(calls, [loc([20, 64]), loc([20, 64])]);
+  assert.ok(f.auto.mapObjs['strava-option-0']);
 });
 
 test('double-click finishes without saving a stale cursor or starting a second search', async (t) => {

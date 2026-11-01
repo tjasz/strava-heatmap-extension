@@ -5,6 +5,7 @@ const SOURCE = 'strava';
 const NORMAL = { stroke: '#F0F000', 'stroke-opacity': 0.4, 'stroke-width': 7 };
 const HOVER = { stroke: '#FFFF00', 'stroke-opacity': 0.8, 'stroke-width': 10 };
 const BEGIN = 'Click anywhere to begin. Strava will suggest paths within a 1 km grid.';
+const ENABLE_LAYER = 'Enable a Strava heatmap layer for snap suggestions. Click anywhere to draw a straight segment.';
 
 export function installCalTopoSnap(manager, getLayer, propose = loadSlideOptions) {
   const auto = manager.autoDrawOverlay;
@@ -21,6 +22,10 @@ export function installCalTopoSnap(manager, getLayer, propose = loadSlideOptions
   status.setAttribute('role', 'status');
   select.after(status);
   const showStatus = (message, error = false) => {
+    if (message && !getLayer()) {
+      message = ENABLE_LAYER;
+      error = false;
+    }
     status.setAttribute('role', error ? 'alert' : 'status');
     const layerName = getLayer()?.name;
     status.textContent = message && layerName
@@ -81,18 +86,18 @@ export function installCalTopoSnap(manager, getLayer, propose = loadSlideOptions
   const generate = () => {
     clearOptions();
     if (auto.source !== SOURCE || !auto.map) return;
+    markAnchor();
+    const layer = getLayer();
+    if (!layer) {
+      showStatus(ENABLE_LAYER);
+      return;
+    }
     if (!anchors.length) {
       showStatus(BEGIN);
       return;
     }
-    markAnchor();
     if (map.getZoom() < 15) {
       showStatus('Zoom in to level 15 or higher for Slide options. Click anywhere to draw a straight segment.');
-      return;
-    }
-    const layer = getLayer();
-    if (!layer) {
-      showStatus('Choose a Strava heatmap layer first.', true);
       return;
     }
     const anchor = anchors.at(-1).slice();

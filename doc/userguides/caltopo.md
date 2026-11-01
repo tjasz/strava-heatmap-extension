@@ -86,7 +86,7 @@ CalTopo still handles polygon closing and buffer geometry. To snap a polygon's f
 
 ### Which layer does snapping use?
 
-Snapping uses the Strava layer you most recently enabled or adjusted, even if you subsequently hide it. The status beside **Snap To** names the layer currently used.
+Snapping uses the topmost enabled Strava layer: the one you most recently enabled. Adjusting opacity does not change the snapping layer. Hiding the top layer switches snapping to the next enabled layer below it. If only one layer is enabled, snapping always uses it. If all layers are hidden, suggestions disappear and the status asks you to enable a heatmap layer; you can still draw straight segments. The status beside **Snap To** names the layer currently used.
 
 ### What to expect from suggestions
 

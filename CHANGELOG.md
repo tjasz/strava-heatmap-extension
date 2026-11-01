@@ -5,9 +5,9 @@
 ### `0.15.0.2` (2026-11-01)
 
 - [CalTopo] Do not show the heatmap in the print preview, since it will not appear in printed, server-rendered output.
-- [CalTopo] Allow multiple layers to be shown at once. Snap suggestions follow the most recently enabled or modififed layer.
+- [CalTopo] Allow multiple layers to be shown at once. Displayed layers stack in the order they were activated. Snapping suggestions work on the most recently activated layer.
 - Add support for Weekly heatmap for Strava Premium subscribers.
-- Add Strava's weekly Rainbow palette to the built-in gradients.
+- Add Strava's Rainbow palette to the built-in gradients.
 - Add support for definition of custom gradients.
 
 ### `0.15.0.1` (2026-10-29)

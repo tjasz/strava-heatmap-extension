@@ -159,7 +159,29 @@ function fixture(renderer, saved, initialPresets = presets, mapSheetMaxSize) {
 }
 
 for (const renderer of ['leaflet', 'google']) {
-  test(`${renderer} stacks by activation order through refreshes, restores and map-sheet exports`, () => {
+  test(`${renderer} restores snapping from the enabled stack instead of a stale hidden selection`, () => {
+    const f = fixture(renderer, {
+      layerId: 'strava-heatmap-run-weekly',
+      layerOrder: [
+        'strava-heatmap-run', 'strava-heatmap-ride', 'strava-heatmap-ride',
+        'strava-heatmap-run-weekly', 'removed-layer',
+      ],
+      layers: {
+        'strava-heatmap-run': { enabled: true, opacity: 1 },
+        'strava-heatmap-run-weekly': { enabled: false, opacity: 0.7 },
+        'strava-heatmap-ride': { enabled: true, opacity: 1 },
+      },
+    });
+    assert.deepEqual(f.state().layerOrder, ['strava-heatmap-run', 'strava-heatmap-ride']);
+    assert.equal(f.getSnapLayer().id, 'strava-heatmap-ride');
+    f.row(2).button.handlers.click();
+    assert.equal(f.getSnapLayer().id, 'strava-heatmap-run');
+    f.row(0).button.handlers.click();
+    assert.equal(f.getSnapLayer(), undefined);
+    f.flush();
+  });
+
+  test(`${renderer} shares activation order with snapping, restores and map-sheet exports without reordering on opacity changes`, () => {
     const f = fixture(renderer);
     const order = (fixture) => fixture.mapOverlays
       .filter((overlay) => overlay.template || overlay.getTile)
@@ -176,13 +198,24 @@ for (const renderer of ['leaflet', 'google']) {
       assert.deepEqual(order(fixture), expected);
       assert.deepEqual(Array.from(fixture.getSheetLayers(), (layer) =>
         layer.id.endsWith('-weekly') ? 'weekly' : layer.id.endsWith('-ride') ? 'ride' : 'run'), expected);
+      const top = fixture.getSheetLayers().at(-1);
+      assert.equal(fixture.getSnapLayer()?.id, top?.id);
+      assert.equal(fixture.window.__stravaHeatmapCalTopoOverlay,
+        expected.length ? fixture.mapOverlays.at(-1) : undefined);
+      assert.equal(new Set(fixture.state().layerOrder).size, expected.length);
     };
     f.row(2).button.handlers.click();
     f.row(1).button.handlers.click();
     expectOrder(f, ['run', 'ride', 'weekly']);
+    const invalidations = f.invalidations();
     f.row(0).input.value = '45';
     f.row(0).input.handlers.input();
     expectOrder(f, ['run', 'ride', 'weekly']);
+    f.row(0).input.handlers.input();
+    expectOrder(f, ['run', 'ride', 'weekly']);
+    f.row(1).input.handlers.input();
+    expectOrder(f, ['run', 'ride', 'weekly']);
+    assert.equal(f.invalidations(), invalidations, 'opacity changes keep the same snap source');
     f.row(2).button.handlers.click();
     expectOrder(f, ['run', 'weekly']);
     f.row(2).button.handlers.click();
@@ -211,7 +244,7 @@ for (const renderer of ['leaflet', 'google']) {
     assert.equal(f.list.children.length, 3);
     assert.equal(f.mapOverlays.length, 0);
     assert.equal(f.getSheetLayers().length, 0);
-    assert.equal(f.getSnapLayer().id, 'strava-heatmap-run');
+    assert.equal(f.getSnapLayer(), undefined);
     f.row(0).button.handlers.click();
     f.row(1).button.handlers.click();
     assert.equal(f.mapOverlays.length, 2);
@@ -220,9 +253,11 @@ for (const renderer of ['leaflet', 'google']) {
     assert.deepEqual(Array.from(f.getSheetLayers(), (layer) => [layer.id, layer.opacity]), [
       ['strava-heatmap-run', 0], ['strava-heatmap-run-2', 1],
     ]);
+    assert.equal(f.getSnapLayer().id, 'strava-heatmap-run-2');
     f.row(0).button.handlers.click();
     assert.equal(f.row(1).button.attributes['aria-pressed'], 'true');
     assert.equal(f.mapOverlays.length, 1);
+    assert.equal(f.getSnapLayer().id, 'strava-heatmap-run-2');
     f.flush();
   });
 
@@ -253,17 +288,19 @@ for (const renderer of ['leaflet', 'google']) {
     assert.equal(f.getSnapLayer().id, 'strava-heatmap-ride');
     f.row(1).input.value = '70';
     f.row(1).input.handlers.input();
-    assert.equal(f.getSnapLayer().id, 'strava-heatmap-run-weekly');
+    assert.equal(f.getSnapLayer().id, 'strava-heatmap-ride');
     assert.equal(f.row(1).output.value, '70%');
     assert.deepEqual(Array.from(f.getSheetLayers(), (layer) => [layer.id, layer.opacity]), [
       ['strava-heatmap-run-weekly', 0.7], ['strava-heatmap-run', 1], ['strava-heatmap-ride', 1],
     ]);
-    assert.ok(f.invalidations() >= 3);
+    assert.equal(f.invalidations(), 2);
+    const invalidations = f.invalidations();
     f.row(1).button.handlers.click();
+    assert.equal(f.invalidations(), invalidations + 1);
     assert.equal(f.mapOverlays.length, 2);
     assert.equal(f.row(1).input.disabled, true);
     assert.equal(f.row(1).button.attributes['aria-expanded'], 'false');
-    assert.equal(f.getSnapLayer().id, 'strava-heatmap-run-weekly', 'snapping remembers a hidden source');
+    assert.equal(f.getSnapLayer().id, 'strava-heatmap-ride', 'snapping follows the remaining top layer');
     assert.deepEqual(Array.from(f.getSheetLayers(), (layer) => layer.id),
       ['strava-heatmap-run', 'strava-heatmap-ride']);
 
@@ -271,7 +308,13 @@ for (const renderer of ['leaflet', 'google']) {
     assert.equal(restored.mapOverlays.length, 2);
     assert.equal(restored.row(1).input.value, '70');
     assert.equal(restored.row(1).button.attributes['aria-pressed'], 'false');
-    assert.equal(restored.getSnapLayer().id, 'strava-heatmap-run-weekly');
+    assert.equal(restored.getSnapLayer().id, 'strava-heatmap-ride');
+    f.row(2).button.handlers.click();
+    assert.equal(f.getSnapLayer().id, 'strava-heatmap-run');
+    f.row(0).button.handlers.click();
+    assert.equal(f.getSnapLayer(), undefined);
+    assert.equal(f.state().layerOrder.length, 0);
+    assert.equal(fixture(renderer, f.state()).getSnapLayer(), undefined);
     f.flush();
   });
 
@@ -306,6 +349,7 @@ for (const renderer of ['leaflet', 'google']) {
     f.row(0).button.handlers.click();
     f.row(1).button.handlers.click();
     assert.equal(f.getSheetLayers().length, 0);
+    assert.equal(f.getSnapLayer(), undefined);
     assert.equal(f.mapOverlays.filter((overlay) => overlay.getTile || overlay.template).length, 0);
     f.flush();
   });

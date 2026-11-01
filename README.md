@@ -203,8 +203,11 @@ server-side and cannot include it. To include a heatmap in a printed map, first
 4. Use CalTopo's normal **Undo** (or **Esc**) to remove a segment, and finish or save normally. CalTopo still handles polygon closing and buffer geometry. To snap a polygon's final edge too, click back on its starting point before finishing.
    Double-click to finish.
 
-Snapping uses the Strava layer you most recently enabled or adjusted, even if
-you subsequently hide it. Each layer's visibility and opacity are saved separately.
+Snapping uses the topmost enabled Strava layer, following the same activation
+order as the display. Adjusting opacity does not change that order. Hiding the
+top layer switches snapping to the next enabled layer; hiding all layers removes
+suggestions and prompts you to enable a heatmap layer. Straight drawing remains
+available. Each layer's visibility and opacity are saved separately.
 The status beside **Snap To** names the layer currently used for Strava snapping.
 Suggestions use Slide's locally normalized intensity surface and least-cost
 pathfinding, rather than skeletonizing heat-band outlines. One shared search
