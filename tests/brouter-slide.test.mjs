@@ -66,7 +66,13 @@ function fixture(t, fit, options = {}) {
     },
     nativeCalls: 0,
     _routeSegment(a, b, cb) { this.nativeCalls++; cb(); },
-    _updateLayer(a, b, line) { a._routing.nextLine = line; },
+    _updateLayer(a, b, line) {
+      line._casing = {
+        options: { ...line.options },
+        setStyle(style) { Object.assign(this.options, style); },
+      };
+      a._routing.nextLine = line;
+    },
     _eachSegment(fn) {
       for (const a of orderedMarkers()) if (a._routing.nextMarker) fn(a, a._routing.nextMarker);
     },
@@ -74,9 +80,11 @@ function fixture(t, fit, options = {}) {
       this._eachSegment((a, b) => {
         if (!a._routing.beeline) return;
         const line = {
+          options: { dashArray: '1, 5' },
           points: [a.getLatLng(), b.getLatLng()],
           getLatLngs() { return this.points; },
           setLatLngs(points) { this.points = points; },
+          setStyle(style) { Object.assign(this.options, style); },
           feature: { geometry: {}, properties: { messages: [[], [0, 0, null, 0]] } },
         };
         this._updateLayer(a, b, line);
@@ -258,17 +266,31 @@ test('S toggles Slide; native straight-line and routed modes remain independent'
   assert.deepEqual(coordinates(first._routing.nextLine.getLatLngs()), [[0, 0], [0.5, 1], [1, 0]]);
   assert.equal(first._routing.nextLine.feature.properties['track-length'], 2 * Math.hypot(0.5, 1));
   assert.deepEqual(first._routing.nextLine.feature.geometry.coordinates, [[0, 0], [0.5, 1], [1, 0]]);
+  assert.equal(first._routing.nextLine.options.dashArray, '16, 8');
+  assert.equal(first._routing.nextLine._casing.options.dashArray, '16, 8');
   f.routing._updateBeelines();
   assert.equal(first._routing.nextLine.getLatLngs().length, 3, 'native beeline refresh retains Slide');
+  assert.equal(first._routing.nextLine.options.dashArray, '16, 8');
+  assert.equal(first._routing.nextLine._casing.options.dashArray, '16, 8');
   f.routing.toggleBeelineDrawing();
   assert.equal(f.button.attributes['aria-pressed'], 'false');
   assert.equal(f.routing._draw._beelineMode, true, 'B switches from Slide to straight');
   f.click(at(2));
   await f.settle();
   assert.equal([...f.markers][1]._routing.nextLine.getLatLngs().length, 2);
+  assert.equal([...f.markers][1]._routing.nextLine.options.dashArray, '1, 5');
+  assert.equal([...f.markers][1]._routing.nextLine._casing.options.dashArray, '1, 5');
   f.key(); f.click(at(3), true);
   await f.settle();
   assert.equal([...f.markers][2]._routing.beeline, false, 'Shift retains native mode inversion');
+  const normal = {
+    options: { dashArray: null },
+    setStyle(style) { Object.assign(this.options, style); },
+  };
+  const [a, b] = [...f.markers].slice(2);
+  f.routing._updateLayer(a, b, normal);
+  assert.equal(normal.options.dashArray, null, 'normal routing remains solid');
+  assert.equal(normal._casing.options.dashArray, null);
 });
 
 test('Slide recalculates moved endpoints and layer changes; ignores stale and cleared work', async (t) => {
@@ -302,6 +324,7 @@ test('no-trail results and explicit failures keep straight geometry', async (t) 
   f.button.click(); f.click(at(0)); f.click(at(1));
   await f.settle();
   assert.equal([...f.markers][0]._routing.nextLine.getLatLngs().length, 2);
+  assert.equal([...f.markers][0]._routing.nextLine.options.dashArray, '16, 8');
   const warnings = [];
   const warn = console.warn;
   console.warn = (...args) => warnings.push(args);
@@ -310,6 +333,8 @@ test('no-trail results and explicit failures keep straight geometry', async (t) 
   await f.settle();
   assert.equal(warnings.length, 1);
   assert.equal([...f.markers][0]._routing.nextLine.getLatLngs().length, 2);
+  assert.equal([...f.markers][0]._routing.nextLine.options.dashArray, '16, 8');
+  assert.equal([...f.markers][0]._routing.nextLine._casing.options.dashArray, '16, 8');
 });
 
 test('reversing preserves Slide segment modes, while splitting inherits Slide', async (t) => {

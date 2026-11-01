@@ -295,6 +295,8 @@ area-limit errors are shown beside the map controls and also leave the segment
 straight. Slide and straight-line mode are mutually exclusive: turning one on
 turns the other off, and toggling the active mode off restores normal routing.
 Press **B** to switch to ordinary straight-line drawing.
+Normal routed segments are solid, straight-line segments are dotted, and Slide
+segments use long dashes, including when no trail is found.
 The URL stores ordinary straight segments in `straight` and Slide segments in
 `slide`, using zero-based segment indices. It also stores the selected heatmap
 in `slide-layer`. Refreshing or opening the permalink with the extension

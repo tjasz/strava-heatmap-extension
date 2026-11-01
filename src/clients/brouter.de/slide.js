@@ -195,7 +195,13 @@ export function installBrouterSlide(routing, map, getLayer, fit = slideSegment, 
         point.message = layer.feature.properties.messages[1];
       }
     }
-    return updateLayer.call(this, a, b, layer);
+    const result = updateLayer.call(this, a, b, layer);
+    if (a._routing.beeline && state?.slide) {
+      const style = { dashArray: '16, 8' };
+      layer.setStyle(style);
+      layer._casing?.setStyle(style);
+    }
+    return result;
   };
   const reverse = routing.reverse;
   routing.reverse = function (...args) {
