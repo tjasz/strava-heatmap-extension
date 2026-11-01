@@ -4,7 +4,6 @@ import { slideTileURL } from '../www.openstreetmap.org/slide/tiles.js';
 const MAX_ZOOM = 15;
 const TILE_SIZE = 512;
 const TILE_COUNT = 2 ** MAX_ZOOM;
-const MAX_TILES = 100;
 const INITIAL_TILE_SIDE = 10;
 const INITIAL_VIEW_PADDING = 16;
 const MAX_LATITUDE = 85.0511287798066;
@@ -62,7 +61,7 @@ function tilePoint([lng, lat]) {
   return [(lng + 180) / 360 * TILE_COUNT, tileY(lat)].map(snapTileEdge);
 }
 
-export function limitMapSheetSelection(anchor, corner) {
+export function limitMapSheetSelection(anchor, corner, maxTiles) {
   const start = tilePoint(anchor);
   const end = tilePoint(corner);
   const at = (fraction) => {
@@ -74,19 +73,19 @@ export function limitMapSheetSelection(anchor, corner) {
     return regionFromTiles(min[0], max[0], min[1], max[1]);
   };
   const requested = at(1);
-  if (requested.count <= MAX_TILES) return { region: requested, limited: false };
+  if (requested.count <= maxTiles) return { region: requested, limited: false };
   // Keep the drag's direction and aspect ratio, stopping at the last legal tile edge.
   let low = 0;
   let high = 1;
   for (let i = 0; i < 48; i++) {
     const middle = (low + high) / 2;
-    if (at(middle).count <= MAX_TILES) low = middle;
+    if (at(middle).count <= maxTiles) low = middle;
     else high = middle;
   }
   return { region: at(low), limited: true };
 }
 
-export function resizeMapSheetSelection(region, handle, point) {
+export function resizeMapSheetSelection(region, handle, point, maxTiles) {
   const [x, y] = tilePoint(point);
   let left = region.minX;
   let right = region.maxX + 1;
@@ -97,15 +96,16 @@ export function resizeMapSheetSelection(region, handle, point) {
   if (handle.includes('n')) top = Math.max(0, Math.min(bottom - 1, Math.floor(y)));
   if (handle.includes('s')) bottom = Math.min(TILE_COUNT, Math.max(top + 1, Math.ceil(y)));
   const requested = regionFromTiles(left, right - 1, top, bottom - 1);
-  if (requested.count <= MAX_TILES) return { region: requested, limited: false };
+  if (requested.count <= maxTiles) return { region: requested, limited: false };
   if (handle.length === 2) {
     return limitMapSheetSelection(
       [longitude(handle.includes('w') ? right : left), latitude(handle.includes('n') ? bottom : top)],
       [longitude(handle.includes('w') ? left : right), latitude(handle.includes('n') ? top : bottom)],
+      maxTiles,
     );
   }
-  const columns = Math.floor(MAX_TILES / region.rows);
-  const rows = Math.floor(MAX_TILES / region.columns);
+  const columns = Math.floor(maxTiles / region.rows);
+  const rows = Math.floor(maxTiles / region.columns);
   if (handle === 'w') left = right - columns;
   if (handle === 'e') right = left + columns;
   if (handle === 'n') top = bottom - rows;
@@ -122,7 +122,7 @@ export function moveMapSheetSelection(region, dx, dy) {
   return regionFromTiles(x, x + region.columns - 1, y, y + region.rows - 1);
 }
 
-export function selectMapSheetRegion(map, signal, suggestedTitle) {
+export function selectMapSheetRegion(map, signal, suggestedTitle, maxTiles) {
   const container = map?.getContainer?.() || map?.getDiv?.();
   const leaflet = typeof map?.containerPointToLatLng === 'function';
   let googleOverlay;
@@ -164,7 +164,7 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
     const heading = document.createElement('h2');
     heading.textContent = 'Map Sheet from Strava Heatmap';
     const instructions = document.createElement('p');
-    instructions.textContent = `Drag the center handle to move the area, or its edge and corner handles to resize it (up to ${MAX_TILES} zoom-${MAX_ZOOM} tiles).`;
+    instructions.textContent = `Drag the center handle to move the area, or its edge and corner handles to resize it (up to ${maxTiles} zoom-${MAX_ZOOM} tiles).`;
     const nameLabel = document.createElement('label');
     nameLabel.className = 'strava-heatmap-map-sheet-name';
     nameLabel.textContent = 'Sheet name';
@@ -197,7 +197,7 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
     let finished = false;
     const showSelection = (limited = false) => {
       status.setAttribute('role', 'status');
-      status.textContent = `${region.count}/${MAX_TILES} tiles selected (${region.columns}x${region.rows}).${limited
+      status.textContent = `${region.count}/${maxTiles} tiles selected (${region.columns}x${region.rows}).${limited
         ? ' Limit reached; the box cannot grow further.' : ''}`;
       confirm.disabled = !!drag;
     };
@@ -221,7 +221,7 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
             const end = Math.min(TILE_COUNT, Math.floor(Math.max(...visible.map((point) => point[axis]))));
             return [first, end];
           });
-          const size = Math.max(1, Math.min(INITIAL_TILE_SIDE, Math.floor(Math.sqrt(MAX_TILES)),
+          const size = Math.max(1, Math.min(INITIAL_TILE_SIDE, Math.floor(Math.sqrt(maxTiles)),
             ...bounds.map(([first, end]) => end - first)));
           const [x, y] = center.map((value, axis) => {
             const [first, end] = bounds[axis];
@@ -284,7 +284,7 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
         const selection = point
           ? { region: moveMapSheetSelection(drag.region, point[0] - drag.anchor[0],
             point[1] - drag.anchor[1]), limited: false }
-          : resizeMapSheetSelection(drag.region, drag.handle, corner);
+          : resizeMapSheetSelection(drag.region, drag.handle, corner, maxTiles);
         region = selection.region;
         showSelection(selection.limited);
         draw();
@@ -362,7 +362,7 @@ export function selectMapSheetRegion(map, signal, suggestedTitle) {
         const edgeY = direction.includes('n') ? region.minY : region.maxY + 1;
         const selection = resizeMapSheetSelection(region, direction,
           [longitude(Math.max(0, Math.min(TILE_COUNT, edgeX + delta[0]))),
-            latitude(Math.max(0, Math.min(TILE_COUNT, edgeY + delta[1])))]);
+            latitude(Math.max(0, Math.min(TILE_COUNT, edgeY + delta[1])))], maxTiles);
         region = selection.region;
         showSelection(selection.limited);
         draw();
@@ -472,9 +472,12 @@ async function api(url, data, signal) {
   return json.result;
 }
 
-export async function renderMapSheet(region, layer, signal, progress) {
-  if (region.count > MAX_TILES || region.count < 1) {
-    throw new Error(`Select an area containing at most ${MAX_TILES} zoom-${MAX_ZOOM} tiles.`);
+export async function renderMapSheet(region, layer, signal, progress, maxTiles) {
+  if (!Number.isSafeInteger(maxTiles) || maxTiles <= 0) {
+    throw new Error('Map sheets require a positive integer mapsheetmaxsize setting.');
+  }
+  if (region.count > maxTiles || region.count < 1) {
+    throw new Error(`Select an area containing at most ${maxTiles} zoom-${MAX_ZOOM} tiles.`);
   }
   const layers = Array.isArray(layer) ? layer : layer ? [layer] : [];
   if (!layers.length) throw new Error('Enable a Strava heatmap layer before saving a map sheet.');
@@ -593,7 +596,7 @@ export async function uploadMapSheet({ region, title, image, accountId, signal, 
   throw new Error('CalTopo is still rendering. Check your account before trying again.');
 }
 
-export function mapSheetAvailability({ pro, accountId, layer, busy }) {
+export function mapSheetAvailability({ pro, accountId, layer, busy }, maxTiles) {
   if (!pro || !accountId) return { enabled: false, pro: false, message: 'Save a private heatmap to your CalTopo account.' };
   if (busy) return { enabled: false, pro: true, message: 'A Strava map sheet is being saved...' };
   const layers = Array.isArray(layer) ? layer : layer ? [layer] : [];
@@ -603,7 +606,7 @@ export function mapSheetAvailability({ pro, accountId, layer, busy }) {
   }
   return {
     enabled: true, pro: true,
-    message: `Adjust an area of up to ${MAX_TILES} zoom-${MAX_ZOOM} heatmap tiles to save privately.`,
+    message: `Adjust an area of up to ${maxTiles} zoom-${MAX_ZOOM} heatmap tiles to save privately.`,
   };
 }
 
@@ -670,7 +673,12 @@ function reserveMapSheetCreation() {
   };
 }
 
-export function installCalTopoMapSheets(getLayers, getMap) {
+export function installCalTopoMapSheets(getLayers, getMap, maxTiles = 0) {
+  if (maxTiles === 0) return;
+  if (!Number.isSafeInteger(maxTiles) || maxTiles < 0) {
+    console.warn('[StravaHeatmapExt] Invalid mapsheetmaxsize; map sheets are disabled.', maxTiles);
+    return;
+  }
   let busy = false;
   let menu;
   let line;
@@ -680,12 +688,12 @@ export function installCalTopoMapSheets(getLayers, getMap) {
   const availability = () => {
     const pro = !!window.sarsoft?.features?.pro;
     const accountId = window.sarsoft?.account?.id;
-    if (!pro || !accountId) return mapSheetAvailability({ pro, accountId });
+    if (!pro || !accountId) return mapSheetAvailability({ pro, accountId }, maxTiles);
     if (!getMap()) return { enabled: false, pro: true, message: 'Wait for the map to finish loading.' };
     return mapSheetAvailability({
       pro, accountId,
       layer: getLayers(), busy,
-    });
+    }, maxTiles);
   };
   const refresh = () => {
     if (!menu?.isConnected) return;
@@ -749,14 +757,14 @@ export function installCalTopoMapSheets(getLayers, getMap) {
       releaseCreation = reserveMapSheetCreation();
       if (!releaseCreation) return;
       const progress = (message) => { status.textContent = message; };
-      const selection = await selectMapSheetRegion(getMap(), controller.signal, suggestedTitle);
+      const selection = await selectMapSheetRegion(getMap(), controller.signal, suggestedTitle, maxTiles);
       if (!selection) return;
       const { region, title: sheetTitle } = selection;
       name.textContent = sheetTitle;
       document.body.appendChild(dialog);
       dialog.showModal();
       timer = setTimeout(() => controller.abort(), 5 * 60 * 1000);
-      const image = await renderMapSheet(region, layers, controller.signal, progress);
+      const image = await renderMapSheet(region, layers, controller.signal, progress, maxTiles);
       uploading = true;
       close.disabled = true;
       const result = await uploadMapSheet({

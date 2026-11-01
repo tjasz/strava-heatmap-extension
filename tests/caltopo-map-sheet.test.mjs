@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   mapSheetRegion, mapSheetAlignment, colorizeMapSheetPixels,
-  mapSheetAvailability, renderMapSheet, uploadMapSheet,
-  installCalTopoMapSheets, limitMapSheetSelection, resizeMapSheetSelection, moveMapSheetSelection, selectMapSheetRegion,
+  mapSheetAvailability as availabilityWithLimit, renderMapSheet as renderWithLimit, uploadMapSheet,
+  installCalTopoMapSheets, limitMapSheetSelection as limitWithLimit,
+  resizeMapSheetSelection as resizeWithLimit, moveMapSheetSelection, selectMapSheetRegion as selectWithLimit,
 } from '../src/clients/caltopo.com/map-sheet.js';
 import { getLayerConfigs } from '../src/clients/common/layers.js';
 import { PALETTES } from '../src/clients/common/palettes.js';
@@ -16,6 +17,13 @@ const boundsFor = (x, y, columns, rows) => ({
 const layer = getLayerConfigs([{ activity: 'run', color: 'orange' }], true, '0', true)[0];
 const region = mapSheetRegion(boundsFor(6200, 12000, 2, 3));
 const reply = (result, status = 'ok') => new Response(JSON.stringify({ result, status }));
+const mapSheetAvailability = (state, maxTiles = 100) => availabilityWithLimit(state, maxTiles);
+const renderMapSheet = (region, layer, signal, progress, maxTiles = 100) =>
+  renderWithLimit(region, layer, signal, progress, maxTiles);
+const limitMapSheetSelection = (anchor, corner, maxTiles = 100) => limitWithLimit(anchor, corner, maxTiles);
+const resizeMapSheetSelection = (region, handle, point, maxTiles = 100) =>
+  resizeWithLimit(region, handle, point, maxTiles);
+const selectMapSheetRegion = (map, signal, title, maxTiles = 100) => selectWithLimit(map, signal, title, maxTiles);
 
 function globalValue(t, name, value) {
   const previous = Object.getOwnPropertyDescriptor(globalThis, name);
@@ -138,6 +146,38 @@ test('moving a selection snaps to whole tiles and clamps at world edges without 
   assert.throws(() => moveMapSheetSelection(region, NaN, 1), /position/);
 });
 
+test('configured tile limits replace 100 for selection, resizing, and availability', () => {
+  const anchor = [lng(6200), lat(12000)];
+  for (const maxTiles of [1, 7, 25, 101, 225]) {
+    const exact = limitMapSheetSelection(anchor, [lng(6200 + maxTiles), lat(12001)], maxTiles);
+    assert.equal(exact.region.count, maxTiles);
+    assert.equal(exact.limited, false);
+    for (const dx of [-500, 0, 500]) {
+      for (const dy of [-500, 0, 500]) {
+        const selected = limitMapSheetSelection(anchor, [lng(6200 + dx), lat(12000 + dy)], maxTiles);
+        assert.ok(selected.region.count >= 1 && selected.region.count <= maxTiles);
+      }
+    }
+    const initial = mapSheetRegion(boundsFor(6200, 12000, 1, 1));
+    for (const handle of ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']) {
+      const point = [lng(handle.includes('w') ? 6000 : 6500), lat(handle.includes('n') ? 11800 : 12300)];
+      const resized = resizeMapSheetSelection(initial, handle, point, maxTiles);
+      assert.ok(resized.region.count >= 1 && resized.region.count <= maxTiles, `${maxTiles}: ${handle}`);
+    }
+    assert.match(mapSheetAvailability({ pro: true, accountId: 'account', layer }, maxTiles).message,
+      new RegExp(`up to ${maxTiles} zoom-15`));
+  }
+});
+
+test('zero or missing map-sheet limit does not touch the DOM or install observers or timers', (t) => {
+  globalValue(t, 'document', new Proxy({}, { get() { assert.fail('Map sheets must be invisible'); } }));
+  globalValue(t, 'window', new Proxy({}, { get() { assert.fail('No map-sheet timer should be installed'); } }));
+  globalValue(t, 'MutationObserver', class { constructor() { assert.fail('No observer should be installed'); } });
+  const unused = () => assert.fail('Disabled map sheets must not access layers or map');
+  assert.equal(installCalTopoMapSheets(unused, unused, 0), undefined);
+  assert.equal(installCalTopoMapSheets(unused, unused), undefined);
+});
+
 test('automatic alignment maps actual image pixels to exact Mercator coordinates, including high latitudes', () => {
   for (const y of [100, 12000, 30000]) {
     const area = mapSheetRegion(boundsFor(6200, y, 7, 7));
@@ -211,6 +251,7 @@ test('rendering fetches every z15 tile once, stitches by position, colorizes, an
     assert.equal(options.credentials, 'omit');
     return new Response('png');
   });
+
   const progress = [];
   const image = await renderMapSheet(region, layer, new AbortController().signal, (message) => progress.push(message));
   assert.equal(image, 'data:image/png;base64,cG5n');
@@ -223,6 +264,22 @@ test('rendering fetches every z15 tile once, stitches by position, colorizes, an
   const paletteEntry = PALETTES.orange.slice(128 * 8, 129 * 8);
   for (const [data] of fixture.puts) assert.equal(Buffer.from(data.data).toString('hex'), paletteEntry);
   for (const url of requests) assert.match(url, /\/run\/grayscale\/15\/620[01]\/1200[012]\.png/);
+});
+
+test('rendering enforces the configured limit and can capture more than 100 tiles', async (t) => {
+  const fixture = canvasFixture(t);
+  let requests = 0;
+  t.mock.method(globalThis, 'fetch', async () => { requests++; return new Response('png'); });
+  const signal = new AbortController().signal;
+  await assert.rejects(renderMapSheet(region, layer, signal, () => {}, 5), /at most 5/);
+  assert.equal(requests, 0);
+  const large = mapSheetRegion(boundsFor(6200, 12000, 101, 1));
+  await renderMapSheet(large, layer, signal, () => {}, 101);
+  assert.equal(requests, 101);
+  assert.equal(fixture.closed(), 101);
+  for (const limit of [0, -1, 1.5, '100', undefined]) {
+    await assert.rejects(renderWithLimit(region, layer, signal, () => {}, limit), /positive integer/);
+  }
 });
 
 test('map sheets composite every enabled layer in configured order at its own opacity', async (t) => {
@@ -539,6 +596,30 @@ function selectionControls(panel) {
 }
 
 for (const renderer of ['google', 'leaflet']) {
+  test(`${renderer} selection uses the configured limit for its initial size, text, and keyboard resizing`, async (t) => {
+    const document = new Element('document');
+    document.createElement = (tag) => new Element(tag);
+    globalValue(t, 'document', document);
+    for (const maxTiles of [1, 7, 225]) {
+      const fixture = selectionMap(renderer);
+      fixture.container.getBoundingClientRect = () => ({ left: 0, top: 0, width: 2000, height: 2000 });
+      globalValue(t, 'window', { map: fixture.wrapper, google: fixture.google });
+      const work = selectMapSheetRegion(fixture.map, new AbortController().signal, 'Custom limit', maxTiles);
+      const panel = selectionPanel(fixture.container);
+      const { instructions, status, confirm } = selectionControls(panel);
+      assert.match(instructions.textContent, new RegExp(`up to ${maxTiles} zoom-15`));
+      const side = Math.min(10, Math.floor(Math.sqrt(maxTiles)));
+      assert.match(status.textContent, new RegExp(`^${side * side}/${maxTiles} tiles selected`));
+      const handle = selectionBox(fixture.container).children.find((el) => el.className.endsWith('-e'));
+      for (let i = 0; i < 250; i++) {
+        handle.handlers.keydown({ key: 'ArrowRight', preventDefault() {}, stopPropagation() {} });
+      }
+      assert.ok(Number(status.textContent.split('/')[0]) <= maxTiles);
+      confirm.click();
+      assert.ok((await work).region.count <= maxTiles);
+    }
+  });
+
   test(`${renderer} starts with up to 100 tiles and resizes through handles without blocking normal map navigation`, async (t) => {
     const document = new Element('document');
     document.createElement = (tag) => new Element(tag);
@@ -961,7 +1042,7 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
     constructor(callback) { observer = callback; }
     observe() {}
   });
-  installCalTopoMapSheets(() => layer, () => selection.map);
+  installCalTopoMapSheets(() => layer, () => selection.map, 100);
   const menu = group.children[1];
   assert.equal(menu.id, 'strava-heatmap-map-sheet');
   const button = menu.children[0];

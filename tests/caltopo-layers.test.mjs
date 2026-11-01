@@ -39,7 +39,13 @@ class Element {
   }
 }
 
-function fixture(renderer, saved, initialPresets = presets) {
+test('CalTopo forwards the injected map-sheet limit as a number for both renderers', () => {
+  for (const renderer of ['google', 'leaflet']) {
+    for (const limit of ['0', '1', '25', '225']) fixture(renderer, undefined, presets, limit);
+  }
+});
+
+function fixture(renderer, saved, initialPresets = presets, mapSheetMaxSize) {
   const body = new Element('body');
   const heading = new Element('p');
   heading.textContent = 'Route Discovery';
@@ -101,7 +107,9 @@ function fixture(renderer, saved, initialPresets = presets) {
       createElement: (tag) => new Element(tag),
       getElementById: (id) => all(body).find((element) => element.id === id),
       querySelectorAll: (tag) => all(body).filter((element) => element.tagName === tag.toUpperCase()),
-      querySelector: () => ({ dataset: { version: '0', authenticated: 'true', layers: initialPresets } }),
+      querySelector: () => ({ dataset: {
+        version: '0', authenticated: 'true', layers: initialPresets, mapsheetmaxsize: mapSheetMaxSize,
+      } }),
     },
     localStorage: {
       getItem: (key) => { assert.equal(key, storageKey); return stored; },
@@ -119,7 +127,10 @@ function fixture(renderer, saved, initialPresets = presets) {
       getSnapLayer = getLayer;
       return { invalidate() { invalidations++; } };
     },
-    installCalTopoMapSheets: (getLayers) => { getSheetLayers = getLayers; },
+    installCalTopoMapSheets: (getLayers, getMap, maxTiles) => {
+      assert.equal(maxTiles, Number(mapSheetMaxSize ?? 0));
+      getSheetLayers = getLayers;
+    },
   });
   timers[0]();
   const row = (index) => {

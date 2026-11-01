@@ -40,7 +40,25 @@
     }
   }
 
-  function injectClientScript(layerPresets, authenticated, manifestVersion) {
+  async function retrieveMapSheetMaxSize() {
+    try {
+      const { mapsheetmaxsize } = await browser.storage.local.get('mapsheetmaxsize');
+      if (mapsheetmaxsize === undefined) {
+        await browser.storage.local.set({ mapsheetmaxsize: 0 });
+        return 0;
+      }
+      if (!Number.isSafeInteger(mapsheetmaxsize) || mapsheetmaxsize < 0) {
+        console.warn('[StravaHeatmapExt] Invalid mapsheetmaxsize; map sheets are disabled.', mapsheetmaxsize);
+        return 0;
+      }
+      return mapsheetmaxsize;
+    } catch (error) {
+      console.error('[StravaHeatmapExt] Error retrieving map sheet maximum size:', error);
+      return 0;
+    }
+  }
+
+  function injectClientScript(layerPresets, authenticated, manifestVersion, mapSheetMaxSize) {
     try {
       const host = window.location.host === 'www.caltopo.com'
         ? 'caltopo.com'
@@ -54,6 +72,7 @@
       script.dataset.authenticated = authenticated;
       script.dataset.version = manifestVersion;
       script.dataset.layers = layerPresets;
+      script.dataset.mapsheetmaxsize = mapSheetMaxSize;
       if (host === 'brouter.de') script.dataset.initialHash = initialHash;
       script.onload = () => {
         // script.remove();
@@ -95,7 +114,8 @@
   const manifestVersion = getManifestVersion();
   const layerPresets = await retrieveLayerPresets();
   const authenticated = await requestCredentials();
+  const mapSheetMaxSize = await retrieveMapSheetMaxSize();
 
-  injectClientScript(layerPresets, authenticated, manifestVersion);
+  injectClientScript(layerPresets, authenticated, manifestVersion, mapSheetMaxSize);
   injectClientCSS();
 })();

@@ -83,6 +83,13 @@ If suggestions cannot cross a gap, click off the options to draw a straight segm
 
 ## Save a heatmap map sheet
 
+This experimental feature is hidden by default. To enable it, run
+`browser.storage.local.set({ mapsheetmaxsize: 100 })` in the extension's
+developer-tools console (use `chrome.storage.local` in Chrome), then reload
+CalTopo. Set a positive integer to choose the maximum number of tiles per
+sheet, or `0` to hide the menu item completely. A missing key is initialized
+to `0`.
+
 A saved map sheet can be used on mobile, downloaded there, and included in printed PDFs using CalTopo's normal controls. This requires a **CalTopo Pro account** and the extension signed into Strava.
 
 ### Select the area
@@ -91,9 +98,9 @@ A saved map sheet can be used on mobile, downloaded there, and included in print
 2. Finish or cancel any other item you are creating. CalTopo allows only one new item at a time, including heatmap map sheets.
 3. Open **Add > Map Sheet from Strava Heatmap**, directly below **Map Sheet**, at any map zoom level. The selection form appears at the bottom left.
 4. Adjust the selection box:
-   - It starts centered on your map view as the largest whole-tile square that fits with room for its handles, from 1-by-1 up to 10-by-10 zoom-15 tiles.
+   - It starts centered on your map view as the largest whole-tile square that fits with room for its handles, from 1-by-1 up to 10-by-10 zoom-15 tiles, also capped by `mapsheetmaxsize`.
    - Drag the center handle to move the box in whole-tile steps without changing its dimensions. The center handle also supports arrow keys.
-   - Drag edge or corner handles to resize it. The box stops growing before it would include more than **100 zoom-15 tiles**; a live tile count shows its size.
+   - Drag edge or corner handles to resize it. The box stops growing before it would include more than **`mapsheetmaxsize` zoom-15 tiles**; a live tile count shows its size.
    - If one tile is larger than the view, zoom out to see all its handles.
 5. Keep the suggested **Sheet name**, which includes the activity, color, and UTC date, or enter your own non-empty name.
 6. Choose **Capture**.

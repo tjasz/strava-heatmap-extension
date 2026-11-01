@@ -453,6 +453,7 @@ async function main() {
     () => getActiveLayerConfigs()
       .map((config) => ({ ...config, opacity: layerStates.get(config.id).opacity })),
     () => getLeafletMap() || getGoogleMap(),
+    Number(script.dataset.mapsheetmaxsize ?? 0),
   );
 
   setupAuthStatusChangeListener((newAuthenticated) => {

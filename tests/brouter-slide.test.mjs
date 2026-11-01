@@ -518,7 +518,10 @@ test('client injection captures the URL before asynchronous authentication rewri
           return true;
         },
       },
-      storage: { local: { get: async () => ({ layers: 'run:blue:global' }) } },
+      storage: { local: {
+        get: async () => ({ layers: 'run:blue:global' }),
+        set: async (values) => { assert.equal(values.mapsheetmaxsize, 0); },
+      } },
     },
     document: {
       createElement: () => ({ dataset: {} }),

@@ -234,6 +234,13 @@ gap, or choose **OSM** for mapped-trail routing.
 
 ### Save a CalTopo heatmap map sheet
 
+This experimental feature is hidden by default. Power users can enable it in
+the extension's developer-tools console with
+`browser.storage.local.set({ mapsheetmaxsize: 100 })` (use
+`chrome.storage.local` in Chrome), then reload CalTopo. The value must be a
+positive integer and sets the maximum number of tiles per sheet; `0` hides the
+menu item completely. A missing key is initialized to `0`.
+
 With a CalTopo Pro account and the extension signed into Strava, enable the
 heatmap layers you want under **Route Discovery** and adjust their opacities.
 The map sheet combines all enabled layers in the same order and at the same
@@ -244,13 +251,14 @@ other item you are creating first; CalTopo allows only one new item at a time,
 including heatmap map sheets.
 A square of zoom-15 tiles starts centered on your map view, using the largest
 whole-tile square that fits with room for its handles, from 1-by-1 up to 10-by-10.
+The initial square is also capped by `mapsheetmaxsize`.
 If a single tile exceeds the view, zoom out to see all its handles. Drag the center
 handle to move the box in whole-tile steps without changing its dimensions, or its
 edge and corner handles to resize it. The center handle also supports arrow keys.
 The **Sheet name** field suggests
 a name containing the activity, color, and UTC date; keep it or enter your own
 non-empty name, then choose **Capture**.
-The box stops growing before it would include more than 100 tiles at
+The box stops growing before it would include more than `mapsheetmaxsize` tiles at
 zoom 15. A live tile count shows the selection size. Use CalTopo's
 normal map controls to pan and zoom without changing the selected geographic
 area. Only the selection handles intercept dragging; the map remains draggable
