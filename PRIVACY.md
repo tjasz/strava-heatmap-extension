@@ -18,10 +18,11 @@ The extension also stores your heatmap layer preferences and temporary sign-in n
 
 ## External requests
 
-The extension connects to Strava for sign-in and heatmap tiles. Tile requests include the coordinates of the requested map tiles, which identify the map area being viewed or processed.
+The extension connects to Strava for sign-in and heatmap tiles. Tile requests include the coordinates of the requested map tiles, which identify the map area being viewed.
 
 When signed out, the extension loads a fallback image from GitHub's raw content service. These image requests also include map tile coordinates.
 
+<!-- DISABLED FEATURE
 When you select **Map Sheet from Strava Heatmap** in CalTopo, the extension
 lets you select an area and, after you confirm, downloads the heatmap tiles
 covering that area and uploads a colorized image,
@@ -32,5 +33,6 @@ sheet to your account and add it to the current map. Public sharing is always
 disabled. The extension does not read or store your CalTopo authentication
 cookies; the browser sends them with same-origin requests. CalTopo's handling
 of these uploads is governed by its privacy policy.
+-->
 
 As with other web requests, Strava and GitHub receive your IP address and standard request information. Their handling of these requests is governed by their respective privacy policies.
