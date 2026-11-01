@@ -1,12 +1,11 @@
 # Strava Heatmap for CalTopo
 
-This guide covers using the Strava Heatmap extension in [CalTopo](https://caltopo.com/): displaying heatmap layers, drawing along heatmap trails, and saving heatmaps for mobile use and printing.
+This guide covers using the Strava Heatmap extension in [CalTopo](https://caltopo.com/): displaying heatmap layers and drawing along heatmap trails.
 
 ## Requirements
 
 - A free [Strava account](https://www.strava.com/register/free) for Global heatmaps. You can sign up with Google, Apple, Facebook, or email.
 - A Strava Premium subscription for access to Weekly heatmaps. The extension does not unlock subscription-only data.
-- A CalTopo Pro account to unlock the capability to save a heatmap as a map sheet.
 - Chrome, Edge, or Firefox 140 or later on desktop / Firefox 142 or later on Android. Other Chromium-based browsers, such as Brave and Opera, have not been tested or fully supported.
 
 ## Install the extension
@@ -53,7 +52,7 @@ custom palettes. Resetting layers to defaults leaves your custom palettes intact
 
 Each layer's visibility and opacity are saved separately. Most recently enabled layers appear on top. To bring a layer to the top, turn it off and on again; adjusting opacity does not change its stacking order. The stacking order is saved with the layer settings.
 
-The live overlay does **not** appear in CalTopo's print preview: PDFs are rendered server-side and cannot include it. To print a heatmap, first [save it as a map sheet](#save-a-heatmap-map-sheet).
+The live overlay does **not** appear in CalTopo's print preview: PDFs are rendered server-side and cannot include it.
 
 ## Snap drawing segments to Strava
 
@@ -81,41 +80,6 @@ Snapping uses the Strava layer you most recently enabled or adjusted, even if yo
 
 If suggestions cannot cross a gap, click off the options to draw a straight segment, or choose **OSM** for mapped-trail routing. Missing tiles or expired login show an error beside **Snap To** without preventing straight drawing. Check your sign-in and zoom level when suggestions are unavailable.
 
-## Save a heatmap map sheet
-
-This experimental feature is hidden by default. To enable it, run
-`browser.storage.local.set({ mapsheetmaxsize: 100 })` in the extension's
-developer-tools console (use `chrome.storage.local` in Chrome), then reload
-CalTopo. Set a positive integer to choose the maximum number of tiles per
-sheet, or `0` to hide the menu item completely. A missing key is initialized
-to `0`.
-
-A saved map sheet can be used on mobile, downloaded there, and included in printed PDFs using CalTopo's normal controls. This requires a **CalTopo Pro account** and the extension signed into Strava.
-
-### Select the area
-
-1. Under **Route Discovery**, enable the heatmap layers you want and adjust their opacities. The sheet combines all enabled layers in the same order and at the same opacities as the map.
-2. Finish or cancel any other item you are creating. CalTopo allows only one new item at a time, including heatmap map sheets.
-3. Open **Add > Map Sheet from Strava Heatmap**, directly below **Map Sheet**, at any map zoom level. The selection form appears at the bottom left.
-4. Adjust the selection box:
-   - It starts centered on your map view as the largest whole-tile square that fits with room for its handles, from 1-by-1 up to 10-by-10 zoom-15 tiles, also capped by `mapsheetmaxsize`.
-   - Drag the center handle to move the box in whole-tile steps without changing its dimensions. The center handle also supports arrow keys.
-   - Drag edge or corner handles to resize it. The box stops growing before it would include more than **`mapsheetmaxsize` zoom-15 tiles**; a live tile count shows its size.
-   - If one tile is larger than the view, zoom out to see all its handles.
-5. Keep the suggested **Sheet name**, which includes the activity, color, and UTC date, or enter your own non-empty name.
-6. Choose **Capture**.
-
-You can pan and zoom using CalTopo's normal controls without changing the selected geographic area. Only selection handles intercept dragging; the map remains draggable inside and outside the box. Choose **Cancel** or press **Escape** to exit without downloading or uploading.
-
-### Capture and use the sheet
-
-The extension stitches the full tiles intersecting your box, applies the selected colors, and uploads and aligns the image automatically. It saves the sheet privately to your CalTopo account and adds it to the current map using your chosen name. **Share publicly is always off.**
-
-- You can cancel while tiles are being prepared. Once uploading starts, wait for the result.
-- If a request times out, check your account before retrying to avoid duplicates.
-- If the current map cannot be edited, the account copy remains available through **Map Sheet > From Account**.
-- Views crossing the date line or extending outside Web Mercator's latitude limits must be repositioned first.
-
 ## Troubleshooting
 
 ### The extension asks me to sign into Strava
@@ -133,7 +97,7 @@ These are upstream Strava issues, not CalTopo rendering problems. Zoom in furthe
 
 ### The heatmap is missing from print preview
 
-The live overlay cannot be included in server-rendered PDFs. [Save a heatmap map sheet](#save-a-heatmap-map-sheet), then include that sheet using CalTopo's normal print controls.
+The live overlay cannot be included in server-rendered PDFs.
 
 ## Updates and feedback
 
