@@ -1,12 +1,20 @@
 # Strava Heatmap for CalTopo
 
-This guide covers using the Strava Heatmap extension in [CalTopo](https://caltopo.com/): displaying heatmap layers and drawing along heatmap trails.
+This guide covers using the Strava Heatmap extension in [CalTopo](https://caltopo.com/) to display heatmap layers and draw along heatmap paths.
+
+![Strava Heatmap in CalTopo](../../images/screenshot1.png)
 
 ## Requirements
 
 - A free [Strava account](https://www.strava.com/register/free) for Global heatmaps. You can sign up with Google, Apple, Facebook, or email.
 - A Strava Premium subscription for access to Weekly heatmaps. The extension does not unlock subscription-only data.
-- Chrome, Edge, or Firefox 140 or later on desktop / Firefox 142 or later on Android. Other Chromium-based browsers, such as Brave and Opera, have not been tested or fully supported.
+- A supported browser:
+  - Chrome
+  - Edge
+  - Firefox 140 or later
+  - Firefox 142 or later on Android
+
+Other Chromium-based browsers, such as Brave and Opera, have not been tested.
 
 ## Install the extension
 
@@ -33,12 +41,17 @@ Firefox requests consent to transmit Strava authentication information and map t
 
 You can configure multiple layers for the same sport, including layers of the same heatmap type with different colors. Use the extension settings to manage the available layers.
 
+![Strava Heatmap in CalTopo](../../images/screenshot3.png)
+
 The **Gradients** tab shows every built-in palette with a 256-by-10-pixel preview,
 name, and emoji. Click **Add Gradient** to define a custom palette: enter its name
 and emoji, then edit, add, remove, and reorder color and opacity stops. The preview
 remains visible while editing and updates when stops change. **Done**
 returns to its preview; **Edit** reopens the controls. Choose the named palette
 from a layer's color dropdown and click **Apply changes** to save.
+You may have to refresh open CalTopo tabs to get the updated configuration.
+
+![Strava Heatmap in CalTopo](../../images/screenshot4.png)
 
 Custom palettes work with both Global and Weekly layers. Editing a palette updates
 every layer using it. Existing saved per-layer gradients are preserved as separate
@@ -52,11 +65,15 @@ custom palettes. Resetting layers to defaults leaves your custom palettes intact
 
 Each layer's visibility and opacity are saved separately. Most recently enabled layers appear on top. To bring a layer to the top, turn it off and on again; adjusting opacity does not change its stacking order. The stacking order is saved with the layer settings.
 
+![Strava Heatmap in CalTopo](../../images/screenshot5.png)
+
 The live overlay does **not** appear in CalTopo's print preview: PDFs are rendered server-side and cannot include it.
 
 ## Snap drawing segments to Strava
 
 Strava snapping suggests continuations along heatmap trails as you draw. These suggestions come from heatmap imagery, not mapped trail data, so always review them before saving, especially at forks.
+
+![Strava Heatmap in CalTopo](../../images/screenshot2.png)
 
 1. Sign into Strava using the extension and select the activity layer in the Strava heatmap controls.
 2. Choose **Add > Line**, **Polygon**, or **Buffer** (and enter its radius), then choose **Strava** in the map's **Snap To** dropdown. The measure tool also supports Strava snapping.
@@ -101,5 +118,5 @@ The live overlay cannot be included in server-rendered PDFs.
 
 ## Updates and feedback
 
-- See the [changelog](../../CHANGELOG.md) for version details.
 - Submit bugs and feature requests through [GitHub Issues](https://github.com/tjasz/strava-heatmap-extension/issues).
+- See the [changelog](../../CHANGELOG.md) for version details.
