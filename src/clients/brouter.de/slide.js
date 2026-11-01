@@ -198,8 +198,8 @@ export function installBrouterSlide(routing, map, getLayer, fit = slideSegment, 
     const result = updateLayer.call(this, a, b, layer);
     if (a._routing.beeline && state?.slide) {
       const style = { dashArray: '16, 8' };
-      layer.setStyle(style);
-      layer._casing?.setStyle(style);
+      layer.setStyle({ ...style, opacity: this.options.styles.track.opacity });
+      layer._casing?.setStyle({ ...style, opacity: this.options.styles.trackCasing.opacity });
     }
     return result;
   };

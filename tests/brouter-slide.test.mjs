@@ -53,7 +53,10 @@ function fixture(t, fit, options = {}) {
   const routingListeners = {};
   const routing = {
     _waypoints: { hasLayer: (marker) => markers.has(marker) },
-    options: { tooltips: { waypoint: 'Waypoint' } },
+    options: {
+      tooltips: { waypoint: 'Waypoint' },
+      styles: { track: { opacity: 1 }, trackCasing: { opacity: 1 } },
+    },
     isDrawing: () => routing._draw._enabled,
     getLast: () => orderedMarkers().at(-1),
     getWaypoints: () => orderedMarkers().map((marker) => marker.getLatLng()),
@@ -68,7 +71,7 @@ function fixture(t, fit, options = {}) {
     _routeSegment(a, b, cb) { this.nativeCalls++; cb(); },
     _updateLayer(a, b, line) {
       line._casing = {
-        options: { ...line.options },
+        options: { ...line.options, ...this.options.styles.trackCasing },
         setStyle(style) { Object.assign(this.options, style); },
       };
       a._routing.nextLine = line;
@@ -80,7 +83,7 @@ function fixture(t, fit, options = {}) {
       this._eachSegment((a, b) => {
         if (!a._routing.beeline) return;
         const line = {
-          options: { dashArray: '1, 5' },
+          options: { dashArray: '1, 5', opacity: 1 },
           points: [a.getLatLng(), b.getLatLng()],
           getLatLngs() { return this.points; },
           setLatLngs(points) { this.points = points; },
@@ -293,6 +296,37 @@ test('S toggles Slide; native straight-line and routed modes remain independent'
   assert.equal(normal._casing.options.dashArray, null);
 });
 
+test('Slide inherits current track and casing opacity on first render and beeline refresh', async (t) => {
+  for (const opacity of [0, 0.4, 1]) {
+    let finish;
+    const f = fixture(t, (points) => new Promise((resolve) => {
+      finish = () => resolve({ coordinates: [points[0], [0.5, 1], points[1]] });
+    }));
+    const trackOpacity = 1 - Math.sqrt(1 - opacity);
+    Object.assign(f.routing.options.styles.track, { opacity: trackOpacity });
+    Object.assign(f.routing.options.styles.trackCasing, { opacity: trackOpacity });
+    f.key(); f.click(at(0)); f.click(at(1));
+    f.routing._updateBeelines();
+    const first = [...f.markers][0];
+    const check = (expectedTrack, expectedCasing) => {
+      assert.equal(first._routing.nextLine.options.opacity, expectedTrack);
+      assert.equal(first._routing.nextLine._casing.options.opacity, expectedCasing);
+      assert.equal(first._routing.nextLine.options.dashArray, '16, 8');
+      assert.equal(first._routing.nextLine._casing.options.dashArray, '16, 8');
+    };
+    check(trackOpacity, trackOpacity);
+    await f.settle();
+    // Use the latest styles, even if they change while Slide is calculating.
+    f.routing.options.styles.track.opacity = 0.2;
+    f.routing.options.styles.trackCasing.opacity = 0.3;
+    finish();
+    await f.settle();
+    check(0.2, 0.3);
+    f.routing._updateBeelines();
+    check(0.2, 0.3);
+  }
+});
+
 test('Slide recalculates moved endpoints and layer changes; ignores stale and cleared work', async (t) => {
   const requests = [];
   const f = fixture(t, (points, source, signal) => new Promise((resolve) => {
@@ -321,10 +355,14 @@ test('Slide recalculates moved endpoints and layer changes; ignores stale and cl
 
 test('no-trail results and explicit failures keep straight geometry', async (t) => {
   const f = fixture(t, async (points) => ({ coordinates: points, message: 'No trail.' }));
+  f.routing.options.styles.track.opacity = 0.2;
+  f.routing.options.styles.trackCasing.opacity = 0.3;
   f.button.click(); f.click(at(0)); f.click(at(1));
   await f.settle();
   assert.equal([...f.markers][0]._routing.nextLine.getLatLngs().length, 2);
   assert.equal([...f.markers][0]._routing.nextLine.options.dashArray, '16, 8');
+  assert.equal([...f.markers][0]._routing.nextLine.options.opacity, 0.2);
+  assert.equal([...f.markers][0]._routing.nextLine._casing.options.opacity, 0.3);
   const warnings = [];
   const warn = console.warn;
   console.warn = (...args) => warnings.push(args);
@@ -335,6 +373,8 @@ test('no-trail results and explicit failures keep straight geometry', async (t) 
   assert.equal([...f.markers][0]._routing.nextLine.getLatLngs().length, 2);
   assert.equal([...f.markers][0]._routing.nextLine.options.dashArray, '16, 8');
   assert.equal([...f.markers][0]._routing.nextLine._casing.options.dashArray, '16, 8');
+  assert.equal([...f.markers][0]._routing.nextLine.options.opacity, 0.2);
+  assert.equal([...f.markers][0]._routing.nextLine._casing.options.opacity, 0.3);
 });
 
 test('reversing preserves Slide segment modes, while splitting inherits Slide', async (t) => {
