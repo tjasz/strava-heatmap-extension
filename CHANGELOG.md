@@ -2,23 +2,12 @@
 
 ## Versions
 
-### Unreleased
+### `0.15.0.2` (2026-11-01)
 
-- [Geotab, BRouter] Add support for additional clients.
-- [Geotab] Restore heatmap layer controls and enabled layers when the map or layers control reloads.
-- [BRouter] Preserve Slide segment indices and the selected heatmap in permalinks; restore Slide after refreshing and recalculate adjacent Slide segments when moving a waypoint.
-- [BRouter] Draw Slide segments with long dashes to distinguish them from solid routed lines and dotted straight segments.
-- [BRouter] Add Slide drawing mode below straight-line mode, toggled with S, highlighted in the same blue when active, and hidden when not editing. Follow the selected heatmap between clicked points, keeping straight segments when no trail is available.
-- Add custom gradient option.
-- [gpx.studio] Render the exact preset palettes for global and weekly heatmaps instead of legacy color approximations.
-
-### `0.15.0.2` (Unreleased)
-
-- [CalTopo] Add ability to save a map sheet built from the Strava heatmap.
-- [CalTopo] Do not show the heatmap in the print preview, since it will not appear in printed output.
-- [CalTopo] Allow multiple layers to be selected at once. Snap suggestions follow the most recently enabled or modififed layer.
+- [CalTopo] Do not show the heatmap in the print preview, since it will not appear in printed, server-rendered output.
+- [CalTopo] Allow multiple layers to be shown at once. Snap suggestions follow the most recently enabled or modififed layer.
 - Add support for Weekly heatmap for Strava Premium subscribers.
-- Support custom gradients.
+- Add support for definition of custom gradients.
 
 ### `0.15.0.1` (2026-10-29)
 
