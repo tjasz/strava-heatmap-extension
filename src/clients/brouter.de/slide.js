@@ -20,7 +20,7 @@ export async function slideSegment(locations, layer, signal, onProgress) {
   }
 }
 
-export function installBrouterSlide(routing, map, getLayer, fit = slideSegment) {
+export function installBrouterSlide(routing, map, getLayer, fit = slideSegment, initialHash = window.location.hash) {
   if (routing.__stravaHeatmapSlide) return routing.__stravaHeatmapSlide;
   const L = window.L;
   const straightButton = document.querySelector('#mdi-vector-line')?.closest('button');
@@ -28,6 +28,10 @@ export function installBrouterSlide(routing, map, getLayer, fit = slideSegment) 
   const states = new WeakMap();
   const pending = new Set();
   let reversing;
+  let restoring;
+  let startupHash = initialHash;
+  let unavailableLayerId;
+  const activeLayer = () => unavailableLayerId ? undefined : getLayer();
   let enabled = false;
   const status = document.createElement('div');
   status.className = 'strava-slide-status leaflet-bar';
@@ -109,14 +113,14 @@ export function installBrouterSlide(routing, map, getLayer, fit = slideSegment) 
 
   const addWaypoint = routing.addWaypoint;
   routing.addWaypoint = function (point, beeline, prev, next, cb) {
-    const saved = reversing?.get(point);
+    const saved = reversing?.get(point) ?? restoring?.get(point);
     if (saved || (prev && next && states.get(prev)?.slide)) {
       if (point instanceof L.LatLng) {
         point = L.marker(point, { title: this.options.tooltips.waypoint, draggable: true });
       }
       states.set(point, saved ?? { slide: true });
     }
-    return addWaypoint.call(this, point, beeline, prev, next, cb);
+    return addWaypoint.call(this, point, saved ? true : beeline, prev, next, cb);
   };
   const locationsOf = (a, b) => [a, b].map((marker) => {
     const point = marker.getLatLng();
@@ -132,7 +136,7 @@ export function installBrouterSlide(routing, map, getLayer, fit = slideSegment) 
     if (!a || !b || !state?.slide || !a._routing.beeline) {
       return routeSegment.call(this, a, b, cb);
     }
-    const layer = getLayer();
+    const layer = activeLayer();
     const key = signature(a, b);
     if (state.end === b && state.key === key && state.template === layer?.template &&
         state.coordinates) return cb();
@@ -143,10 +147,12 @@ export function installBrouterSlide(routing, map, getLayer, fit = slideSegment) 
     Object.assign(state, { end: b, key, template: layer?.template, coordinates: undefined });
     showStatus(layer ? `Slide: loading ${layer.name}...` : 'Choose a Strava heatmap overlay before using Slide.', !layer);
     const valid = () => !controller.signal.aborted && current(a, b) &&
-      state.key === signature(a, b) && state.template === getLayer()?.template &&
+      state.key === signature(a, b) && state.template === activeLayer()?.template &&
       states.get(a) === state;
     Promise.resolve().then(() => {
-      if (!layer) throw new Error('Choose a Strava heatmap overlay before using Slide.');
+      if (!layer) throw new Error(unavailableLayerId
+        ? 'The saved Slide heatmap is no longer configured. Select a Strava heatmap overlay.'
+        : 'Choose a Strava heatmap overlay before using Slide.');
       return fit(locationsOf(a, b), layer, controller.signal, (message) => {
         if (!controller.signal.aborted) showStatus(message);
       });
@@ -171,7 +177,7 @@ export function installBrouterSlide(routing, map, getLayer, fit = slideSegment) 
     const state = states.get(a);
     if (a._routing.beeline && state?.slide && state.end === b &&
         state.key === signature(a, b) && state.coordinates &&
-        state.template === getLayer()?.template) {
+        state.template === activeLayer()?.template) {
       const points = layer.getLatLngs();
       const coordinates = [
         [points[0].lng, points[0].lat],
@@ -209,7 +215,8 @@ export function installBrouterSlide(routing, map, getLayer, fit = slideSegment) 
     showStatus('');
     return clear.apply(this, args);
   };
-  const invalidate = () => {
+  const invalidate = (resetSource = true) => {
+    if (resetSource) unavailableLayerId = undefined;
     for (const controller of pending) controller.abort();
     routing._eachSegment((a, b) => {
       if (!states.get(a)?.slide) return;
@@ -220,6 +227,84 @@ export function installBrouterSlide(routing, map, getLayer, fit = slideSegment) 
       });
     });
   };
+  const hash = Object.values(routing._events ?? {}).flat().map(({ ctx }) => ctx)
+    .find((ctx) => L.Hash && ctx instanceof L.Hash);
+  if (!hash) throw new Error('BRouter URL hash control was not found.');
+  const readSlide = (points, routeHash = window.location.hash) => {
+    const params = new URLSearchParams(routeHash.slice(1));
+    const value = params.get('slide');
+    if (!value) return new Set();
+    const lonlats = params.get('lonlats')?.split(/[;|]/).map((point) => point.split(',').map(Number));
+    // Only a URL route being loaded may inherit its flags, never an unrelated import.
+    if (lonlats?.length !== points.length || points.some((point, i) =>
+      lonlats[i].length !== 2 || !lonlats[i].every(Number.isFinite) ||
+      Math.abs(point.lng - lonlats[i][0]) > 0.00000051 ||
+      Math.abs(point.lat - lonlats[i][1]) > 0.00000051)) return new Set();
+    const indices = value.split(',');
+    if (indices.some((index) => !/^(0|[1-9]\d*)$/.test(index) || Number(index) >= points.length - 1)) {
+      console.warn('[StravaHeatmapExt] Invalid BRouter Slide segment indices:', value);
+      showStatus('Invalid Slide segment indices in the URL; using native routing.', true);
+      return new Set();
+    }
+    const layerId = params.get('slide-layer');
+    unavailableLayerId = layerId && !getLayer(layerId) ? layerId : undefined;
+    return new Set(indices.map(Number));
+  };
+  const setWaypoints = routing.setWaypoints;
+  routing.setWaypoints = function (points, flags, cb) {
+    const currentHash = window.location.hash;
+    const routeHash = new URLSearchParams(currentHash.slice(1)).has('slide')
+      ? currentHash : startupHash ?? currentHash;
+    const indices = reversing ? new Set() : readSlide(points, routeHash);
+    startupHash = undefined;
+    restoring = new Map([...indices].map((index) => [points[index], { slide: true }]));
+    try {
+      return setWaypoints.call(this, points, flags, cb);
+    } finally {
+      restoring = undefined;
+    }
+  };
+  const additional = hash.additionalCb;
+  hash.additionalCb = function (...args) {
+    const original = additional.apply(this, args) ?? '';
+    const indices = [];
+    const straight = [];
+    let index = 0;
+    routing._eachSegment((a) => {
+      if (a._routing.beeline) {
+        if (states.get(a)?.slide) indices.push(index);
+        else straight.push(index);
+      }
+      index++;
+    });
+    const params = new URLSearchParams(original.replace(/^&/, ''));
+    params.delete('slide');
+    params.delete('slide-layer');
+    params.delete('straight');
+    if (straight.length) params.set('straight', straight.join(','));
+    if (indices.length) {
+      params.set('slide', indices.join(','));
+      const layerId = unavailableLayerId ?? getLayer()?.id;
+      if (layerId) params.set('slide-layer', layerId);
+    }
+    // Preserve BRouter's human-readable semicolons and commas.
+    const suffix = params.toString().replace(/\+/g, '%20').replace(/%3B/gi, ';').replace(/%2C/gi, ',');
+    return suffix ? `&${suffix}` : null;
+  };
+  routing.on('routing:setWaypointsEnd routing:rerouteSegmentEnd', hash.onMapMove, hash);
+  const initial = readSlide(routing.getWaypoints(), initialHash);
+  let index = 0;
+  routing._eachSegment((a) => {
+    if (initial.has(index)) {
+      states.set(a, { slide: true });
+      a._routing.beeline = true;
+    }
+    index++;
+  });
+  if (initial.size) {
+    startupHash = undefined;
+    invalidate(false);
+  }
   routing.__stravaHeatmapSlide = { invalidate };
   return routing.__stravaHeatmapSlide;
 }

@@ -63,7 +63,7 @@
         "src/content/watch-storage.js",
         "src/content/watch-tile-errors.js"
       ],
-      "run_at": "document_end"
+      "run_at": "document_start"
     },
     {
       "matches": [

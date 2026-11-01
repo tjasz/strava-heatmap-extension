@@ -295,9 +295,15 @@ area-limit errors are shown beside the map controls and also leave the segment
 straight. Slide and straight-line mode are mutually exclusive: turning one on
 turns the other off, and toggling the active mode off restores normal routing.
 Press **B** to switch to ordinary straight-line drawing.
-Download the route with BRouter's normal **Export** to retain the slid geometry;
-permalinks and the deprecated server export retain only the clicked points
-and straight-line flags, not the Slide geometry.
+The URL stores ordinary straight segments in `straight` and Slide segments in
+`slide`, using zero-based segment indices. It also stores the selected heatmap
+in `slide-layer`. Refreshing or opening the permalink with the extension
+restores Slide segments and recalculates them from that heatmap; dragging a
+middle point recalculates both adjacent Slide segments. The saved layer must
+still be configured and Strava access must be available. Results can change
+if the heatmap data changes.
+Download the route with BRouter's normal **Export** to retain the exact slid
+geometry. The deprecated server export does not support Slide.
 
 ### Troubleshooting
 

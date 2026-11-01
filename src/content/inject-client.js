@@ -1,4 +1,5 @@
 (async function () {
+  const initialHash = window.location.hash;
   console.debug('[StravaHeatmapExt] executing content/inject-client.js');
 
   function getManifestVersion() {
@@ -53,6 +54,7 @@
       script.dataset.authenticated = authenticated;
       script.dataset.version = manifestVersion;
       script.dataset.layers = layerPresets;
+      if (host === 'brouter.de') script.dataset.initialHash = initialHash;
       script.onload = () => {
         // script.remove();
         console.debug('[StravaHeatmapExt] Injected client script.', path);

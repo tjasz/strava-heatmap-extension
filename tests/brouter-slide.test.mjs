@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { installBrouterSlide, slideSegment } from '../src/clients/brouter.de/slide.js';
 import { project, unproject } from '../src/clients/www.openstreetmap.org/slide/algorithm.js';
 import { deflateSync } from 'node:zlib';
+import { runInNewContext } from 'node:vm';
 
 class Element {
   constructor() {
@@ -19,11 +20,12 @@ class LatLng {
 }
 const coordinates = (points) => points.map(({ lng, lat }) => [lng, lat]);
 const layer = {
+  id: 'run-blue',
   name: 'Run',
   template: 'https://content-a.strava.com/identified/globalheat/run/grayscale/{z}/{x}/{y}.png',
 };
 const at = (x, y = 0) => new LatLng(y, x);
-function fixture(t, fit) {
+function fixture(t, fit, options = {}) {
   const button = new Element();
   const straight = new Element();
   const listeners = {};
@@ -39,12 +41,22 @@ function fixture(t, fit) {
   map.on('routing:beeline-end', () => { straight.active = false; });
   straight.active = false;
   const markers = new Set();
+  const orderedMarkers = () => {
+    const ordered = [];
+    let marker = [...markers].find((point) => !point._routing.prevMarker);
+    while (marker) {
+      ordered.push(marker);
+      marker = marker._routing.nextMarker;
+    }
+    return ordered;
+  };
+  const routingListeners = {};
   const routing = {
     _waypoints: { hasLayer: (marker) => markers.has(marker) },
     options: { tooltips: { waypoint: 'Waypoint' } },
     isDrawing: () => routing._draw._enabled,
-    getLast: () => [...markers].at(-1),
-    getWaypoints: () => [...markers].map((marker) => marker.getLatLng()),
+    getLast: () => orderedMarkers().at(-1),
+    getWaypoints: () => orderedMarkers().map((marker) => marker.getLatLng()),
     _distance: (a, b) => Math.hypot(a.lng - b.lng, a.lat - b.lat),
     toggleBeelineDrawing() {
       if (!this.isDrawing()) return this._draw._beelineMode;
@@ -56,7 +68,7 @@ function fixture(t, fit) {
     _routeSegment(a, b, cb) { this.nativeCalls++; cb(); },
     _updateLayer(a, b, line) { a._routing.nextLine = line; },
     _eachSegment(fn) {
-      for (const a of markers) if (a._routing.nextMarker) fn(a, a._routing.nextMarker);
+      for (const a of orderedMarkers()) if (a._routing.nextMarker) fn(a, a._routing.nextMarker);
     },
     _updateBeelines() {
       this._eachSegment((a, b) => {
@@ -71,10 +83,15 @@ function fixture(t, fit) {
       });
     },
     routeWaypoint(marker, cb) {
-      this._routeSegment(marker._routing.prevMarker, marker, () => {
+      let done = 0;
+      const finish = () => {
+        if (++done !== 2) return;
         this._updateBeelines();
+        this.fire('routing:routeWaypointEnd');
         cb();
-      });
+      };
+      this._routeSegment(marker._routing.prevMarker, marker, finish);
+      this._routeSegment(marker, marker._routing.nextMarker, finish);
     },
     addWaypoint(point, beeline, prev, next, cb) {
       const marker = point instanceof LatLng ? { getLatLng: () => point } : point;
@@ -89,13 +106,30 @@ function fixture(t, fit) {
       return marker;
     },
     clear() { markers.clear(); },
+    setWaypoints(points, flags, cb) {
+      let done = 0;
+      for (const [i, point] of points.entries()) {
+        this.addWaypoint(point, flags?.[i], this.getLast() ?? null, null, () => {
+          if (++done === points.length) {
+            this.fire('routing:setWaypointsEnd');
+            cb?.();
+          }
+        });
+      }
+    },
     reverse() {
       const points = this.getWaypoints().reverse();
-      const flags = [...markers].slice(0, -1).map((m) => m._routing.beeline).reverse();
+      const flags = orderedMarkers().slice(0, -1).map((m) => m._routing.beeline).reverse();
       this.clear();
-      for (const [i, point] of points.entries()) this.addWaypoint(point, flags[i], this.getLast() ?? null, null, () => {});
+      this.setWaypoints(points, flags);
     },
-    fire(name, event) { this.lastEvent = { name, event }; },
+    on(names, fn, ctx) {
+      for (const name of names.split(' ')) (routingListeners[name] ??= []).push({ fn, ctx });
+    },
+    fire(name, event) {
+      this.lastEvent = { name, event };
+      for (const { fn, ctx } of routingListeners[name] ?? []) fn.call(ctx, event);
+    },
   };
   routing._draw = {
     _enabled: true, _hidden: false, _beelineMode: false, _parent: routing,
@@ -109,6 +143,7 @@ function fixture(t, fit) {
   const previousWindow = globalThis.window, previousDocument = globalThis.document;
   t.after(() => { globalThis.window = previousWindow; globalThis.document = previousDocument; });
   globalThis.window = {
+    location: { hash: options.hash ?? '#map=17/40/-105/standard' },
     L: {
       LatLng, latLng: (lat, lng) => new LatLng(lat, lng),
       marker: (point) => ({ getLatLng: () => point }),
@@ -121,15 +156,42 @@ function fixture(t, fit) {
     BR: { Util: { keyboardShortcutsAllowed: (e) => !e.repeat && !e.ctrlKey },
       TrackEdges: { getFeature: () => ({}) } },
   };
+  class Hash {
+    movingMap = false;
+    additionalCb() {
+      const points = routing.getWaypoints();
+      const flags = orderedMarkers().slice(0, -1).flatMap((marker, i) => marker._routing.beeline ? [i] : []);
+      return points.length ? `&lonlats=${coordinates(points).map((point) => point.join(',')).join(';')}` +
+        (flags.length ? `&straight=${flags.join(',')}` : '') + '&profile=custom%20profile' : null;
+    }
+    onMapMove() {
+      if (!this.movingMap) window.location.hash = '#map=17/40/-105/standard' + (this.additionalCb() ?? '');
+    }
+  }
+  window.L.Hash = Hash;
+  const hash = new Hash();
+  routing._events = { 'routing:routeWaypointEnd': [{ ctx: hash }] };
+  routing.on('routing:routeWaypointEnd', hash.onMapMove, hash);
   globalThis.document = {
     querySelector: () => ({ closest: () => straight }),
     createElement: () => new Element(),
     addEventListener: (name, fn) => { listeners[name] = fn; },
   };
-  let selectedLayer = layer;
-  const integration = installBrouterSlide(routing, map, () => selectedLayer, fit);
+  let selectedLayer = options.layer === undefined ? layer : options.layer;
+  const restoredLayers = [];
+  hash.movingMap = true;
+  if (options.points) routing.setWaypoints(options.points, options.flags);
+  hash.movingMap = false;
+  const integration = installBrouterSlide(routing, map, (id) => {
+    if (id) {
+      restoredLayers.push(id);
+      if (id !== layer.id) return undefined;
+      selectedLayer = layer;
+    }
+    return selectedLayer;
+  }, fit, options.initialHash);
   return {
-    routing, button, straight, markers, integration,
+    routing, button, straight, markers, integration, hash, restoredLayers,
     setDrawing: (drawing) => {
       routing._draw._enabled = drawing;
       map.fire(drawing ? 'routing:draw-start' : 'routing:draw-end');
@@ -266,6 +328,178 @@ test('reversing preserves Slide segment modes, while splitting inherits Slide', 
   assert.equal(middle._routing.nextLine.getLatLngs().length, 3);
 });
 
+test('URL distinguishes Slide from straight and retains layer and other parameters', async (t) => {
+  const f = fixture(t, async (points) => ({ coordinates: [points[0], [0.5, 1], points[1]] }));
+  f.key(); f.click(at(0)); f.click(at(1));
+  await f.settle();
+  f.routing.toggleBeelineDrawing(); f.click(at(2));
+  await f.settle();
+  const params = new URLSearchParams(window.location.hash.slice(1));
+  assert.equal(params.get('slide'), '0');
+  assert.equal(params.get('straight'), '1');
+  assert.equal(params.get('slide-layer'), layer.id);
+  assert.equal(params.get('profile'), 'custom profile');
+  assert.match(window.location.hash, /profile=custom%20profile/);
+  f.routing.reverse();
+  await f.settle();
+  const reversed = new URLSearchParams(window.location.hash.slice(1));
+  assert.equal(reversed.get('slide'), '1');
+  assert.equal(reversed.get('straight'), '0');
+});
+
+test('refresh restores already-loaded mixed segments and dragging reroutes both Slide neighbours', async (t) => {
+  const fitted = [];
+  const fit = async (points) => {
+    fitted.push(points);
+    return { coordinates: [points[0], [(points[0][0] + points[1][0]) / 2, 1], points[1]] };
+  };
+  const f = fixture(t, fit, {
+    hash: '#map=17/40/-105/standard&lonlats=0,0;1,0;2,0;3,0&straight=2&slide=0,1&slide-layer=run-blue',
+    points: [at(0), at(1), at(2), at(3)], flags: [false, false, true], layer: null,
+  });
+  await f.settle();
+  assert.deepEqual(f.restoredLayers, [layer.id]);
+  const [a, middle, b] = [...f.markers];
+  assert.equal(a._routing.nextLine.getLatLngs().length, 3);
+  assert.equal(middle._routing.nextLine.getLatLngs().length, 3);
+  assert.equal(b._routing.nextLine.getLatLngs().length, 2);
+  assert.equal(fitted.length, 2);
+  middle.getLatLng().lat = 0.25;
+  await new Promise((resolve) => f.routing.routeWaypoint(middle, resolve));
+  assert.deepEqual(fitted.slice(2), [[[0, 0], [1, 0.25]], [[1, 0.25], [2, 0]]]);
+  assert.equal(new URLSearchParams(window.location.hash.slice(1)).get('slide'), '0,1');
+  assert.equal(a._routing.nextLine.getLatLngs().at(-1).lat, 0.25);
+  assert.equal(middle._routing.nextLine.getLatLngs()[0].lat, 0.25);
+});
+
+test('URL route loaded after extension startup restores Slide without treating unrelated imports as Slide', async (t) => {
+  const fitted = [];
+  const f = fixture(t, async (points) => {
+    fitted.push(points);
+    return { coordinates: [points[0], [0.5, 1], points[1]] };
+  });
+  window.location.hash = '#map=17/40/-105/standard&lonlats=0,0;1,0;2,0&straight=1&slide=0&slide-layer=run-blue';
+  f.hash.movingMap = true;
+  f.routing.setWaypoints([at(0), at(1), at(2)], [false, true]);
+  f.hash.movingMap = false;
+  await f.settle();
+  assert.equal(fitted.length, 1);
+  assert.equal([...f.markers][0]._routing.nextLine.getLatLngs().length, 3);
+  assert.equal([...f.markers][1]._routing.nextLine.getLatLngs().length, 2);
+  f.routing.clear();
+  f.routing.setWaypoints([at(5), at(6)], [true]);
+  await f.settle();
+  assert.equal(fitted.length, 1);
+  assert.equal(new URLSearchParams(window.location.hash.slice(1)).has('slide'), false);
+  assert.equal(new URLSearchParams(window.location.hash.slice(1)).has('slide-layer'), false);
+});
+
+test('splitting Slide updates the saved segment indices and clearing removes them', async (t) => {
+  const f = fixture(t, async (points) => ({ coordinates: points }));
+  f.key(); f.click(at(0)); f.click(at(2));
+  await f.settle();
+  const [a, b] = [...f.markers];
+  const middle = f.routing.addWaypoint(at(1), null, a, b, () => {});
+  await f.settle();
+  assert.equal(new URLSearchParams(window.location.hash.slice(1)).get('slide'), '0,1');
+  assert.equal(middle._routing.beeline, true);
+  f.routing.clear();
+  f.hash.onMapMove();
+  assert.equal(new URLSearchParams(window.location.hash.slice(1)).has('slide'), false);
+});
+
+test('early URL snapshot survives BRouter stripping unknown parameters before installation', async (t) => {
+  const fit = async (points) => ({ coordinates: [points[0], [0.5, 1], points[1]] });
+  const f = fixture(t, fit, {
+    initialHash: '#map=17/40/-105/standard&lonlats=0,0;1,0&slide=0&slide-layer=run-blue',
+    hash: '#map=17/40/-105/standard&lonlats=0,0;1,0',
+    points: [at(0), at(1)], flags: [false],
+  });
+  await f.settle();
+  assert.equal([...f.markers][0]._routing.nextLine.getLatLngs().length, 3);
+  assert.equal(new URLSearchParams(window.location.hash.slice(1)).get('slide'), '0');
+});
+
+test('early URL snapshot survives stripping before delayed waypoint loading', async (t) => {
+  const fit = async (points) => ({ coordinates: [points[0], [0.5, 1], points[1]] });
+  const f = fixture(t, fit, {
+    initialHash: '#map=17/40/-105/standard&lonlats=0,0;1,0&slide=0&slide-layer=run-blue',
+    hash: '#map=17/40/-105/standard&lonlats=0,0;1,0',
+  });
+  f.routing.setWaypoints([at(0), at(1)], [false]);
+  await f.settle();
+  assert.equal([...f.markers][0]._routing.nextLine.getLatLngs().length, 3);
+  assert.equal(new URLSearchParams(window.location.hash.slice(1)).get('slide'), '0');
+  f.routing.clear();
+  f.routing.setWaypoints([at(0), at(1)], [false]);
+  await f.settle();
+  assert.equal(new URLSearchParams(window.location.hash.slice(1)).get('slide'), '0', 'current URL can still restore Slide');
+});
+
+test('client injection captures the URL before asynchronous authentication rewrites it', async () => {
+  const source = readFileSync(new URL('../src/content/inject-client.js', import.meta.url), 'utf8');
+  const initialHash = '#map=17/40/-105/standard&lonlats=0,0;1,0&slide=0';
+  const window = { location: { host: 'brouter.de', hash: initialHash } };
+  const appended = [];
+  await runInNewContext(source, {
+    window,
+    console: { debug() {}, log() {}, warn() {}, error(error) { throw error; } },
+    browser: {
+      runtime: {
+        getManifest: () => ({ version: '0.15.0.2' }),
+        getURL: (path) => `chrome-extension://test/${path}`,
+        sendMessage: async () => {
+          window.location.hash = initialHash.replace('&slide=0', '');
+          return true;
+        },
+      },
+      storage: { local: { get: async () => ({ layers: 'run:blue:global' }) } },
+    },
+    document: {
+      createElement: () => ({ dataset: {} }),
+      head: { append: (element) => appended.push(element) },
+    },
+  });
+  assert.equal(appended.find((element) => element.type === 'module').dataset.initialHash, initialHash);
+  assert.equal(window.location.hash.includes('slide='), false);
+});
+
+test('unavailable saved layer retains Slide flags but does not silently fit another heatmap', async (t) => {
+  const warn = console.warn;
+  console.warn = () => {};
+  t.after(() => { console.warn = warn; });
+  let fitted = 0;
+  const f = fixture(t, async (points) => {
+    fitted++;
+    return { coordinates: points };
+  }, {
+    hash: '#map=17/40/-105/standard&lonlats=0,0;1,0&slide=0&slide-layer=deleted-layer',
+    points: [at(0), at(1)], flags: [false],
+  });
+  await f.settle();
+  assert.equal(fitted, 0);
+  assert.equal(new URLSearchParams(window.location.hash.slice(1)).get('slide'), '0');
+  assert.equal(new URLSearchParams(window.location.hash.slice(1)).get('slide-layer'), 'deleted-layer');
+  f.selectLayer(layer);
+  await f.settle();
+  assert.equal(fitted, 1);
+  assert.equal(new URLSearchParams(window.location.hash.slice(1)).get('slide-layer'), layer.id);
+});
+
+test('malformed Slide indices are reported instead of routing arbitrary segments', async (t) => {
+  const warnings = [];
+  const warn = console.warn;
+  console.warn = (...args) => warnings.push(args);
+  t.after(() => { console.warn = warn; });
+  const f = fixture(t, async () => { assert.fail('invalid flags must not run Slide'); }, {
+    hash: '#map=17/40/-105/standard&lonlats=0,0;1,0&slide=2,garbage',
+    points: [at(0), at(1)], flags: [true],
+  });
+  await f.settle();
+  assert.equal(warnings.length, 1);
+  assert.equal([...f.markers][0]._routing.nextLine.getLatLngs().length, 2);
+});
+
 function png(paint) {
   const size = 512;
   const rows = Buffer.alloc(size * (size * 4 + 1));
@@ -325,6 +559,8 @@ test('missing tiles are an expected straight fallback, but HTTP failures remain 
 
 test('BRouter can load all imported Slide modules and icon from the extension', () => {
   const manifest = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url)));
+  assert.equal(manifest.content_scripts.find((entry) =>
+    entry.matches.includes('*://brouter.de/brouter-web/*')).run_at, 'document_start');
   const resources = manifest.web_accessible_resources.filter((entry) =>
     entry.matches.includes('*://brouter.de/*')).flatMap((entry) => entry.resources);
   for (const resource of ['src/clients/brouter.de/slide.js', 'icons/slide.svg',

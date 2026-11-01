@@ -24,8 +24,10 @@ async function waitForBrouter() {
       contexts.map((ctx) => ctx?._parent).find(
         (ctx) => window.BR.Routing && ctx instanceof window.BR.Routing
       );
+    const hashReady = Object.values(routing?._events ?? {}).flat()
+      .some(({ ctx }) => window.L?.Hash && ctx instanceof window.L.Hash);
     if (window.L && map && control && routing &&
-        document.querySelector('#mdi-vector-line')) return { map, control, routing };
+        hashReady && document.querySelector('#mdi-vector-line')) return { map, control, routing };
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new Error('[StravaHeatmapExt] Timeout waiting for the BRouter layers control.');
@@ -45,7 +47,17 @@ async function main() {
   let selectedId;
   let slide;
   let applyingOverlays = false;
-  const getSlideLayer = () => {
+  const getSlideLayer = (restoreId) => {
+    if (restoreId) {
+      const restored = layers.find(({ id }) => id === restoreId);
+      if (restored) {
+        selectedId = restored.id;
+        if (!map.hasLayer(restored.layer)) map.addLayer(restored.layer);
+        return restored.config;
+      }
+      console.warn('[StravaHeatmapExt] Saved BRouter Slide layer is no longer configured:', restoreId);
+      return undefined;
+    }
     const entry = layers.find(({ id, layer }) => id === selectedId && map.hasLayer(layer)) ??
       layers.find(({ layer }) => map.hasLayer(layer));
     return entry?.config;
@@ -90,7 +102,7 @@ async function main() {
   }
 
   applyOverlays();
-  slide = installBrouterSlide(routing, map, getSlideLayer);
+  slide = installBrouterSlide(routing, map, getSlideLayer, undefined, script.dataset.initialHash);
   setupAuthStatusChangeListener((newAuthenticated) => {
     authenticated = newAuthenticated;
     applyOverlays();
