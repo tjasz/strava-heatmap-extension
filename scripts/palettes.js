@@ -1,7 +1,7 @@
 // Extracts Strava's heatmap color ramps from the Strava maps engine data package
 // and writes them to src/clients/common/palettes.js.
 //
-// Strava renders the global heatmap from grayscale tiles: the red channel of each
+// Strava renders global and weekly heatmaps from grayscale tiles: the red channel of each
 // tile pixel (0-255) indexes a 256x1 RGBA ramp texture shipped with the engine.
 //
 // Usage: node scripts/palettes.js [engineVersion]
@@ -23,6 +23,7 @@ const PALETTES = {
   pink: 'pink_dark',
   highcontrast: 'highcontrast_dark',
   bluered: 'bluered_dark',
+  rainbow: 'weekly_rainbow',
 };
 
 async function download(file) {

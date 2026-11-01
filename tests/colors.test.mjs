@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { injectHeatmapColorFilters } from '../src/clients/common/colors.js';
@@ -30,6 +31,17 @@ function createElement(namespaceURI, localName) {
     },
   };
 }
+
+test('Rainbow preserves the exact weekly ramp from Strava engines 34.0.0 and 35.1.0', () => {
+  const rgba = Buffer.from(PALETTES.rainbow, 'hex');
+  assert.equal(rgba.length, 256 * 4);
+  assert.equal(
+    createHash('sha256').update(rgba).digest('hex'),
+    'c71298dcd3afb1128cb7db93acafac084c9343077604fb09bf266110fc31f98d'
+  );
+  assert.equal(rgba[3], 0);
+  assert.deepEqual([...rgba.subarray(-4)], [223, 0, 0, 161]);
+});
 
 test('shared filters preserve every Strava palette channel and opacity', (t) => {
   const body = createElement(null, 'body');

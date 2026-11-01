@@ -18,6 +18,22 @@ const configs = (presets, authenticated = true, legacy = false) =>
   getLayerConfigs(presets, authenticated, '0.15.0.2', false, legacy);
 const tileURL = (layer) => layer.template.replace('{z}', 14).replace('{x}', 3099).replace('{y}', 6161);
 
+test('Rainbow is selectable and round-trips for both heatmap periods', () => {
+  assert.ok(COLOR_OPTIONS.some(([color, label]) => color === 'rainbow' && label.includes('Rainbow')));
+  const presets = [
+    { activity: 'run', color: 'rainbow' },
+    { activity: 'run', color: 'rainbow', period: 'weekly' },
+  ];
+  assert.equal(validateLayerPresets(presets), true);
+  assert.deepEqual(parseLayerPresets(formatLayerPresets(presets)), presets);
+  for (const layer of configs(presets)) {
+    assert.equal(new URL(tileURL(layer)).searchParams.get('heatmap-color'), 'rainbow');
+  }
+  const [global, weekly] = configs(presets, true, true);
+  assert.ok(new URL(tileURL(global)).pathname.includes('/run/bluered/'));
+  assert.equal(new URL(tileURL(weekly)).searchParams.get('colormap'), 'bluered');
+});
+
 test('presets keep old storage compatible and round-trip mixed weekly layers', () => {
   const encoded = 'run:orange;run:orange:weekly';
   assert.deepEqual(parseLayerPresets(encoded), [globalLayer, weeklyLayer]);

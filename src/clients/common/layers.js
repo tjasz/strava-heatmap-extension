@@ -7,6 +7,7 @@ const COLORS = {
   pink: ['🌸', 'Pink'],
   highcontrast: ['⚪', 'Contrast'],
   bluered: ['🔴', 'Blue-Red'],
+  rainbow: ['🌈', 'Rainbow'],
   grayscale: ['⚫', 'Custom Gradient'],
 };
 
@@ -19,6 +20,7 @@ const LEGACY_COLORS = {
   pink: 'hot',
   highcontrast: 'gray',
   bluered: 'bluered',
+  rainbow: 'bluered',
   grayscale: 'grayscale',
 };
 

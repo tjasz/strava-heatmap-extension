@@ -20,3 +20,6 @@ img:is([src*='/globalheat/'], [src*='/weeklyheat/'])[src*='heatmap-color=highcon
 img:is([src*='/globalheat/'], [src*='/weeklyheat/'])[src*='heatmap-color=bluered&'] {
   filter: url(#strava-heatmap-bluered);
 }
+img:is([src*='/globalheat/'], [src*='/weeklyheat/'])[src*='heatmap-color=rainbow&'] {
+  filter: url(#strava-heatmap-rainbow);
+}
