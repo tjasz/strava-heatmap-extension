@@ -5,6 +5,7 @@
 ### Unreleased
 
 - [Geotab, BRouter] Add support for additional clients.
+- [Geotab] Restore heatmap layer controls and enabled layers when the map or layers control reloads.
 - [BRouter] Preserve Slide segment indices and the selected heatmap in permalinks; restore Slide after refreshing and recalculate adjacent Slide segments when moving a waypoint.
 - [BRouter] Add Slide drawing mode below straight-line mode, toggled with S, highlighted in the same blue when active, and hidden when not editing. Follow the selected heatmap between clicked points, keeping straight segments when no trail is available.
 - Add custom gradient option.
