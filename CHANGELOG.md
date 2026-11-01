@@ -4,21 +4,21 @@
 
 ### `0.15.0.2` (2026-11-01)
 
-- [CalTopo] Do not show the heatmap in the print preview, since it will not appear in printed, server-rendered output.
-- [CalTopo] Allow multiple layers to be shown at once. Displayed layers stack in the order they were activated. Snapping suggestions work on the most recently activated layer.
+- Do not show the heatmap in the print preview, since it will not appear in printed, server-rendered output.
+- Allow multiple layers to be shown at once. Displayed layers stack in the order they were activated. Snapping suggestions work on the most recently activated layer.
 - Add support for Weekly heatmap for Strava Premium subscribers.
 - Add Strava's Rainbow palette to the built-in gradients.
 - Add support for definition of custom gradients.
 
 ### `0.15.0.1` (2026-10-29)
 
-- [CalTopo] Improve display of overlay on the widest and narrowest zoom levels.
-- [CalTopo] When "Snap to" is set to "Strava", begin by clicking on a starting point. After that, suggested lines are highlighted after each click based on Strava heat.
+- Improve display of overlay on the widest and narrowest zoom levels.
+- When "Snap to" is set to "Strava", the extension makes suggestions based on the Strava heatmap after each click.
 
 ### `0.15.0.0` (2026-10-28)
 
-- [CalTopo] Add CalTopo.com client, with Strava Slide support.
-- [Firefox] Declare authentication and map tile location data for built-in consent; require Firefox 140+ on desktop and 142+ on Android.
+- Add CalTopo.com client, with Strava Slide support.
+- Declare authentication and map tile location data for built-in consent; require Firefox 140+ on desktop and 142+ on Android.
 - Remove unused permission-request code and render About page messages without HTML assignment to resolve Firefox validation warnings.
 
 ### `0.15.0` (2026-10-26)
