@@ -15,15 +15,27 @@ test('CalTopo dims only the swatch emoji to 50% opacity', async () => {
   assert.doesNotMatch(css.match(/\.strava-heatmap-swatch\s*\{[^}]*\}/)[0], /\bopacity\s*:/);
 });
 
-test('CalTopo supplies selected swatch and SVG styles without native generated classes', async () => {
+test('CalTopo matches native selected swatch and SVG styles without generated classes', async () => {
   const css = await readFile(new URL('../src/clients/caltopo.com/index.css', import.meta.url), 'utf8');
-  const selected = css.match(/\.strava-heatmap-swatch-selected\s*\{[^}]*\}/)[0];
-  assert.match(selected, /background-color:\s*transparent/);
-  assert.match(selected, /color:\s*#cc5d31/);
+  const swatch = css.match(/\.strava-heatmap-swatch\s*\{[^}]*\}/)[0];
+  assert.match(swatch, /position:\s*relative/);
+  assert.match(swatch, /background-color:\s*rgba\(204, 93, 49, 0\.15\)/);
+  const selected = css.match(/\.strava-heatmap-selected-icon\s*\{[^}]*\}/)[0];
+  assert.match(selected, /position:\s*absolute/);
+  assert.match(selected, /top:\s*0;/);
+  assert.match(selected, /left:\s*0;/);
+  assert.match(selected, /width:\s*100%/);
+  assert.match(selected, /height:\s*100%/);
+  assert.match(selected, /background-color:\s*rgba\(255, 255, 255, 0\.9\)/);
+  assert.match(selected, /border-radius:\s*14px/);
   const icon = css.match(/\.strava-heatmap-check-icon\s*\{[^}]*\}/)[0];
-  assert.match(icon, /width:\s*24px/);
-  assert.match(icon, /height:\s*24px/);
+  assert.match(icon, /width:\s*1em/);
+  assert.match(icon, /height:\s*1em/);
+  assert.match(icon, /font-size:\s*28px/);
+  assert.match(icon, /color:\s*var\(--color-secondary, #cc5d31\)/);
   assert.match(icon, /fill:\s*currentColor/);
+  assert.match(icon, /stroke:\s*rgba\(255, 255, 255, 0\.9\)/);
+  assert.match(icon, /stroke-width:\s*1px/);
   assert.doesNotMatch(icon, /\bopacity\s*:/);
 });
 
@@ -486,9 +498,7 @@ for (const renderer of ['leaflet', 'google']) {
       assert.equal(title.textContent, config.label);
       assert.equal(button.attributes['aria-label'], title.textContent);
       assert.ok(!title.textContent.includes('Strava Heatmap'));
-      assert.equal(button.children[0].className, index === 1
-        ? 'MuiBox-root strava-heatmap-swatch strava-heatmap-swatch-selected'
-        : 'MuiBox-root strava-heatmap-swatch');
+      assert.equal(button.children[0].className, 'MuiBox-root strava-heatmap-swatch');
       assert.equal(button.children[0].children[0].className, 'strava-heatmap-swatch-emoji');
       assert.equal(button.children[0].children[0].textContent, ['🟠', '🔵', '🟣'][index]);
       assert.equal(button.children[0].children[0].style.display, index === 1 ? 'none' : '');
@@ -510,7 +520,7 @@ for (const renderer of ['leaflet', 'google']) {
     f.row(2).button.handlers.keydown({ key: 'Enter', preventDefault() {} });
     for (let index = 0; index < 3; index++) {
       const swatch = f.row(index).button.children[0];
-      assert.equal(swatch.className, 'MuiBox-root strava-heatmap-swatch strava-heatmap-swatch-selected');
+      assert.equal(swatch.className, 'MuiBox-root strava-heatmap-swatch');
       assert.equal(swatch.children[0].style.display, 'none');
       assert.equal(swatch.children[1].style.display, '');
     }

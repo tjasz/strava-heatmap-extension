@@ -292,7 +292,6 @@ function updateControls() {
   for (const [id, controls] of controlsById) {
     const { enabled, opacity } = layerStates.get(id);
     const { stack, toggleButton, controlsCollapse, opacityInput, opacityValue } = controls;
-    controls.swatch.classList.toggle('strava-heatmap-swatch-selected', enabled);
     controls.swatchEmoji.style.display = enabled ? 'none' : '';
     controls.selectedIcon.style.display = enabled ? '' : 'none';
     stack.classList.toggle('strava-heatmap-layer-active', enabled);
