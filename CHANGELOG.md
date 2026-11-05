@@ -7,6 +7,7 @@
 - Add a text box input beside the layer opacity slider for precise opacity control.
 - Add a semi-transparent emoji to the layer swatch for a softer, more consistent visual indication of the heatmap layer.
 - Replace the swatch with CalTopo's check-circle icon when a heatmap layer is selected.
+- Move heatmap layers into their own **Strava Heatmap** section immediately below **Route Discovery**.
 
 ### `0.15.0.2` (2026-11-01)
 

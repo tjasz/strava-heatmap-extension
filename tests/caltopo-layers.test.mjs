@@ -35,6 +35,13 @@ class Element {
   blur() { this.handlers.blur?.(); }
   addEventListener(name, handler) { this.handlers[name] = handler; }
   appendChild(child) { child.remove(); this.children.push(child); child.parentElement = this; }
+  insertBefore(child, reference) {
+    child.remove();
+    const index = reference ? this.children.indexOf(reference) : this.children.length;
+    assert.ok(index >= 0);
+    this.children.splice(index, 0, child);
+    child.parentElement = this;
+  }
   append(...children) { children.forEach((child) => this.appendChild(child)); }
   remove() {
     if (!this.parentElement) return;
@@ -57,8 +64,14 @@ function fixture(renderer, saved, initialPresets = presets, mapSheetMaxSize) {
   const body = new Element('body');
   const heading = new Element('p');
   heading.textContent = 'Route Discovery';
+  heading.className = 'native-section-heading';
   const list = new Element('ul');
-  body.append(heading, list);
+  list.className = 'native-section-list';
+  const nativeLayer = new Element('li');
+  list.appendChild(nativeLayer);
+  const followingSection = new Element('p');
+  followingSection.textContent = 'Following section';
+  body.append(heading, list, followingSection);
   const all = (root) => [root, ...root.children.flatMap(all)];
   const timers = [];
   const timeouts = [];
@@ -145,15 +158,18 @@ function fixture(renderer, saved, initialPresets = presets, mapSheetMaxSize) {
     },
   });
   timers[0]();
+  const heatmapList = () => document.getElementById('strava-heatmap-caltopo-ribbon-layers');
   const row = (index) => {
-    const stack = list.children[index].children[0];
+    const stack = heatmapList().children[index].children[0];
     const button = stack.children[0];
     const collapse = stack.children[1];
     const opacityRow = collapse.children[0].children[0].children[0].children[0];
     return { button, collapse, input: opacityRow.children[0].children[0], value: opacityRow.children[1] };
   };
   return {
-    window, document, body, list, map, mapOverlays, row, observe,
+    window, document, body, map, mapOverlays, row, observe,
+    routeDiscoveryHeading: heading, routeDiscoveryList: list, nativeLayer, followingSection,
+    get list() { return heatmapList(); },
     state: () => JSON.parse(stored),
     getSnapLayer: () => getSnapLayer(),
     getSheetLayers: () => getSheetLayers(),
@@ -171,6 +187,57 @@ function fixture(renderer, saved, initialPresets = presets, mapSheetMaxSize) {
 }
 
 for (const renderer of ['leaflet', 'google']) {
+  test(`${renderer} places heatmaps in their own native-styled section below Route Discovery`, () => {
+    const f = fixture(renderer);
+    const heading = f.routeDiscoveryList.nextElementSibling;
+    assert.equal(heading.textContent, 'Strava Heatmap');
+    assert.equal(heading.tagName, 'P');
+    assert.equal(heading.className, f.routeDiscoveryHeading.className);
+    assert.equal(heading.nextElementSibling, f.list);
+    assert.equal(f.list.tagName, 'UL');
+    assert.equal(f.list.className, f.routeDiscoveryList.className);
+    assert.equal(f.list.attributes['aria-labelledby'], heading.id);
+    assert.equal(f.list.nextElementSibling, f.followingSection);
+    assert.deepEqual(f.routeDiscoveryList.children, [f.nativeLayer]);
+    assert.equal(f.list.children.length, 3);
+    f.observe();
+    f.authChanged(false);
+    f.presetsChanged('ride:purple;run:orange');
+    assert.equal(f.routeDiscoveryList.nextElementSibling, heading);
+    assert.equal(heading.nextElementSibling, f.list);
+    assert.equal(f.list.nextElementSibling, f.followingSection);
+    assert.equal(f.list.children.length, 2);
+    assert.deepEqual(f.routeDiscoveryList.children, [f.nativeLayer]);
+    assert.equal(f.body.children.length, 5, 'do not duplicate section headings or lists');
+  });
+
+  test(`${renderer} restores the heatmap section after the layer panel remounts`, () => {
+    const f = fixture(renderer);
+    f.row(0).input.value = '25';
+    f.row(0).input.handlers.input();
+    const heading = f.routeDiscoveryList.nextElementSibling;
+    const list = f.list;
+    heading.remove();
+    f.observe();
+    assert.equal(f.routeDiscoveryList.nextElementSibling.textContent, 'Strava Heatmap');
+    assert.equal(f.list, list, 'removing the heading must not replace the list');
+    f.routeDiscoveryList.nextElementSibling.remove();
+    list.remove();
+    f.routeDiscoveryHeading.remove();
+    f.routeDiscoveryList.remove();
+    f.observe();
+    assert.equal(f.list, undefined, 'wait for Route Discovery to remount');
+    f.body.insertBefore(f.routeDiscoveryHeading, f.followingSection);
+    f.body.insertBefore(f.routeDiscoveryList, f.followingSection);
+    f.observe();
+    assert.equal(f.routeDiscoveryList.nextElementSibling.textContent, 'Strava Heatmap');
+    assert.equal(f.list.children.length, 3);
+    assert.equal(f.row(0).input.value, '25');
+    assert.equal(f.row(0).button.attributes['aria-pressed'], 'true');
+    assert.equal(f.list.nextElementSibling, f.followingSection);
+    assert.deepEqual(f.routeDiscoveryList.children, [f.nativeLayer]);
+  });
+
   test(`${renderer} synchronizes the opacity slider and editable percentage without losing drafts`, () => {
     const f = fixture(renderer);
     const { input, value } = f.row(0);

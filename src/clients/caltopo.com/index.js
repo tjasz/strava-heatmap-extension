@@ -14,6 +14,8 @@ injectHeatmapColorFilters();
 
 const OVERLAY_KEY = '__stravaHeatmapCalTopoOverlay';
 const RIBBON_ID = 'strava-heatmap-caltopo-ribbon';
+const SECTION_HEADING_ID = `${RIBBON_ID}-heading`;
+const SECTION_LIST_ID = `${RIBBON_ID}-layers`;
 const STORAGE_KEY = 'strava-heatmap-extension:caltopo-layer-state';
 const RETRY_INTERVAL_MS = 500;
 const MAX_ATTEMPTS = 120;
@@ -320,12 +322,33 @@ function createRibbon() {
   const routeDiscoveryList = routeDiscoveryHeading?.nextElementSibling;
   if (routeDiscoveryList?.tagName !== 'UL') return;
 
+  let heatmapHeading = document.getElementById(SECTION_HEADING_ID);
+  if (!heatmapHeading) {
+    heatmapHeading = document.createElement('p');
+    heatmapHeading.id = SECTION_HEADING_ID;
+    heatmapHeading.className = routeDiscoveryHeading.className;
+    heatmapHeading.textContent = 'Strava Heatmap';
+  }
+  let heatmapList = document.getElementById(SECTION_LIST_ID);
+  if (!heatmapList) {
+    heatmapList = document.createElement('ul');
+    heatmapList.id = SECTION_LIST_ID;
+    heatmapList.className = routeDiscoveryList.className;
+    heatmapList.setAttribute('aria-labelledby', SECTION_HEADING_ID);
+  }
+  if (routeDiscoveryList.nextElementSibling !== heatmapHeading) {
+    routeDiscoveryList.parentElement.insertBefore(heatmapHeading, routeDiscoveryList.nextElementSibling);
+  }
+  if (heatmapHeading.nextElementSibling !== heatmapList) {
+    heatmapHeading.parentElement.insertBefore(heatmapList, heatmapHeading.nextElementSibling);
+  }
+
   for (const config of layerConfigs) {
     const ribbonId = `${RIBBON_ID}-${config.id}`;
     if (document.getElementById(ribbonId)) continue;
     const controls = createLayerControls(config);
     controlsById.set(config.id, controls);
-    routeDiscoveryList.appendChild(controls.ribbon);
+    heatmapList.appendChild(controls.ribbon);
   }
   updateControls();
 }
@@ -459,7 +482,9 @@ function setupRibbonObserver() {
   if (ribbonObserver) return;
 
   ribbonObserver = new MutationObserver(() => {
-    if (layerConfigs.some(({ id }) => !document.getElementById(`${RIBBON_ID}-${id}`))) createRibbon();
+    if (!document.getElementById(SECTION_HEADING_ID)
+      || !document.getElementById(SECTION_LIST_ID)
+      || layerConfigs.some(({ id }) => !document.getElementById(`${RIBBON_ID}-${id}`))) createRibbon();
   });
   ribbonObserver.observe(document.body, { childList: true, subtree: true });
 }

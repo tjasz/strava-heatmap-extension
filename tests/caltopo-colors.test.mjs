@@ -101,7 +101,7 @@ for (const [renderer, page] of ['leaflet', 'google'].flatMap((renderer) => [
       assert.equal(body.children.length, 1);
       assert.equal(body.children[0].tagName, 'svg');
       assert.equal(body.children[0].id, 'strava-heatmap-filters');
-      assert.equal(ribbonQueries, 0, 'print previews must not register Route Discovery controls');
+      assert.equal(ribbonQueries, 0, 'print previews must not register Strava Heatmap controls');
       assert.equal(listeners.length, 0);
       assert.equal(timers.length, 0, 'print previews must not start map integration retries');
       return;

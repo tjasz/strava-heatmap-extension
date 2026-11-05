@@ -52,7 +52,7 @@ Click the extension icon (either next to or within the browser's puzzle piece ic
 ## Show heatmaps in CalTopo
 
 1. Open a map at [caltopo.com](https://caltopo.com/).
-2. In the **Map Layers** panel to the right of the map, find **Route Discovery**. Each configured Strava heatmap has its own button.
+2. In the **Map Layers** panel to the right of the map, find the **Strava Heatmap** section immediately below **Route Discovery**. Each configured Strava heatmap has its own button.
 3. Toggle any combination of layers. Each enabled layer expands to show its own opacity slider and editable percentage. Drag the slider or type a value from **0** (transparent) to **100** (opaque). The textbox accepts only digits and caps values above 100 at 100.
 
 Each layer's visibility and opacity are saved separately. The most recently enabled layers appear on top. To bring a layer to the top, turn it off and on again; adjusting opacity does not change its stacking order.
