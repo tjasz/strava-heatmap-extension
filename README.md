@@ -80,6 +80,16 @@ link opens the [CalTopo user guide](./doc/userguides/caltopo.md) instead of this
 They retain Strava authentication, settings, and the shared snapping modules needed
 by CalTopo.
 
+### Built-in gradient test page
+
+Run `npm run palette-lab`, then open [.palette-lab/index.html](./.palette-lab/index.html)
+in a browser. This generates a self-contained, offline page from the current
+built-in palettes, with a row per palette and columns for hue, saturation,
+lightness, and opacity. Each line graph contains all 256 samples; hover to inspect
+their values. Y axes are fixed at 0-360 degrees for hue and 0-100% for the other
+properties so charts can be compared. Achromatic hue is shown as zero.
+Rerun the command after changing palette data.
+
 ### Icon artwork
 
 The CalTopo fork's source icon is [icons/icon.svg](./icons/icon.svg): a flaming
