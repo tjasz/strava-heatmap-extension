@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { PALETTES } from '../src/clients/common/palettes.js';
 import { renderPage, samplePalette } from '../scripts/palette-lab.mjs';
 import {
-  createControlPoints, interpolatePoints, moveControlPoint, sampleCustomPalette,
+  createControlPoints, interpolatePoints, moveControlPoint, recolorTilePixels, sampleCustomPalette,
 } from '../scripts/palette-lab-editor.mjs';
 
 const close = (actual, expected) => assert.ok(
@@ -61,6 +62,8 @@ test('page graphs all samples in a palette-by-property table with fixed axes', (
   for (const [index, [name, ramp]] of Object.entries(PALETTES).entries()) {
     const row = rows[index][1];
     assert.ok(row.startsWith(name));
+    assert.match(row, /class="preview"[\s\S]*?<\/svg>\s*<canvas class="tile-preview"/);
+    assert.ok(row.includes(`data-ramp="${ramp}"`));
     assert.equal([...row.matchAll(/<td>/g)].length, 4);
     const graphs = [...row.matchAll(/<svg class="graph"[\s\S]*?<\/svg>/g)];
     assert.equal(graphs.length, 4);
@@ -85,6 +88,24 @@ test('page graphs all samples in a palette-by-property table with fixed axes', (
   }
   assert.match(html, /<script type="module">/);
   assert.doesNotMatch(html, /<script[^>]+src=/);
+  assert.match(html, /\.tile-preview\s*\{[^}]*background:\s*repeating-conic-gradient/);
+  const tile = readFileSync(new URL('../images/foot-15-5304-11549.png', import.meta.url));
+  assert.ok(html.includes(`src="data:image/png;base64,${tile.toString('base64')}"`));
+});
+
+test('tile styling maps all 256 red intensities to exact palette RGBA, ignoring source alpha', () => {
+  const source = Uint8ClampedArray.from(Array.from({ length: 256 }, (_, intensity) =>
+    [intensity, 255 - intensity, 37, intensity % 3 === 0 ? 0 : 128]).flat());
+  const original = source.slice();
+  const ramps = [
+    ...Object.values(PALETTES),
+    sampleCustomPalette(createControlPoints()).map(({ hex }) => hex).join(''),
+  ];
+  for (const ramp of ramps) {
+    const output = recolorTilePixels(source, samplePalette(ramp));
+    assert.deepEqual(output, new Uint8ClampedArray(Buffer.from(ramp, 'hex')));
+    assert.deepEqual(source, original, 'styling must not modify the source tile');
+  }
 });
 
 test('custom defaults use the exact requested piecewise linear curves', () => {

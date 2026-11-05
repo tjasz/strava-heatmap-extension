@@ -68,6 +68,7 @@ function graph(name, samples, { key, label, max, unit }) {
 export function renderPage() {
   const editor = readFileSync(new URL('./palette-lab-editor.mjs', import.meta.url), 'utf8')
     .replace(/^export /gm, '');
+  const tile = readFileSync(new URL('../images/foot-15-5304-11549.png', import.meta.url)).toString('base64');
   const rows = Object.entries(PALETTES).map(([name, ramp]) => {
     const samples = samplePalette(ramp);
     const preview = samples.map((sample) =>
@@ -75,6 +76,7 @@ export function renderPage() {
     ).join('');
     return `<tr><th scope="row">${name}
       <svg class="preview" viewBox="0 0 256 12" role="img" aria-label="${name} palette">${preview}</svg>
+      <canvas class="tile-preview" data-ramp="${ramp}" role="img" aria-label="${name} styled heatmap tile"></canvas>
     </th>${PROPERTIES.map((property) => `<td>${graph(name, samples, property)}</td>`).join('')}</tr>`;
   }).join('\n');
   return `<!doctype html>
@@ -94,6 +96,8 @@ export function renderPage() {
     tbody th { min-width: 128px; text-align: left; }
     .preview { display: block; width: 128px; height: 12px; margin-top: 12px;
       background: repeating-conic-gradient(#ddd 0% 25%, #fff 0% 50%) 0 0 / 8px 8px; }
+    .tile-preview { display: block; width: 256px; height: 256px; margin-top: 8px;
+      background: repeating-conic-gradient(#ddd 0% 25%, #fff 0% 50%) 0 0 / 16px 16px; }
     .graph { display: block; width: 100%; min-width: 260px; }
     .graph text { font-size: 10px; fill: #47515c; }
     .grid { stroke: #e1e5e9; stroke-width: 1; }
@@ -124,6 +128,11 @@ export function renderPage() {
     retaining hue and saturation even at white or fully transparent samples.
     Copy exports 256 RGBA entries as one 2048-character hex string.
     Edits last until the page is reloaded.</p>
+  <p>Below each gradient, the sample tile is styled using its red channel as the
+    palette index and the palette's opacity, displayed over a transparency checkerboard.
+    Custom tile previews update live while editing.</p>
+  <img id="tile-source" hidden alt="" src="data:image/png;base64,${tile}">
+  <p id="tile-error" role="alert" hidden></p>
   <button id="add-custom" type="button">Add custom palette</button>
   <div class="table-scroll">
     <table>
@@ -136,7 +145,19 @@ export function renderPage() {
 </body>
 <script type="module">
 ${editor}
-mountEditor(${JSON.stringify(PROPERTIES)}, ${graph.toString()});
+try {
+  const renderTile = await createTileRenderer(document.querySelector('#tile-source'));
+  for (const canvas of document.querySelectorAll('.tile-preview')) {
+    const samples = canvas.dataset.ramp.match(/.{8}/g).map(hex => ({ hex }));
+    renderTile(canvas, samples);
+  }
+  mountEditor(${JSON.stringify(PROPERTIES)}, ${graph.toString()}, renderTile);
+} catch (error) {
+  console.error('Could not initialize palette tile previews.', error);
+  const message = document.querySelector('#tile-error');
+  message.hidden = false;
+  message.textContent = 'Could not initialize palette tile previews: ' + error.message;
+}
 </script>
 </html>
 `;

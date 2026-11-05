@@ -47,7 +47,42 @@ export function sampleCustomPalette(controls) {
   });
 }
 
-export function mountEditor(properties, graph) {
+export function recolorTilePixels(source, samples) {
+  const ramp = Uint8ClampedArray.from(samples.flatMap(({ hex }) =>
+    hex.match(/../g).map((value) => Number.parseInt(value, 16))
+  ));
+  const output = new Uint8ClampedArray(source.length);
+  for (let offset = 0; offset < source.length; offset += 4) {
+    // Match named-palette tiles: red indexes RGBA; source alpha is not multiplied in.
+    const index = source[offset] * 4;
+    for (let channel = 0; channel < 4; channel++) {
+      output[offset + channel] = ramp[index + channel];
+    }
+  }
+  return output;
+}
+
+export async function createTileRenderer(image) {
+  await image.decode();
+  const canvas = document.createElement('canvas');
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context) throw new Error('Could not create the source tile canvas context.');
+  context.drawImage(image, 0, 0);
+  const source = context.getImageData(0, 0, canvas.width, canvas.height);
+  return (target, samples) => {
+    target.width = source.width;
+    target.height = source.height;
+    const targetContext = target.getContext('2d');
+    if (!targetContext) throw new Error('Could not create the styled tile canvas context.');
+    targetContext.putImageData(
+      new ImageData(recolorTilePixels(source.data, samples), source.width, source.height), 0, 0
+    );
+  };
+}
+
+export function mountEditor(properties, graph, renderTile) {
   const namespace = 'http://www.w3.org/2000/svg';
   let count = 0;
   function addRow() {
@@ -60,11 +95,13 @@ export function mountEditor(properties, graph) {
     heading.textContent = name;
     heading.insertAdjacentHTML('beforeend',
       `<svg class="preview" viewBox="0 0 256 12" role="img" aria-label="${name} palette"></svg>
+      <canvas class="tile-preview" role="img" aria-label="${name} styled heatmap tile"></canvas>
       <button type="button">Copy ramp hex</button>
       <textarea class="ramp" readonly aria-label="${name} RGBA ramp hex" spellcheck="false"></textarea>
       <output class="status" aria-live="polite"></output>`);
     row.append(heading);
     const preview = heading.querySelector('.preview');
+    const tile = heading.querySelector('.tile-preview');
     const ramp = heading.querySelector('.ramp');
     const status = heading.querySelector('.status');
     const charts = new Map();
@@ -75,6 +112,7 @@ export function mountEditor(properties, graph) {
       ramp.value = samples.map(({ hex }) => hex).join('');
       preview.innerHTML = samples.map(({ intensity, hex }) =>
         `<rect x="${intensity}" width="1" height="12" fill="#${hex}"/>`).join('');
+      renderTile(tile, samples);
       for (const { key, label, max, unit } of properties) {
         const svg = charts.get(key);
         svg.querySelector('polyline').setAttribute('points', samples.map((sample) =>

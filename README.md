@@ -90,6 +90,11 @@ their values. Y axes are fixed at 0-360 degrees for hue and 0-100% for the other
 properties so charts can be compared. Achromatic hue is shown as zero.
 Rerun the command after changing palette data.
 
+Below every gradient preview, the [sample tile](./images/foot-15-5304-11549.png)
+is recolored using the same red-channel lookup and palette opacity as named
+heatmap layers, displayed over a transparency checkerboard. Custom tile previews update live while
+editing. The image is embedded in the generated page, so it still works offline.
+
 The page also starts with an editable custom row; **Add custom palette** creates
 more independent rows. Drag outlined control points to edit the HSL and opacity
 curves, or focus a point and use arrow keys (Shift for larger steps).
