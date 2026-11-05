@@ -317,8 +317,8 @@ function updateApplyButton() {
   const reset = document.getElementById('reset-gradients');
   reset.disabled = layers.some(({ gradientId }) => gradientId !== undefined);
   reset.title = reset.disabled
-    ? 'Choose preset colors for all layers before resetting gradients.'
-    : 'Delete custom gradients, restore preset order, and save current layers';
+    ? 'A custom gradient is in use by a heatmap layer. Choose preset colors for all layers before resetting gradients.'
+    : 'Delete custom gradients and restore preset order';
   document.querySelectorAll('#gradient-list .gradient-remove').forEach((button) => {
     button.disabled = layers.some(({ gradientId }) => gradientId === button.dataset.id);
     button.title = button.disabled
@@ -584,7 +584,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('reset-gradients').addEventListener('click', async () => {
     const current = getCurrentLayers();
     if (current.some(({ gradientId }) => gradientId !== undefined)) {
-      showError(new Error('Choose preset colors for all layers before resetting gradients.'));
+      showError(new Error('A custom gradient is in use by a heatmap layer. Choose preset colors for all layers before resetting gradients.'));
       return;
     }
     try {
