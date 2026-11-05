@@ -5,6 +5,7 @@ import { getExtensionName } from '../extension.js';
 import {
   formatLayerPresets,
   getGradientSettings,
+  getGradientOrder,
   setGradientSettings,
   resetLayerPresets,
   validateLayerPresets,
@@ -20,14 +21,16 @@ import { PALETTES } from '../clients/common/palettes.js';
 
 const MAX_LAYERS = 8;
 let gradients = [];
+let gradientOrder = [];
 let savedSettings;
 const editingGradients = new Set();
 
 function gradientOptions() {
-  return [
+  const options = new Map([
     ...COLOR_OPTIONS.filter(([value]) => value in PALETTES),
     ...gradients.map(({ id, name, emoji }) => [id, `${emoji} ${name}`]),
-  ];
+  ]);
+  return getGradientOrder(gradients, gradientOrder).map((id) => [id, options.get(id)]);
 }
 
 function createActivitySelect(selected) {
@@ -303,12 +306,19 @@ function getCurrentLayers() {
   });
 }
 
-function settingsSignature(layers, customGradients) {
-  return JSON.stringify([formatLayerPresets(layers), customGradients]);
+function settingsSignature(layers, customGradients, order = gradientOrder) {
+  return JSON.stringify([
+    formatLayerPresets(layers), customGradients, getGradientOrder(customGradients, order),
+  ]);
 }
 
 function updateApplyButton() {
   const layers = getCurrentLayers();
+  const reset = document.getElementById('reset-gradients');
+  reset.disabled = layers.some(({ gradientId }) => gradientId !== undefined);
+  reset.title = reset.disabled
+    ? 'Choose preset colors for all layers before resetting gradients.'
+    : 'Delete custom gradients, restore preset order, and save current layers';
   document.querySelectorAll('#gradient-list .gradient-remove').forEach((button) => {
     button.disabled = layers.some(({ gradientId }) => gradientId === button.dataset.id);
     button.title = button.disabled
@@ -370,10 +380,18 @@ function renderGradients() {
   const builtins = COLOR_OPTIONS.filter(([id]) => id in PALETTES).map(([id, label]) => ({
     id, name: label.slice(label.indexOf(' ') + 1), emoji: label.slice(0, label.indexOf(' ')),
   }));
-  for (const gradient of [...builtins, ...gradients]) {
+  gradientOrder = getGradientOrder(gradients, gradientOrder);
+  const byId = new Map([...builtins, ...gradients].map((gradient) => [gradient.id, gradient]));
+  for (const id of gradientOrder) {
+    const gradient = byId.get(id);
     const item = document.createElement('li');
     item.className = 'gradient';
     item.dataset.id = gradient.id;
+    const handle = document.createElement('span');
+    handle.className = 'gradient-reorder-handle';
+    handle.textContent = '⠿';
+    handle.title = 'Drag to reorder gradient';
+    item.appendChild(handle);
     if (editingGradients.has(gradient.id)) {
       const fields = document.createElement('div');
       fields.className = 'gradient-fields';
@@ -477,6 +495,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   const { layers: layerPresets } = settings;
   gradients = settings.gradients;
+  gradientOrder = settings.gradientOrder;
   savedSettings = settingsSignature(layerPresets, gradients);
   await renderLayers(layerPresets);
   renderGradients();
@@ -517,6 +536,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   const list = document.getElementById('layer-list');
+  const gradientList = document.getElementById('gradient-list');
+  Sortable.create(gradientList, {
+    handle: '.gradient-reorder-handle',
+    draggable: '.gradient',
+    animation: 150,
+    forceFallback: true,
+    fallbackTolerance: 3,
+    onEnd: async () => {
+      const current = getCurrentLayers();
+      gradientOrder = [...gradientList.children].map((item) => item.dataset.id);
+      await renderLayers(current);
+    },
+  });
   Sortable.create(list, {
     handle: '.drag-handle',
     animation: 150,
@@ -542,8 +574,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       await resetLayerPresets(true);
       const settings = await getGradientSettings();
-      savedSettings = settingsSignature(settings.layers, settings.gradients);
+      savedSettings = settingsSignature(settings.layers, settings.gradients, settings.gradientOrder);
       await renderLayers(settings.layers);
+    } catch (error) {
+      showError(error);
+    }
+  });
+
+  document.getElementById('reset-gradients').addEventListener('click', async () => {
+    const current = getCurrentLayers();
+    if (current.some(({ gradientId }) => gradientId !== undefined)) {
+      showError(new Error('Choose preset colors for all layers before resetting gradients.'));
+      return;
+    }
+    try {
+      const defaultOrder = getGradientOrder([]);
+      await setGradientSettings(current, [], defaultOrder);
+      gradients = [];
+      gradientOrder = defaultOrder;
+      editingGradients.clear();
+      savedSettings = settingsSignature(current, gradients);
+      document.getElementById('settings-error').hidden = true;
+      renderGradients();
+      await renderLayers(current);
     } catch (error) {
       showError(error);
     }
@@ -553,7 +606,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const current = getCurrentLayers();
     if (current.length >= 1 && validateLayerPresets(current) && validateCustomGradients(gradients)) {
       try {
-        await setGradientSettings(current, gradients);
+        await setGradientSettings(current, gradients, gradientOrder);
         window.close();
       } catch (error) {
         showError(error);

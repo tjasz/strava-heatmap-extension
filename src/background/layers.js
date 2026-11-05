@@ -1,7 +1,9 @@
 import {
+	COLOR_OPTIONS,
 	normalizeGradientStops,
 	parseLayerPresets,
 } from '../clients/common/layers.js';
+import { PALETTES } from '../clients/common/palettes.js';
 
 export async function resetLayerPresets(force = false) {
 	const layerPresets = await getLayerPresets();
@@ -138,18 +140,33 @@ export function resolveGradientLayers(layers, gradients) {
 	});
 }
 
-export async function setGradientSettings(layers, gradients) {
+export function getGradientOrder(gradients, order = []) {
+	if (!Array.isArray(order) || order.some((id) => typeof id !== 'string') ||
+		new Set(order).size !== order.length) {
+		throw new Error('Invalid gradient order.');
+	}
+	const ids = [
+		...COLOR_OPTIONS.filter(([id]) => id in PALETTES).map(([id]) => id),
+		...gradients.map(({ id }) => id),
+	];
+	const known = new Set(ids);
+	const ordered = new Set(order.filter((id) => known.has(id)));
+	return [...ordered, ...ids.filter((id) => !ordered.has(id))];
+}
+
+export async function setGradientSettings(layers, gradients, gradientOrder = []) {
 	if (!validateCustomGradients(gradients) || !validateLayerPresets(layers)) {
 		throw new Error('Invalid layer or gradient settings.');
 	}
 	await browser.storage.local.set({
 		layers: formatLayerPresets(resolveGradientLayers(layers, gradients)),
 		gradients,
+		gradientOrder: getGradientOrder(gradients, gradientOrder),
 	});
 }
 
 export async function getGradientSettings() {
-	const stored = await browser.storage.local.get(['layers', 'gradients']);
+	const stored = await browser.storage.local.get(['layers', 'gradients', 'gradientOrder']);
 	const layers = typeof stored.layers === 'string' ? parseLayerPresets(stored.layers) : [];
 	const gradients = stored.gradients ?? [];
 	if (!validateCustomGradients(gradients)) throw new Error('Invalid saved gradients.');
@@ -168,8 +185,9 @@ export async function getGradientSettings() {
 		migrated = true;
 	}
 	const resolved = resolveGradientLayers(layers, gradients);
-	if (migrated) await setGradientSettings(resolved, gradients);
-	return { layers: resolved, gradients };
+	const gradientOrder = getGradientOrder(gradients, stored.gradientOrder);
+	if (migrated) await setGradientSettings(resolved, gradients, gradientOrder);
+	return { layers: resolved, gradients, gradientOrder };
 }
 
 export async function requestLayerPresets() {

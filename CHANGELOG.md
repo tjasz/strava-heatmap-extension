@@ -11,6 +11,8 @@
 - Move heatmap layers into their own **Strava Heatmap** section immediately below **Route Discovery**.
 - Add duplicate "All" options at the top of each activity group for easier selection of all activities within that group.
 - Add ability to delete custom gradients that are not in use.
+- Drag to reorder gradients and their layer color choices. Save the order with Apply changes.
+- Add Reset to Defaults in Gradients to immediately delete custom gradients and restore preset order, saving the current layers. Reset is disabled while a layer uses a custom gradient.
 
 ### `0.15.2` (2026-11-03)
 

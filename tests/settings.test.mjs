@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import { ACTIVITY_OPTIONS, COLOR_OPTIONS, normalizeGradientStops } from '../src/clients/common/layers.js';
 import {
   formatLayerPresets, validateLayerPresets, validateCustomGradients, resolveGradientLayers,
+  getGradientOrder,
 } from '../src/background/layers.js';
 import { PALETTES } from '../src/clients/common/palettes.js';
 
@@ -97,14 +98,17 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
   const ids = Object.fromEntries([
     'layer-list', 'settings-title', 'add-layer', 'apply-settings',
     'close-settings', 'reset-settings', 'gradient-list', 'add-gradient',
+    'reset-gradients',
     'layers-tab', 'gradients-tab', 'layers-panel', 'gradients-panel', 'settings-error',
   ].map((id) => [id, element(id === 'layer-list' ? 'ul' : 'button')]));
   const list = ids['layer-list'];
   let onReady;
   let sorting;
+  let paletteSorting;
   const gradientSorting = new WeakMap();
   let closed = false;
   let gradients = [];
+  let gradientOrder = getGradientOrder([]);
   let nextGradient = 0;
   let presets = [
     { activity: 'run', color: 'orange' },
@@ -136,6 +140,7 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
     window: { close() { closed = true; } },
     Sortable: { create(node, options) {
       if (node === list) sorting = options;
+      else if (node === ids['gradient-list']) paletteSorting = options;
       else {
         assert.equal(node.className, 'gradient-controls');
         gradientSorting.set(node, options);
@@ -143,13 +148,15 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
     } },
     ACTIVITY_OPTIONS, COLOR_OPTIONS, PALETTES, normalizeGradientStops,
     formatLayerPresets, validateLayerPresets, validateCustomGradients, resolveGradientLayers,
+    getGradientOrder,
     crypto: { randomUUID: () => `custom-${++nextGradient}` },
     console,
     getExtensionName: () => 'Strava Heatmap',
-    getGradientSettings: async () => structuredClone({ layers: presets, gradients }),
-    setGradientSettings: async (value, palettes) => {
+    getGradientSettings: async () => structuredClone({ layers: presets, gradients, gradientOrder }),
+    setGradientSettings: async (value, palettes, order) => {
       presets = structuredClone(value);
       gradients = structuredClone(palettes);
+      gradientOrder = structuredClone(order);
     },
     resetLayerPresets: async () => { presets = [{ activity: 'all', color: 'orange' }]; },
   });
@@ -378,4 +385,57 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
   await onReady();
   assert.equal(gradients.length, 0, 'the last custom gradient can be deleted');
   assert.equal(gradientList.children.length, Object.keys(PALETTES).length);
+
+  const defaultOrder = getGradientOrder([]);
+  const displayedOrder = () => gradientList.children.map((item) => item.dataset.id);
+  assert.equal(paletteSorting.handle, '.gradient-reorder-handle');
+  assert.equal(paletteSorting.draggable, '.gradient');
+  assert.ok(gradientList.children.every((item) => item.querySelector('.gradient-reorder-handle')));
+  gradientList.children.reverse();
+  await paletteSorting.onEnd();
+  assert.deepEqual(displayedOrder(), [...defaultOrder].reverse());
+  assert.deepEqual(select(0, 'color').options.slice(1).map((option) => option.value), displayedOrder());
+  assert.equal(select(0, 'color').value, 'orange', 'sorting preserves selected colors');
+  assert.equal(ids['apply-settings'].disabled, false);
+  await ids['apply-settings'].onclick();
+  await onReady();
+  assert.deepEqual(displayedOrder(), [...defaultOrder].reverse(), 'preset order persists');
+  assert.equal(ids['apply-settings'].disabled, true);
+
+  await ids['add-gradient'].onclick();
+  const added = gradientList.children.find((item) => item.dataset.id === 'custom-3');
+  await added.querySelector('.gradient-done').onclick();
+  gradientList.children.reverse();
+  await paletteSorting.onEnd();
+  assert.equal(displayedOrder()[0], 'custom-3', 'custom and preset gradients can be interleaved');
+  select(0, 'color').value = 'custom-3';
+  await select(0, 'color').onchange();
+  assert.equal(ids['reset-gradients'].disabled, true);
+  select(1, 'color').value = 'custom-3';
+  await select(1, 'color').onchange();
+  select(0, 'color').value = 'orange';
+  await select(0, 'color').onchange();
+  assert.equal(ids['reset-gradients'].disabled, true, 'reset checks every referencing layer');
+  await ids['apply-settings'].onclick();
+  await onReady();
+  assert.equal(displayedOrder()[0], 'custom-3', 'mixed order persists');
+  select(1, 'color').value = 'blue';
+  await select(1, 'color').onchange();
+  assert.equal(ids['reset-gradients'].disabled, false);
+  const currentPeriods = [select(0, 'period').value, select(1, 'period').value];
+  await ids['reset-gradients'].onclick();
+  assert.equal(gradients.length, 0, 'reset deletes custom gradients immediately');
+  assert.deepEqual(displayedOrder(), defaultOrder);
+  assert.deepEqual(gradientOrder, defaultOrder, 'reset persists the preset order immediately');
+  assert.deepEqual(presets.map(({ color }) => color), ['orange', 'blue']);
+  assert.deepEqual(presets.map(({ period }) => period), currentPeriods);
+  assert.equal(ids['apply-settings'].disabled, true);
+  await onReady();
+  assert.deepEqual(displayedOrder(), defaultOrder);
+  assert.equal(gradients.length, 0);
+  gradientList.children.reverse();
+  await paletteSorting.onEnd();
+  await ids['reset-gradients'].onclick();
+  assert.deepEqual(displayedOrder(), defaultOrder, 'reset also works without custom gradients');
+  assert.equal(ids['apply-settings'].disabled, true);
 });

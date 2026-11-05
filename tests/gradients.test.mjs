@@ -5,6 +5,7 @@ import {
   getGradientSettings, setGradientSettings, formatLayerPresets,
   validateCustomGradients, resolveGradientLayers, resetLayerPresets,
   requestLayerPresets,
+  getGradientOrder,
 } from '../src/background/layers.js';
 
 const gradient = {
@@ -104,4 +105,32 @@ test('invalid gradients and missing references fail explicitly', async () => {
     { activity: 'all', color: 'grayscale', gradientId: 'missing' },
   ], [gradient]), /Unknown gradient/);
   await assert.rejects(setGradientSettings([], [{ ...gradient, name: '' }]), /Invalid/);
+});
+
+test('gradient order defaults, persists mixed ordering, and resets atomically', async (t) => {
+  const previous = globalThis.browser;
+  const state = { layers: 'run:orange:weekly', gradients: [gradient] };
+  globalThis.browser = { storage: { local: {
+    get: async () => structuredClone(state),
+    set: async (value) => Object.assign(state, structuredClone(value)),
+  } } };
+  t.after(() => { globalThis.browser = previous; });
+  const defaults = getGradientOrder([]);
+  const loaded = await getGradientSettings();
+  assert.deepEqual(loaded.gradientOrder, [...defaults, gradient.id]);
+  const order = [gradient.id, ...defaults.toReversed()];
+  await setGradientSettings(loaded.layers, loaded.gradients, order);
+  assert.deepEqual((await getGradientSettings()).gradientOrder, order);
+  assert.deepEqual(getGradientOrder([], order), defaults.toReversed(), 'deleted IDs are removed');
+  assert.deepEqual(getGradientOrder([gradient], defaults.slice(1)),
+    [...defaults.slice(1), defaults[0], gradient.id], 'new gradients and presets are appended');
+  await setGradientSettings(loaded.layers, [], defaults);
+  const reset = await getGradientSettings();
+  assert.deepEqual(reset.gradients, []);
+  assert.deepEqual(reset.gradientOrder, defaults);
+  assert.deepEqual(reset.layers, loaded.layers);
+  for (const invalid of [null, 'orange', ['orange', 'orange'], [1]]) {
+    await assert.rejects(setGradientSettings(loaded.layers, [], invalid), /Invalid gradient order/);
+  }
+  assert.deepEqual((await getGradientSettings()).gradientOrder, defaults, 'invalid order cannot corrupt storage');
 });
