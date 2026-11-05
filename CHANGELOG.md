@@ -10,10 +10,6 @@
 - Replace the swatch with CalTopo's check-circle icon when a heatmap layer is selected.
 - Move heatmap layers into their own **Strava Heatmap** section immediately below **Route Discovery**.
 - Add duplicate "All" options at the top of each activity group for easier selection of all activities within that group.
-- Add ability to delete custom gradients that are not in use.
-- Limit custom gradient names to 20 visible characters and emoji fields to 2, without splitting combined emoji.
-- Drag to reorder gradients and their layer color choices. Save the order with Apply changes.
-- Add Reset to Defaults in Gradients to immediately delete custom gradients and restore preset order, saving the current layers. Reset is disabled while a layer uses a custom gradient.
 
 ### `0.15.2` (2026-11-03)
 
@@ -31,7 +27,6 @@
 - Allow multiple layers to be shown at once. Displayed layers stack in the order they were activated. Snapping suggestions work on the most recently activated layer.
 - Add support for Weekly heatmap for Strava Premium subscribers.
 - Add Strava's Rainbow palette to the built-in gradients.
-- Add support for definition of custom gradients.
 
 ### `0.15.0.1` (2026-10-29)
 

@@ -103,7 +103,14 @@ You can configure multiple layers for the same sport, including layers of the sa
 
 ![Configuring Strava Heatmap Layers](../../images/screenshot3.png)
 
+<!--
 ## Configuring Custom Gradients
+
+This experimental feature is hidden by default. In the extension's developer-tools
+console, run `browser.storage.local.set({ customgradients: true })` (use
+`chrome.storage.local` in Chrome), then reopen settings to show the tabs.
+Set `customgradients` to `false` to hide them again; a missing key defaults to
+`false`. Saved custom palettes remain available in the layer color dropdown.
 
 The **Gradients** tab shows every built-in palette with a 256-by-10-pixel preview,
 name, and emoji.
@@ -123,6 +130,7 @@ Stops are evenly spaced. Defining two stops defines a continuous gradient betwee
 
 Custom palettes work with both Global and Weekly layers. Editing a palette updates
 every layer using it. Resetting layers to defaults leaves your custom palettes intact.
+-->
 
 ## Troubleshooting
 

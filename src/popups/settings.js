@@ -499,7 +499,13 @@ document.getElementById('settings-title').textContent = `⚙️ ${getExtensionNa
 
 document.addEventListener('DOMContentLoaded', async () => {
   let settings;
+  let customGradientsEnabled;
   try {
+    const { customgradients } = await browser.storage.local.get('customgradients');
+    if (customgradients === undefined) {
+      await browser.storage.local.set({ customgradients: false });
+    }
+    customGradientsEnabled = customgradients === true;
     settings = await getGradientSettings();
   } catch (error) {
     showError(error);
@@ -534,6 +540,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById(`${selected}-tab`).focus();
     });
   }
+  selectTab('layers');
+  document.getElementById('settings-tabs').hidden = !customGradientsEnabled;
   document.getElementById('add-gradient').addEventListener('click', () => {
     const gradient = {
       id: crypto.randomUUID(),

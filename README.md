@@ -147,7 +147,15 @@ same heatmap type with different colors. Weekly tiles
 require you to be a Strava Premium subscriber and authenticate through the
 extension; the extension does not unlock subscription-only data.
 
-Settings have two tabs: **Layers** for heatmap type, sport, color, and layer order,
+### Custom gradients (experimental)
+
+Custom gradient definition is hidden by default. Enable it in the extension's
+developer-tools console with `browser.storage.local.set({ customgradients: true })`
+(use `chrome.storage.local` in Chrome), then reopen settings. Set the key to
+`false` to hide the tabs again. A missing key is initialized to `false`.
+Existing saved custom palettes remain available in the layer color dropdown.
+
+When enabled, settings have two tabs: **Layers** for heatmap type, sport, color, and layer order,
 and **Gradients** for palettes. The built-in palettes always appear with a
 256-by-10-pixel preview, name, and emoji.
 

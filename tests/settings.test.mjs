@@ -94,12 +94,61 @@ test('activity selects restore the first occurrence and preserve duplicate choic
   assert.equal(empty.className.includes('invalid'), true);
 });
 
+test('custom gradient tabs are hidden by default and require an explicit opt-in', async () => {
+  const html = await readFile(new URL('../src/popups/settings.html', import.meta.url), 'utf8');
+  assert.match(html, /<div id="settings-tabs"[^>]* hidden>/, 'hide tabs before settings load');
+  assert.match(html, /<div id="gradients-panel"[^>]* hidden>/);
+  const source = (await readFile(new URL('../src/popups/settings.js', import.meta.url), 'utf8'))
+    .replace(/^import[\s\S]*?from ['"][^'"]+['"];?/gm, '');
+  for (const stored of [undefined, false, true]) {
+    const ids = new Map();
+    const writes = [];
+    let onReady;
+    const context = vm.createContext({
+      document: {
+        createElement: element,
+        getElementById(id) {
+          if (!ids.has(id)) ids.set(id, element('div'));
+          return ids.get(id);
+        },
+        addEventListener(name, callback) { onReady = callback; },
+        querySelectorAll: () => [],
+      },
+      browser: { storage: { local: {
+        async get(key) {
+          assert.equal(key, 'customgradients');
+          return stored === undefined ? {} : { customgradients: stored };
+        },
+        async set(value) { writes.push(structuredClone(value)); },
+      } } },
+      Sortable: { create() {} },
+      getExtensionName: () => 'Strava Heatmap',
+      getGradientSettings: async () => ({ layers: [], gradients: [], gradientOrder: [] }),
+      getGradientOrder, formatLayerPresets, validateLayerPresets, validateCustomGradients,
+      ACTIVITY_OPTIONS, COLOR_OPTIONS, PALETTES, normalizeGradientStops,
+      console,
+    });
+    vm.runInContext(source, context);
+    await onReady();
+    assert.equal(ids.get('settings-tabs').hidden, stored !== true);
+    assert.equal(ids.get('layers-panel').hidden, false, 'layers remain available');
+    assert.equal(ids.get('gradients-panel').hidden, true);
+    assert.deepEqual(writes, stored === undefined ? [{ customgradients: false }] : []);
+    if (stored === true) {
+      ids.get('gradients-tab').onclick();
+      assert.equal(ids.get('gradients-panel').hidden, false);
+      assert.equal(ids.get('layers-panel').hidden, true);
+    }
+  }
+});
+
 test('settings preserve weekly types through editing, adding, sorting, applying and resetting', async () => {
   const ids = Object.fromEntries([
     'layer-list', 'settings-title', 'add-layer', 'apply-settings',
     'close-settings', 'reset-settings', 'gradient-list', 'add-gradient',
     'reset-gradients',
     'layers-tab', 'gradients-tab', 'layers-panel', 'gradients-panel', 'settings-error',
+    'settings-tabs',
   ].map((id) => [id, element(id === 'layer-list' ? 'ul' : 'button')]));
   const list = ids['layer-list'];
   let onReady;
@@ -151,6 +200,9 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
     getGradientOrder,
     crypto: { randomUUID: () => `custom-${++nextGradient}` },
     console,
+    browser: { storage: { local: {
+      get: async () => ({ customgradients: true }),
+    } } },
     getExtensionName: () => 'Strava Heatmap',
     getGradientSettings: async () => structuredClone({ layers: presets, gradients, gradientOrder }),
     setGradientSettings: async (value, palettes, order) => {
