@@ -170,14 +170,15 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
   assert.equal(ids['layers-panel'].hidden, false);
   const gradientList = ids['gradient-list'];
   assert.equal(gradientList.children.length, Object.keys(PALETTES).length);
-  for (const [index, ramp] of Object.values(PALETTES).entries()) {
+  const builtinColors = COLOR_OPTIONS.filter(([id]) => id in PALETTES);
+  for (const [index, [id]] of builtinColors.entries()) {
     const item = gradientList.children[index];
     assert.equal(item.querySelector('.gradient-edit'), undefined);
     assert.ok(item.querySelector('.gradient-label').textContent.length > 0);
     const preview = item.querySelector('canvas');
     assert.equal(preview.width, 256);
     assert.equal(preview.height, 10);
-    assert.equal(Buffer.from(preview.image.data.slice(0, 1024)).toString('hex'), ramp);
+    assert.equal(Buffer.from(preview.image.data.slice(0, 1024)).toString('hex'), PALETTES[id]);
   }
 
   await ids['add-gradient'].onclick();
