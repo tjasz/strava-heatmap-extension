@@ -2,6 +2,10 @@
 
 ## Versions
 
+### `0.15.0.3` (2026-11-04)
+
+- Add a text box input beside the layer opacity slider for precise opacity control.
+
 ### `0.15.0.2` (2026-11-01)
 
 - Do not show the heatmap in the print preview, since it will not appear in printed, server-rendered output.

@@ -12,7 +12,8 @@ const presets = 'run:orange;run:blue:weekly;ride:purple';
 class Element {
   constructor(tagName) {
     Object.assign(this, {
-      tagName: tagName.toUpperCase(), children: [], style: {}, attributes: {},
+      tagName: tagName.toUpperCase(), children: [],
+      style: { setProperty(name, value) { this[name] = value; } }, attributes: {},
       handlers: {}, textContent: '', className: '',
     });
     this.classList = {
@@ -25,6 +26,7 @@ class Element {
     };
   }
   setAttribute(name, value) { this.attributes[name] = value; }
+  blur() { this.handlers.blur?.(); }
   addEventListener(name, handler) { this.handlers[name] = handler; }
   appendChild(child) { child.remove(); this.children.push(child); child.parentElement = this; }
   append(...children) { children.forEach((child) => this.appendChild(child)); }
@@ -100,9 +102,7 @@ function fixture(renderer, saved, initialPresets = presets, mapSheetMaxSize) {
   let getSheetLayers;
   let invalidations = 0;
   let stored = saved ? JSON.stringify(saved) : null;
-  vm.runInNewContext(source, {
-    window, console, getLayerConfigs, parseLayerPresets,
-    document: {
+  const document = {
       body,
       createElement: (tag) => new Element(tag),
       getElementById: (id) => all(body).find((element) => element.id === id),
@@ -110,7 +110,9 @@ function fixture(renderer, saved, initialPresets = presets, mapSheetMaxSize) {
       querySelector: () => ({ dataset: {
         version: '0', authenticated: 'true', layers: initialPresets, mapsheetmaxsize: mapSheetMaxSize,
       } }),
-    },
+    };
+  vm.runInNewContext(source, {
+    window, console, getLayerConfigs, parseLayerPresets, document,
     localStorage: {
       getItem: (key) => { assert.equal(key, storageKey); return stored; },
       setItem: (key, value) => { assert.equal(key, storageKey); stored = value; },
@@ -137,11 +139,11 @@ function fixture(renderer, saved, initialPresets = presets, mapSheetMaxSize) {
     const stack = list.children[index].children[0];
     const button = stack.children[0];
     const collapse = stack.children[1];
-    const label = collapse.children[0].children[0].children[0].children[0];
-    return { button, collapse, input: label.children[0], output: label.children[1] };
+    const opacityRow = collapse.children[0].children[0].children[0].children[0];
+    return { button, collapse, input: opacityRow.children[0].children[0], value: opacityRow.children[1] };
   };
   return {
-    window, body, list, map, mapOverlays, row, observe,
+    window, document, body, list, map, mapOverlays, row, observe,
     state: () => JSON.parse(stored),
     getSnapLayer: () => getSnapLayer(),
     getSheetLayers: () => getSheetLayers(),
@@ -159,6 +161,83 @@ function fixture(renderer, saved, initialPresets = presets, mapSheetMaxSize) {
 }
 
 for (const renderer of ['leaflet', 'google']) {
+  test(`${renderer} synchronizes the opacity slider and editable percentage without losing drafts`, () => {
+    const f = fixture(renderer);
+    const { input, value } = f.row(0);
+    const overlay = f.mapOverlays[0];
+    const opacity = () => renderer === 'leaflet' ? overlay.options.opacity : overlay.opacity;
+    assert.equal(value.tagName, 'INPUT');
+    assert.equal(value.type, 'text');
+    assert.equal(value.inputMode, 'numeric');
+    assert.match(value.attributes['aria-label'], /opacity percent$/);
+    assert.equal(value.value, '100');
+    input.value = '42';
+    input.handlers.input();
+    assert.equal(value.value, '42');
+    assert.equal(input.style['--opacity-percentage'], '42%');
+    assert.equal(opacity(), 0.42);
+
+    f.document.activeElement = value;
+    for (const text of ['6', '60', '0', '100']) {
+      value.value = text;
+      value.handlers.input();
+      const expected = Number(text) / 100;
+      assert.equal(value.value, text, 'keep the text draft until committed');
+      assert.equal(Number(input.value) / 100, expected);
+      assert.equal(opacity(), expected);
+      assert.equal(f.state().layers['strava-heatmap-run'].opacity, expected);
+    }
+    for (const [text, expected] of [
+      ['101', '100'], ['999', '100'], ['9'.repeat(400), '100'],
+      ['a4b2', '42'], ['60.', '60'], ['60,', '60'], ['-1', '1'],
+      [' 25% ', '25'], ['1e2', '12'], ['0007', '7'],
+    ]) {
+      value.value = text;
+      value.handlers.input();
+      assert.equal(value.value, expected);
+      assert.equal(input.value, expected);
+      assert.equal(opacity(), Number(expected) / 100);
+      assert.equal(f.state().layers['strava-heatmap-run'].opacity, Number(expected) / 100);
+    }
+    const saved = f.state();
+    for (const text of ['', ' ', 'Infinity', 'NaN', 'abc', '.,-', '\u0661\u0662']) {
+      value.value = text;
+      value.handlers.input();
+      assert.equal(value.value, '');
+      assert.deepEqual(f.state(), saved, 'empty drafts must not change saved state');
+      assert.equal(opacity(), 0.07);
+    }
+    value.handlers.change();
+    assert.equal(value.value, '7');
+    const keydown = (key) => value.handlers.keydown({ key, preventDefault() {} });
+    value.value = '';
+    value.handlers.input();
+    keydown('Enter');
+    assert.equal(value.value, '7');
+    value.value = '';
+    value.handlers.input();
+    keydown('Escape');
+    assert.equal(value.value, '7');
+    value.value = '27';
+    value.handlers.input();
+    keydown('Enter');
+    assert.equal(value.value, '27');
+
+    value.value = '';
+    value.handlers.input();
+    f.document.activeElement = null;
+    input.value = '35';
+    input.handlers.input();
+    assert.equal(value.value, '35');
+    f.row(0).button.handlers.click();
+    assert.equal(input.disabled, true);
+    assert.equal(value.disabled, true);
+    f.row(0).button.handlers.click();
+    assert.equal(value.disabled, false);
+    assert.equal(fixture(renderer, f.state()).row(0).value.value, '35');
+    f.flush();
+  });
+
   test(`${renderer} restores snapping from the enabled stack instead of a stale hidden selection`, () => {
     const f = fixture(renderer, {
       layerId: 'strava-heatmap-run-weekly',
@@ -289,7 +368,7 @@ for (const renderer of ['leaflet', 'google']) {
     f.row(1).input.value = '70';
     f.row(1).input.handlers.input();
     assert.equal(f.getSnapLayer().id, 'strava-heatmap-ride');
-    assert.equal(f.row(1).output.value, '70%');
+    assert.equal(f.row(1).value.value, '70');
     assert.deepEqual(Array.from(f.getSheetLayers(), (layer) => [layer.id, layer.opacity]), [
       ['strava-heatmap-run-weekly', 0.7], ['strava-heatmap-run', 1], ['strava-heatmap-ride', 1],
     ]);

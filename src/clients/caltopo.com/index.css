@@ -264,6 +264,93 @@
   min-height: 28px;
 }
 
-.strava-heatmap-controls input[type="range"] {
-  accent-color: var(--color-primary); /* Changes the thumb and active track color */
+.strava-heatmap-opacity {
+  display: grid;
+  grid-template-columns: minmax(0, 8.5fr) minmax(0, 2fr) 1.5fr;
+  align-items: center;
+  margin-left: -10px;
+  padding-left: 4px;
+  color: var(--color-primary, #54667a);
+}
+
+.strava-heatmap-opacity-slider {
+  display: flex;
+  padding: 2px 7px 2px 12px;
+}
+
+.strava-heatmap-opacity input[type="range"] {
+  appearance: none;
+  width: 100%;
+  min-width: 0;
+  height: 26px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.strava-heatmap-opacity input[type="range"]::-webkit-slider-runnable-track {
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(to right, currentColor var(--opacity-percentage),
+    color-mix(in srgb, currentColor 38%, transparent) var(--opacity-percentage));
+}
+
+.strava-heatmap-opacity input[type="range"]::-moz-range-track {
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+  opacity: 0.38;
+}
+
+.strava-heatmap-opacity input[type="range"]::-moz-range-progress {
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+}
+
+.strava-heatmap-opacity input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -5px;
+  border: 0;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.strava-heatmap-opacity input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.strava-heatmap-opacity-value {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 0 4px;
+  border: 1px solid rgba(0, 0, 0, 0.23);
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(0, 0, 0, 0.87);
+  font: inherit;
+}
+
+.strava-heatmap-opacity-value:hover {
+  border-color: rgba(0, 0, 0, 0.87);
+}
+
+.strava-heatmap-opacity-value:focus {
+  outline: 2px solid #cc5d31;
+  outline-offset: -2px;
+}
+
+.strava-heatmap-opacity input[type="range"]:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
 }

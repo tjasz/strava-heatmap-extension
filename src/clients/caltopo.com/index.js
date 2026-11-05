@@ -289,7 +289,7 @@ function updateControls() {
   else delete window[OVERLAY_KEY];
   for (const [id, controls] of controlsById) {
     const { enabled, opacity } = layerStates.get(id);
-    const { stack, toggleButton, controlsCollapse, opacityInput, opacityOutput } = controls;
+    const { stack, toggleButton, controlsCollapse, opacityInput, opacityValue } = controls;
     stack.classList.toggle('strava-heatmap-layer-active', enabled);
     toggleButton.setAttribute('aria-pressed', String(enabled));
     toggleButton.setAttribute('aria-expanded', String(enabled));
@@ -300,7 +300,11 @@ function updateControls() {
     controlsCollapse.style.visibility = enabled ? 'visible' : 'hidden';
     opacityInput.value = String(Math.round(opacity * 100));
     opacityInput.disabled = !enabled;
-    opacityOutput.value = `${Math.round(opacity * 100)}%`;
+    opacityInput.style.setProperty('--opacity-percentage', `${Math.round(opacity * 100)}%`);
+    if (document.activeElement !== opacityValue) {
+      opacityValue.value = opacityInput.value;
+    }
+    opacityValue.disabled = !enabled;
   }
 }
 
@@ -377,8 +381,10 @@ function createLayerControls(config) {
   const controls = document.createElement('div');
   controls.className = 'MuiBox-root css-1y82lur strava-heatmap-controls';
 
-  const opacityLabel = document.createElement('label');
-  opacityLabel.textContent = 'Opacity';
+  const opacityRow = document.createElement('div');
+  opacityRow.className = 'strava-heatmap-opacity';
+  const slider = document.createElement('div');
+  slider.className = 'strava-heatmap-opacity-slider';
   const opacityInput = document.createElement('input');
   opacityInput.type = 'range';
   opacityInput.min = '0';
@@ -388,17 +394,40 @@ function createLayerControls(config) {
   opacityInput.addEventListener('input', () => {
     setOpacity(config.id, Number(opacityInput.value) / 100);
   });
-  const opacityOutput = document.createElement('output');
-  opacityOutput.setAttribute('aria-live', 'polite');
-  opacityLabel.append(opacityInput, opacityOutput);
+  const opacityValue = document.createElement('input');
+  opacityValue.className = 'strava-heatmap-opacity-value';
+  opacityValue.type = 'text';
+  opacityValue.inputMode = 'numeric';
+  opacityValue.setAttribute('aria-label', `${label} opacity percent`);
+  opacityValue.addEventListener('input', () => {
+    const digits = opacityValue.value.replace(/[^0-9]/g, '');
+    const value = digits === '' ? '' : String(Math.min(100, Number(digits)));
+    if (opacityValue.value !== value) opacityValue.value = value;
+    if (value !== '') setOpacity(config.id, Number(value) / 100);
+  });
+  const finishOpacityEdit = () => { opacityValue.value = opacityInput.value; };
+  opacityValue.addEventListener('change', finishOpacityEdit);
+  opacityValue.addEventListener('blur', finishOpacityEdit);
+  opacityValue.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      opacityValue.blur();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      opacityValue.value = opacityInput.value;
+      opacityValue.blur();
+    }
+  });
+  slider.appendChild(opacityInput);
+  opacityRow.append(slider, opacityValue);
 
-  controls.appendChild(opacityLabel);
+  controls.appendChild(opacityRow);
   collapseInner.appendChild(controls);
   collapseWrapper.appendChild(collapseInner);
   controlsCollapse.appendChild(collapseWrapper);
   stack.append(toggleButton, controlsCollapse);
   ribbon.appendChild(stack);
-  return { ribbon, stack, toggleButton, controlsCollapse, opacityInput, opacityOutput };
+  return { ribbon, stack, toggleButton, controlsCollapse, opacityInput, opacityValue };
 }
 
 function setupRibbonObserver() {
