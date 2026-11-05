@@ -111,6 +111,10 @@ function fixture(renderer, saved, initialPresets = presets, mapSheetMaxSize) {
   const document = {
       body,
       createElement: (tag) => new Element(tag),
+      createElementNS: (namespace, tag) => {
+        assert.equal(namespace, 'http://www.w3.org/2000/svg');
+        return new Element(tag);
+      },
       getElementById: (id) => all(body).find((element) => element.id === id),
       querySelectorAll: (tag) => all(body).filter((element) => element.tagName === tag.toUpperCase()),
       querySelector: () => ({ dataset: {
@@ -363,14 +367,33 @@ for (const renderer of ['leaflet', 'google']) {
       )[index].name);
       assert.equal(button.attributes['aria-label'], title.textContent);
       assert.ok(!title.textContent.includes('Strava Heatmap'));
-      assert.equal(button.children[0].className, 'MuiBox-root strava-heatmap-swatch');
+      assert.equal(button.children[0].className, index === 1
+        ? 'MuiBox-root css-1myp8s' : 'MuiBox-root strava-heatmap-swatch');
       assert.equal(button.children[0].children[0].className, 'strava-heatmap-swatch-emoji');
       assert.equal(button.children[0].children[0].textContent, '🔥');
+      assert.equal(button.children[0].children[0].style.display, index === 1 ? 'none' : '');
+      const selectedIcon = button.children[0].children[1];
+      assert.equal(selectedIcon.className, 'css-1y66ce9');
+      assert.equal(selectedIcon.style.display, index === 1 ? '' : 'none');
+      const svg = selectedIcon.children[0];
+      assert.equal(svg.tagName, 'SVG');
+      assert.equal(svg.attributes.viewBox, '0 0 24 24');
+      assert.equal(svg.attributes['aria-hidden'], 'true');
+      assert.equal(svg.attributes.focusable, 'false');
+      assert.equal(svg.attributes.class, 'MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-140d7vm');
+      assert.equal(svg.children[0].tagName, 'PATH');
+      assert.ok(svg.children[0].attributes.d.startsWith('M16.59 7.58'));
     }
     assert.ok(!f.list.children.some((item) => item.tagName === 'SELECT'));
 
     f.row(0).button.handlers.click();
     f.row(2).button.handlers.keydown({ key: 'Enter', preventDefault() {} });
+    for (let index = 0; index < 3; index++) {
+      const swatch = f.row(index).button.children[0];
+      assert.equal(swatch.className, 'MuiBox-root css-1myp8s');
+      assert.equal(swatch.children[0].style.display, 'none');
+      assert.equal(swatch.children[1].style.display, '');
+    }
     assert.equal(f.mapOverlays.length, 3);
     assert.equal(f.getSnapLayer().id, 'strava-heatmap-ride');
     f.row(1).input.value = '70';
@@ -387,6 +410,10 @@ for (const renderer of ['leaflet', 'google']) {
     assert.equal(f.mapOverlays.length, 2);
     assert.equal(f.row(1).input.disabled, true);
     assert.equal(f.row(1).button.attributes['aria-expanded'], 'false');
+    const deselectedSwatch = f.row(1).button.children[0];
+    assert.equal(deselectedSwatch.className, 'MuiBox-root strava-heatmap-swatch');
+    assert.equal(deselectedSwatch.children[0].style.display, '');
+    assert.equal(deselectedSwatch.children[1].style.display, 'none');
     assert.equal(f.getSnapLayer().id, 'strava-heatmap-ride', 'snapping follows the remaining top layer');
     assert.deepEqual(Array.from(f.getSheetLayers(), (layer) => layer.id),
       ['strava-heatmap-run', 'strava-heatmap-ride']);

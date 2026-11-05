@@ -290,6 +290,11 @@ function updateControls() {
   for (const [id, controls] of controlsById) {
     const { enabled, opacity } = layerStates.get(id);
     const { stack, toggleButton, controlsCollapse, opacityInput, opacityValue } = controls;
+    controls.swatch.className = enabled
+      ? 'MuiBox-root css-1myp8s'
+      : 'MuiBox-root strava-heatmap-swatch';
+    controls.swatchEmoji.style.display = enabled ? 'none' : '';
+    controls.selectedIcon.style.display = enabled ? '' : 'none';
     stack.classList.toggle('strava-heatmap-layer-active', enabled);
     toggleButton.setAttribute('aria-pressed', String(enabled));
     toggleButton.setAttribute('aria-expanded', String(enabled));
@@ -355,6 +360,19 @@ function createLayerControls(config) {
   swatchEmoji.className = 'strava-heatmap-swatch-emoji';
   swatchEmoji.textContent = '🔥';
   swatch.appendChild(swatchEmoji);
+
+  const selectedIcon = document.createElement('div');
+  selectedIcon.className = 'css-1y66ce9';
+  const checkSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  checkSvg.setAttribute('class', 'MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-140d7vm');
+  checkSvg.setAttribute('focusable', 'false');
+  checkSvg.setAttribute('aria-hidden', 'true');
+  checkSvg.setAttribute('viewBox', '0 0 24 24');
+  const checkPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  checkPath.setAttribute('d', 'M16.59 7.58 10 14.17l-3.59-3.58L5 12l5 5 8-8zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8');
+  checkSvg.appendChild(checkPath);
+  selectedIcon.appendChild(checkSvg);
+  swatch.appendChild(selectedIcon);
 
   const titleGrid = document.createElement('div');
   titleGrid.className =
@@ -430,7 +448,10 @@ function createLayerControls(config) {
   controlsCollapse.appendChild(collapseWrapper);
   stack.append(toggleButton, controlsCollapse);
   ribbon.appendChild(stack);
-  return { ribbon, stack, toggleButton, controlsCollapse, opacityInput, opacityValue };
+  return {
+    ribbon, stack, toggleButton, controlsCollapse, opacityInput, opacityValue,
+    swatch, swatchEmoji, selectedIcon,
+  };
 }
 
 function setupRibbonObserver() {
