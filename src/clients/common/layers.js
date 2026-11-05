@@ -93,8 +93,9 @@ const ACTIVITIES = {
 
 const ACTIVITY_GROUPS = {
   'Top Categories': ['all', 'run', 'ride', 'water', 'winter'],
-  'Foot Sports': ['sport_Run', 'sport_TrailRun', 'sport_Walk', 'sport_Hike'],
+  'Foot Sports': ['run', 'sport_Run', 'sport_TrailRun', 'sport_Walk', 'sport_Hike'],
   'Cycle Sports': [
+    'ride',
     'sport_Ride',
     'sport_MountainBikeRide',
     'sport_GravelRide',
@@ -103,6 +104,7 @@ const ACTIVITY_GROUPS = {
     'sport_Velomobile',
   ],
   'Water Sports': [
+    'water',
     'sport_Canoeing',
     'sport_Kayaking',
     'sport_Kitesurf',
@@ -114,6 +116,7 @@ const ACTIVITY_GROUPS = {
     'sport_Windsurf',
   ],
   'Winter Sports': [
+    'winter',
     'sport_AlpineSki',
     'sport_BackcountrySki',
     'sport_IceSkate',

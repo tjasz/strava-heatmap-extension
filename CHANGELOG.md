@@ -9,6 +9,7 @@
 - Move each layer's palette emoji from its name into the swatch at 50% opacity for a softer, more consistent visual indication of the heatmap layer.
 - Replace the swatch with CalTopo's check-circle icon when a heatmap layer is selected.
 - Move heatmap layers into their own **Strava Heatmap** section immediately below **Route Discovery**.
+- Add duplicate "All" options at the top of each activity group for easier selection of all activities within that group.
 
 ### `0.15.2` (2026-11-03)
 
