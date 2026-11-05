@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 import { PALETTES } from '../src/clients/common/palettes.js';
@@ -65,6 +66,8 @@ function graph(name, samples, { key, label, max, unit }) {
 }
 
 export function renderPage() {
+  const editor = readFileSync(new URL('./palette-lab-editor.mjs', import.meta.url), 'utf8')
+    .replace(/^export /gm, '');
   const rows = Object.entries(PALETTES).map(([name, ramp]) => {
     const samples = samplePalette(ramp);
     const preview = samples.map((sample) =>
@@ -86,7 +89,7 @@ export function renderPage() {
     .table-scroll { overflow-x: auto; }
     table { border-collapse: collapse; width: 100%; }
     caption { text-align: left; padding: 8px 0; }
-    th, td { border: 1px solid #cbd0d5; padding: 8px; }
+    th, td { border: 1px solid #cbd0d5; padding: 8px; vertical-align: top; }
     thead th { background: #edf0f3; }
     tbody th { min-width: 128px; text-align: left; }
     .preview { display: block; width: 128px; height: 12px; margin-top: 12px;
@@ -98,6 +101,13 @@ export function renderPage() {
     polyline { fill: none; stroke: #1468ac; stroke-width: 1.5; stroke-linejoin: round; }
     .samples circle { fill: transparent; }
     .samples circle:hover { fill: #1468ac; }
+    button { margin: 8px 4px 8px 0; cursor: pointer; }
+    .custom-row { background: #f5faff; }
+    .custom-row .graph { touch-action: none; user-select: none; }
+    .controls circle { fill: #fff; stroke: #b04400; stroke-width: 2; cursor: grab; }
+    .controls circle:focus { fill: #ffcd8b; outline: none; stroke-width: 3; }
+    .ramp { display: block; width: 128px; height: 48px; font: 11px monospace; }
+    .status { display: block; min-height: 4em; max-width: 160px; font-weight: normal; font-size: 12px; }
   </style>
 </head>
 <body>
@@ -107,6 +117,14 @@ export function renderPage() {
   <p>Fixed Y axes: hue 0-360 degrees; saturation, lightness, and opacity 0-100%.
     HSL uses the stored sRGB values without opacity compositing.
     Achromatic hue is shown as 0 degrees. Hue is not unwrapped at 360 degrees.</p>
+  <p>Custom rows: drag the outlined control points; double-click a chart to add one.
+    Focus a point and use arrow keys to edit (Shift for steps of 10), or Delete to
+    remove an interior point. Endpoints stay at intensities 0 and 255.
+    Custom graphs show the intended HSL curves before RGBA byte rounding,
+    retaining hue and saturation even at white or fully transparent samples.
+    Copy exports 256 RGBA entries as one 2048-character hex string.
+    Edits last until the page is reloaded.</p>
+  <button id="add-custom" type="button">Add custom palette</button>
   <div class="table-scroll">
     <table>
       <caption>${Object.keys(PALETTES).length} palettes; 256 points per graph</caption>
@@ -116,6 +134,10 @@ export function renderPage() {
     </table>
   </div>
 </body>
+<script type="module">
+${editor}
+mountEditor(${JSON.stringify(PROPERTIES)}, ${graph.toString()});
+</script>
 </html>
 `;
 }

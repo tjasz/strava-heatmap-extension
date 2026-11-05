@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PALETTES } from '../src/clients/common/palettes.js';
 import { renderPage, samplePalette } from '../scripts/palette-lab.mjs';
+import {
+  createControlPoints, interpolatePoints, moveControlPoint, sampleCustomPalette,
+} from '../scripts/palette-lab-editor.mjs';
 
 const close = (actual, expected) => assert.ok(
   Math.abs(actual - expected) < 1e-10, `${actual} should equal ${expected}`
@@ -80,5 +83,64 @@ test('page graphs all samples in a palette-by-property table with fixed axes', (
       }
     }
   }
-  assert.doesNotMatch(html, /<script|https?:\/\//);
+  assert.match(html, /<script type="module">/);
+  assert.doesNotMatch(html, /<script[^>]+src=/);
+});
+
+test('custom defaults use the exact requested piecewise linear curves', () => {
+  const controls = createControlPoints();
+  const samples = sampleCustomPalette(controls);
+  assert.equal(samples.length, 256);
+  for (const sample of samples) {
+    const x = sample.intensity;
+    close(sample.hue, 180 + 90 * x / 255);
+    close(sample.saturation, x < 50 ? 75 + x / 2 : 100);
+    close(sample.lightness, 50 + 50 * x / 255);
+    const knots = [[0, 0], [2, 25], [7, 50], [23, 75], [80, 100], [255, 100]];
+    const segment = knots.findIndex(([end]) => end >= x);
+    const [x1, y1] = knots[segment];
+    const [x0, y0] = knots[Math.max(0, segment - 1)];
+    close(sample.opacity, x === 0 ? 0 : y0 + (y1 - y0) * (x - x0) / (x1 - x0));
+  }
+  assert.equal(samples[0].hex, '20dfdf00');
+  assert.equal(samples.at(-1).hex, 'ffffffff');
+  for (const [intensity, opacity] of controls.opacity) close(samples[intensity].opacity, opacity);
+  const ramp = samples.map(({ hex }) => hex).join('');
+  assert.match(ramp, /^[0-9a-f]{2048}$/);
+  samplePalette(ramp).forEach((sample, index) =>
+    close(sample.opacity, Math.round(samples[index].opacity / 100 * 255) / 255 * 100));
+});
+
+test('custom HSL conversion covers all sectors, achromatic colors, and hue 360', () => {
+  for (const [hue, saturation, lightness, hex] of [
+    [0, 100, 50, 'ff000080'], [60, 100, 50, 'ffff0080'],
+    [120, 100, 50, '00ff0080'], [180, 100, 50, '00ffff80'],
+    [240, 100, 50, '0000ff80'], [300, 100, 50, 'ff00ff80'],
+    [360, 100, 50, 'ff000080'], [270, 0, 50, '80808080'],
+    [270, 100, 100, 'ffffff80'], [270, 100, 0, '00000080'],
+  ]) {
+    const controls = {
+      hue: [[0, hue], [255, hue]],
+      saturation: [[0, saturation], [255, saturation]],
+      lightness: [[0, lightness], [255, lightness]],
+      opacity: [[0, 50], [255, 50]],
+    };
+    assert.ok(sampleCustomPalette(controls).every((sample) => sample.hex === hex));
+  }
+});
+
+test('control movement clamps axes, pins endpoints, and prevents crossing neighbors', () => {
+  const controls = createControlPoints();
+  const other = createControlPoints();
+  moveControlPoint(controls.opacity, 0, 90, -20, 100);
+  moveControlPoint(controls.opacity, 5, 90, 150, 100);
+  assert.deepEqual(controls.opacity[0], [0, 0]);
+  assert.deepEqual(controls.opacity[5], [255, 100]);
+  moveControlPoint(controls.opacity, 2, 100, 70, 100);
+  assert.deepEqual(controls.opacity[2], [22, 70]);
+  moveControlPoint(controls.opacity, 2, -100, 20, 100);
+  assert.deepEqual(controls.opacity[2], [3, 20]);
+  assert.deepEqual(other.opacity[2], [7, 50]);
+  close(interpolatePoints([[0, 20], [255, 40]], 127.5), 30);
+  assert.match(sampleCustomPalette(controls).map(({ hex }) => hex).join(''), /^[0-9a-f]{2048}$/);
 });

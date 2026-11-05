@@ -90,6 +90,19 @@ their values. Y axes are fixed at 0-360 degrees for hue and 0-100% for the other
 properties so charts can be compared. Achromatic hue is shown as zero.
 Rerun the command after changing palette data.
 
+The page also starts with an editable custom row; **Add custom palette** creates
+more independent rows. Drag outlined control points to edit the HSL and opacity
+curves, or focus a point and use arrow keys (Shift for larger steps).
+Double-click a chart to add a point; Delete removes a focused interior point.
+Endpoints remain at intensities 0 and 255. Custom charts show the intended curves
+before RGBA byte rounding, including hue at white. **Copy ramp hex** copies all
+256 RGBA entries as a 2048-character string; the text box also permits manual
+copying. Custom edits are not saved across reloads.
+
+Defaults are hue 180 to 270 degrees, saturation 75% to 100% at intensity 50,
+lightness 50% to 100%, and opacity through intensity/percent points
+0/0, 2/25, 7/50, 23/75, 80/100, and 255/100, all linearly interpolated.
+
 ### Icon artwork
 
 The CalTopo fork's source icon is [icons/icon.svg](./icons/icon.svg): a flaming
