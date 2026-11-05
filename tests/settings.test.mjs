@@ -233,9 +233,35 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
   assert.equal(customItem().querySelector('canvas').width, 256);
   assert.equal(customItem().querySelector('canvas').height, 10);
   const name = customItem().querySelector('.gradient-name');
+  assert.equal(name['aria-description'], 'Maximum 20 characters');
+  name.value = 'a'.repeat(20);
+  await name.oninput();
+  assert.equal(name.value, 'a'.repeat(20));
+  name.value += 'b';
+  await name.oninput();
+  assert.equal(name.value, 'a'.repeat(20), 'names cannot exceed 20 characters');
+  name.value = 'e\u0301'.repeat(21);
+  await name.oninput();
+  assert.equal(name.value, 'e\u0301'.repeat(20), 'names do not split combining characters');
   name.value = 'Trail: colors; 🌲';
   await name.oninput();
   const emoji = customItem().querySelector('.gradient-emoji');
+  assert.equal(emoji['aria-description'], 'Maximum 2 characters');
+  for (const pair of ['🌲🔥', '👩🏽‍🚀🇸🇮', '👨‍👩‍👧‍👦❤️']) {
+    emoji.value = pair;
+    await emoji.oninput();
+    assert.equal(emoji.value, pair, 'two visible emoji fit, including combined emoji');
+    emoji.value += '🌲';
+    await emoji.oninput();
+    assert.equal(emoji.value, pair, 'extra emoji are removed without splitting the first two');
+    assert.ok(select(0, 'color').options.find((option) => option.value === 'custom-1')
+      .textContent.startsWith(`${pair} `), 'the dropdown receives the limited value');
+  }
+  emoji.value = 'abc';
+  await emoji.oninput({ isComposing: true });
+  assert.equal(emoji.value, 'abc', 'active composition is not interrupted');
+  await emoji.oncompositionend();
+  assert.equal(emoji.value, 'ab', 'the limit is applied when composition finishes');
   emoji.value = '🌲';
   await emoji.oninput();
   assert.equal(select(0, 'color').options.find((option) => option.value === 'custom-1').textContent,

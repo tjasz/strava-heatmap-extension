@@ -11,6 +11,7 @@
 - Move heatmap layers into their own **Strava Heatmap** section immediately below **Route Discovery**.
 - Add duplicate "All" options at the top of each activity group for easier selection of all activities within that group.
 - Add ability to delete custom gradients that are not in use.
+- Limit custom gradient names to 20 visible characters and emoji fields to 2, without splitting combined emoji.
 - Drag to reorder gradients and their layer color choices. Save the order with Apply changes.
 - Add Reset to Defaults in Gradients to immediately delete custom gradients and restore preset order, saving the current layers. Reset is disabled while a layer uses a custom gradient.
 

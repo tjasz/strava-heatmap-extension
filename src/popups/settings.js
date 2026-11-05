@@ -20,6 +20,8 @@ import {
 import { PALETTES } from '../clients/common/palettes.js';
 
 const MAX_LAYERS = 8;
+const GRADIENT_FIELD_LIMITS = { name: 20, emoji: 2 };
+const characterSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 let gradients = [];
 let gradientOrder = [];
 let savedSettings;
@@ -366,8 +368,13 @@ function createGradientPreview(gradient) {
 }
 
 function readGradientEditor(item, gradient) {
-  gradient.name = item.querySelector('.gradient-name').value;
-  gradient.emoji = item.querySelector('.gradient-emoji').value;
+  for (const [key, limit] of Object.entries(GRADIENT_FIELD_LIMITS)) {
+    const input = item.querySelector(`.gradient-${key}`);
+    const value = [...characterSegmenter.segment(input.value)]
+      .slice(0, limit).map(({ segment }) => segment).join('');
+    if (input.value !== value) input.value = value;
+    gradient[key] = value;
+  }
   gradient.gradientStops = [...item.querySelectorAll('.gradient-stop')].map((row) => ({
     color: row.querySelector('.gradient-stop-color').value,
     opacity: Number(row.querySelector('.gradient-stop-opacity').value) / 100,
@@ -403,10 +410,15 @@ function renderGradients() {
         input.className = `gradient-${key}`;
         input.value = gradient[key];
         input.required = true;
-        input.addEventListener('input', () => {
+        input.setAttribute('aria-description', `Maximum ${GRADIENT_FIELD_LIMITS[key]} characters`);
+        input.title = `Maximum ${GRADIENT_FIELD_LIMITS[key]} characters`;
+        const onInput = (event) => {
+          if (event?.isComposing) return;
           readGradientEditor(item, gradient);
           void renderLayers(getCurrentLayers());
-        });
+        };
+        input.addEventListener('input', onInput);
+        input.addEventListener('compositionend', onInput);
         field.appendChild(input);
         fields.appendChild(field);
       }
