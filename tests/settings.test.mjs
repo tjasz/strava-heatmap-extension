@@ -118,6 +118,9 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
       onReady = callback;
     },
     querySelectorAll: (selector) => {
+      if (selector === '#gradient-list .gradient-remove') {
+        return ids['gradient-list'].querySelectorAll('.gradient-remove');
+      }
       assert.equal(selector, '#layer-list .layer');
       return list.children;
     },
@@ -210,6 +213,7 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
   for (const [index, [id]] of builtinColors.entries()) {
     const item = gradientList.children[index];
     assert.equal(item.querySelector('.gradient-edit'), undefined);
+    assert.equal(item.querySelector('.gradient-remove'), undefined);
     assert.ok(item.querySelector('.gradient-label').textContent.length > 0);
     const preview = item.querySelector('canvas');
     assert.equal(preview.width, 256);
@@ -320,4 +324,56 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
   assert.equal(gradients.length, 2, 'unused custom palettes are saved');
   await onReady();
   assert.equal(ids['apply-settings'].disabled, true);
+
+  await customItem(1).querySelector('.gradient-done').onclick();
+  const remove = () => customItem().querySelector('.gradient-remove');
+  assert.equal(remove().textContent, '🗑️');
+  assert.equal(remove()['aria-label'], 'Delete Renamed');
+  assert.equal(remove().disabled, false);
+  assert.deepEqual(customItem().querySelector('.gradient-actions').children.map((button) => button.className),
+    ['gradient-edit', 'gradient-remove']);
+  select(0, 'color').value = 'custom-1';
+  await select(0, 'color').onchange();
+  assert.equal(remove().disabled, true, 'a gradient in use cannot be deleted');
+  assert.match(remove().title, /Choose another color/);
+  await ids['add-layer'].onclick();
+  select(1, 'activity').value = 'run';
+  select(1, 'period').value = 'weekly';
+  select(1, 'color').value = 'custom-1';
+  await select(1, 'color').onchange();
+  select(0, 'color').value = 'orange';
+  await select(0, 'color').onchange();
+  assert.equal(remove().disabled, true, 'every referencing layer must switch colors');
+  select(1, 'color').value = 'custom-2';
+  await select(1, 'color').onchange();
+  assert.equal(remove().disabled, false);
+  await ids['apply-settings'].onclick();
+  await onReady();
+  assert.equal(ids['apply-settings'].disabled, true);
+  await remove().onclick();
+  assert.equal(gradientList.children.length, Object.keys(PALETTES).length + 1);
+  assert.equal(customItem().dataset.id, 'custom-2', 'deletion preserves other custom gradients');
+  assert.equal(customItem().querySelector('.gradient-remove').disabled, true);
+  assert.ok(list.children.every((item) =>
+    !item.querySelector('.layer-color').options.some((option) => option.value === 'custom-1')));
+  assert.equal(select(0, 'color').value, 'orange');
+  assert.equal(select(1, 'color').value, 'custom-2');
+  assert.equal(select(1, 'period').value, 'weekly');
+  assert.equal(ids['apply-settings'].disabled, false, 'deleting an unused gradient enables Apply');
+  assert.equal(gradients.length, 2, 'deletion is not persisted before Apply');
+  await ids['apply-settings'].onclick();
+  assert.equal(gradients.length, 1);
+  assert.equal(gradients[0].id, 'custom-2');
+  await onReady();
+  assert.equal(gradientList.children.length, Object.keys(PALETTES).length + 1);
+  assert.equal(customItem().dataset.id, 'custom-2');
+  assert.equal(select(1, 'color').value, 'custom-2');
+  assert.equal(ids['apply-settings'].disabled, true, 'deleted gradients stay deleted after reload');
+  select(1, 'color').value = 'blue';
+  await select(1, 'color').onchange();
+  await customItem().querySelector('.gradient-remove').onclick();
+  await ids['apply-settings'].onclick();
+  await onReady();
+  assert.equal(gradients.length, 0, 'the last custom gradient can be deleted');
+  assert.equal(gradientList.children.length, Object.keys(PALETTES).length);
 });

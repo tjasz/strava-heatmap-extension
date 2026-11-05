@@ -309,6 +309,12 @@ function settingsSignature(layers, customGradients) {
 
 function updateApplyButton() {
   const layers = getCurrentLayers();
+  document.querySelectorAll('#gradient-list .gradient-remove').forEach((button) => {
+    button.disabled = layers.some(({ gradientId }) => gradientId === button.dataset.id);
+    button.title = button.disabled
+      ? 'This gradient is in use by one of the heatmap layers. Choose another color in the Layers tab before deleting this gradient.'
+      : 'Delete gradient';
+  });
   document.getElementById('apply-settings').disabled =
     layers.length === 0 ||
     !validateLayerPresets(layers) ||
@@ -423,7 +429,27 @@ function renderGradients() {
           editingGradients.add(gradient.id);
           renderGradients();
         });
-        item.appendChild(edit);
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'gradient-remove';
+        remove.dataset.id = gradient.id;
+        remove.textContent = '🗑️';
+        remove.setAttribute('aria-label', `Delete ${gradient.name}`);
+        remove.addEventListener('click', async () => {
+          const layers = getCurrentLayers();
+          if (layers.some(({ gradientId }) => gradientId === gradient.id)) {
+            showError(new Error('Choose another color in the Layers tab before deleting this gradient.'));
+            return;
+          }
+          gradients = gradients.filter(({ id }) => id !== gradient.id);
+          editingGradients.delete(gradient.id);
+          renderGradients();
+          await renderLayers(layers);
+        });
+        const actions = document.createElement('div');
+        actions.className = 'gradient-actions';
+        actions.append(edit, remove);
+        item.appendChild(actions);
       }
     }
     list.appendChild(item);

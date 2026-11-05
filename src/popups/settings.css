@@ -87,12 +87,28 @@ p {
   .layer-remove {
     grid-column: 4;
     grid-row: 1 / 3;
-    padding: 0.25em;
-    font-size: 1.25em;
-    border: none;
-    cursor: pointer;
   }
 
+}
+
+.layer-remove,
+.gradient-remove {
+  padding: 0.25em;
+  font-size: 1.25em;
+  border: none;
+  cursor: pointer;
+}
+
+.gradient-remove:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.gradient-actions {
+  display: flex;
+  align-items: center;
+  align-self: flex-end;
+  gap: 0.5rem;
 }
 
 .gradient {
@@ -215,9 +231,12 @@ p {
   padding: 0.35rem;
 }
 
-.gradient-edit,
 .gradient-done {
   align-self: flex-end;
+}
+
+.gradient-edit,
+.gradient-done {
   cursor: pointer;
 }
 
