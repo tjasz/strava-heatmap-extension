@@ -50,10 +50,10 @@ function createActivitySelect(selected) {
       const option = document.createElement('option');
       option.value = value;
       option.textContent = `📄 ${label}`;
-      if (value === selected) option.selected = true;
       optgroup.appendChild(option);
     });
   });
+  if (selected !== undefined) select.value = selected;
   return select;
 }
 

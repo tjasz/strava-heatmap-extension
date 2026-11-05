@@ -51,11 +51,47 @@ function element(tagName) {
     });
     Object.defineProperty(node, 'value', {
       get: () => (node.options.find((option) => option.selected) ?? node.options[0])?.value ?? '',
-      set: (value) => node.options.forEach((option) => { option.selected = option.value === value; }),
+      set: (value) => {
+        const selected = node.options.find((option) => option.value === value);
+        node.options.forEach((option) => { option.selected = option === selected; });
+      },
     });
   }
   return node;
 }
+
+test('activity selects restore the first occurrence and preserve duplicate choices', async () => {
+  const source = (await readFile(new URL('../src/popups/settings.js', import.meta.url), 'utf8'))
+    .replace(/^import[\s\S]*?from ['"][^'"]+['"];?/gm, '');
+  const context = vm.createContext({
+    document: {
+      createElement: element,
+      getElementById: () => element('h1'),
+      addEventListener() {},
+    },
+    getExtensionName: () => 'Strava Heatmap',
+    ACTIVITY_OPTIONS,
+  });
+  vm.runInContext(source, context);
+
+  for (const activity of ['all', 'run', 'ride', 'water', 'winter', 'sport_Hike']) {
+    const select = context.createActivitySelect(activity);
+    const matches = select.options.filter((option) => option.value === activity);
+    assert.equal(select.value, activity);
+    assert.deepEqual(select.options.filter((option) => option.selected), [matches[0]]);
+    assert.equal(select.className.includes('invalid'), false);
+    if (['run', 'ride', 'water', 'winter'].includes(activity)) {
+      assert.equal(matches.length, 2);
+      assert.ok(select.children[1].children.includes(matches[0]), 'restore Top Categories');
+    }
+  }
+
+  const empty = context.createActivitySelect(undefined);
+  assert.equal(empty.value, '');
+  assert.equal(empty.options[0].selected, true);
+  assert.equal(empty.options[0].disabled, true);
+  assert.equal(empty.className.includes('invalid'), true);
+});
 
 test('settings preserve weekly types through editing, adding, sorting, applying and resetting', async () => {
   const ids = Object.fromEntries([
