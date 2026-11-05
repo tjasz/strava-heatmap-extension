@@ -16,13 +16,13 @@ const OUTPUT = path.join(process.cwd(), 'src/clients/common/palettes.js');
 
 // palette name -> ramp texture in the engine package
 const PALETTES = {
-  blue: 'blue_dark',
-  purple: 'purple_dark',
-  orange: 'orange_dark',
-  sunset: 'sunset_dark',
-  pink: 'pink_dark',
-  highcontrast: 'highcontrast_dark',
-  bluered: 'bluered_dark',
+  blue: 'blue_light',
+  purple: 'purple_light',
+  orange: 'orange_light',
+  sunset: 'sunset_light',
+  pink: 'pink_light',
+  highcontrast: 'highcontrast_light',
+  bluered: 'bluered_light',
   rainbow: 'weekly_rainbow',
 };
 

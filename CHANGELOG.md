@@ -10,6 +10,7 @@
 - Replace the swatch with CalTopo's check-circle icon when a heatmap layer is selected.
 - Move heatmap layers into their own **Strava Heatmap** section immediately below **Route Discovery**.
 - Add duplicate "All" options at the top of each activity group for easier selection of all activities within that group.
+- Switch to Strava's light heatmap palettes for better visibility on light backgrounds.
 
 ### `0.15.2` (2026-11-03)
 
