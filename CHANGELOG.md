@@ -2,13 +2,23 @@
 
 ## Versions
 
-### `0.15.0.3` (2026-11-04)
+### `0.15.2.0` (2026-11-04)
 
 - Add a **V** keyboard shortcut and native-style badge to toggle the first configured heatmap layer.
 - Add a text box input beside the layer opacity slider for precise opacity control.
 - Move each layer's palette emoji from its name into the swatch at 50% opacity for a softer, more consistent visual indication of the heatmap layer.
 - Replace the swatch with CalTopo's check-circle icon when a heatmap layer is selected.
 - Move heatmap layers into their own **Strava Heatmap** section immediately below **Route Discovery**.
+
+### `0.15.2` (2026-11-03)
+
+- [iD] Strava Slide keeps more of the line's existing points: it moves them onto the trail instead of deleting them and adding new ones nearby
+
+### `0.15.1` (2026-11-02)
+
+- [iD] Fix faint heatmap tracks showing as dark lines in Firefox. By @tjasz (#47)
+- [iD] Blue-red heatmap: faint tracks are now blue instead of dark gray
+- Layer editor: colors follow the order of Strava's color picker, with Blue-Red last
 
 ### `0.15.0.2` (2026-11-01)
 

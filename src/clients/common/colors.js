@@ -39,6 +39,8 @@ function createPaletteFilter(name, ramp) {
   matrix.setAttribute('result', 'intensity');
   filter.appendChild(matrix);
 
+  // Color lookup must stay independent of opacity to retain faint-track RGB
+  // until the final composite.
   const transfer = document.createElementNS(SVG_NS, 'feComponentTransfer');
   transfer.setAttribute('in', 'intensity');
   transfer.setAttribute('result', 'palette-color');
@@ -50,12 +52,16 @@ function createPaletteFilter(name, ramp) {
   });
   filter.appendChild(transfer);
 
+  // Opacity also depends on the original intensity, not the mapped color.
+  // Zero RGB prevents this separate mask from carrying color precision errors.
   const alphaMatrix = document.createElementNS(SVG_NS, 'feColorMatrix');
   alphaMatrix.setAttribute('in', 'intensity');
   alphaMatrix.setAttribute('type', 'matrix');
   alphaMatrix.setAttribute('values', '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0');
   filter.appendChild(alphaMatrix);
 
+  // Strava's ramp alpha, rather than tile alpha or intensity alone, determines
+  // how much of the basemap should show through.
   const alphaTransfer = document.createElementNS(SVG_NS, 'feComponentTransfer');
   const alpha = document.createElementNS(SVG_NS, 'feFuncA');
   alpha.setAttribute('type', 'table');
@@ -64,6 +70,8 @@ function createPaletteFilter(name, ramp) {
   alphaTransfer.setAttribute('result', 'palette-alpha');
   filter.appendChild(alphaTransfer);
 
+  // Apply opacity only after color lookup, so intermediate rounding cannot
+  // turn low-intensity tracks black before their palette color is known.
   const composite = document.createElementNS(SVG_NS, 'feComposite');
   composite.setAttribute('in', 'palette-color');
   composite.setAttribute('in2', 'palette-alpha');
