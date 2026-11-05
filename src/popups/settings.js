@@ -416,6 +416,7 @@ function renderGradients() {
       });
       item.appendChild(done);
     } else {
+      item.classList.add('gradient-summary');
       const label = document.createElement('div');
       label.className = 'gradient-label';
       label.textContent = `${gradient.emoji} ${gradient.name}`;

@@ -262,6 +262,7 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
 
   await customItem().querySelector('.gradient-done').onclick();
   assert.equal(stops(0).length, 0);
+  assert.ok(customItem().className.split(' ').includes('gradient-summary'));
   const customPreview = customItem().querySelector('canvas');
   assert.deepEqual([...customPreview.image.data.slice(0, 4)], [255, 255, 255, 255]);
   assert.deepEqual([...customPreview.image.data.slice(1020, 1024)], [18, 52, 86, 51]);
@@ -276,6 +277,7 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
   select(1, 'color').value = 'custom-1';
   await select(1, 'color').onchange();
   await customItem().querySelector('.gradient-edit').onclick();
+  assert.ok(!customItem().className.split(' ').includes('gradient-summary'));
   assert.equal(customItem().querySelector('canvas').width, 256);
   assert.equal(customItem().querySelector('canvas').height, 10);
   input(0, 0, 'color').value = '#abcdef';

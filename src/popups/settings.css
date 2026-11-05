@@ -107,7 +107,9 @@ p {
 .gradient-actions {
   display: flex;
   align-items: center;
-  align-self: flex-end;
+  align-self: center;
+  grid-column: 2;
+  grid-row: 1 / 3;
   gap: 0.5rem;
 }
 
@@ -202,8 +204,19 @@ p {
   }
 }
 
+.gradient-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.gradient-summary > .gradient-label,
+.gradient-summary > .gradient-preview {
+  grid-column: 1;
+}
+
 .gradient-preview {
   width: 256px;
+  max-width: 100%;
   height: 10px;
   background-color: white;
   background-image: conic-gradient(#ccc 25%, transparent 0 50%, #ccc 0 75%, transparent 0);
