@@ -351,7 +351,10 @@ function createLayerControls(config) {
   const swatch = document.createElement('div');
   swatch.className = 'MuiBox-root strava-heatmap-swatch';
   swatch.setAttribute('aria-hidden', 'true');
-  swatch.textContent = '🔥';
+  const swatchEmoji = document.createElement('span');
+  swatchEmoji.className = 'strava-heatmap-swatch-emoji';
+  swatchEmoji.textContent = '🔥';
+  swatch.appendChild(swatchEmoji);
 
   const titleGrid = document.createElement('div');
   titleGrid.className =

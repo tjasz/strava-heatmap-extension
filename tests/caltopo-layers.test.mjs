@@ -9,6 +9,12 @@ const source = (await readFile(new URL('../src/clients/caltopo.com/index.js', im
 const storageKey = 'strava-heatmap-extension:caltopo-layer-state';
 const presets = 'run:orange;run:blue:weekly;ride:purple';
 
+test('CalTopo dims only the swatch emoji to 50% opacity', async () => {
+  const css = await readFile(new URL('../src/clients/caltopo.com/index.css', import.meta.url), 'utf8');
+  assert.match(css, /\.strava-heatmap-swatch-emoji\s*\{\s*opacity:\s*0\.5;\s*\}/);
+  assert.doesNotMatch(css.match(/\.strava-heatmap-swatch\s*\{[^}]*\}/)[0], /\bopacity\s*:/);
+});
+
 class Element {
   constructor(tagName) {
     Object.assign(this, {
@@ -358,6 +364,8 @@ for (const renderer of ['leaflet', 'google']) {
       assert.equal(button.attributes['aria-label'], title.textContent);
       assert.ok(!title.textContent.includes('Strava Heatmap'));
       assert.equal(button.children[0].className, 'MuiBox-root strava-heatmap-swatch');
+      assert.equal(button.children[0].children[0].className, 'strava-heatmap-swatch-emoji');
+      assert.equal(button.children[0].children[0].textContent, '🔥');
     }
     assert.ok(!f.list.children.some((item) => item.tagName === 'SELECT'));
 

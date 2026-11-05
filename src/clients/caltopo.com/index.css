@@ -258,6 +258,10 @@
   overflow: hidden;
 }
 
+.strava-heatmap-swatch-emoji {
+  opacity: 0.5;
+}
+
 .strava-heatmap-title {
   align-items: center;
   display: inline-flex;

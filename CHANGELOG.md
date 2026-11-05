@@ -5,6 +5,7 @@
 ### `0.15.0.3` (2026-11-04)
 
 - Add a text box input beside the layer opacity slider for precise opacity control.
+- Add a semi-transparent emoji to the layer swatch for a softer, more consistent visual indication of the heatmap layer.
 
 ### `0.15.0.2` (2026-11-01)
 
