@@ -73,6 +73,12 @@ class Element {
   setAttribute(name, value) { this.attributes[name] = value; }
   blur() { this.handlers.blur?.(); }
   addEventListener(name, handler) { this.handlers[name] = handler; }
+  closest(selector) {
+    assert.equal(selector, 'input, textarea, select, [role="textbox"]');
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(this.tagName)
+      || this.attributes.role === 'textbox') return this;
+    return this.parentElement?.closest(selector) ?? null;
+  }
   appendChild(child) { child.remove(); this.children.push(child); child.parentElement = this; }
   insertBefore(child, reference) {
     child.remove();
@@ -160,8 +166,13 @@ function fixture(renderer, saved, initialPresets = presets, mapSheetMaxSize) {
   let getSheetLayers;
   let invalidations = 0;
   let stored = saved ? JSON.stringify(saved) : null;
+  const keyboardListeners = [];
   const document = {
       body,
+      addEventListener: (name, callback) => {
+        assert.equal(name, 'keydown');
+        keyboardListeners.push(callback);
+      },
       createElement: (tag) => new Element(tag),
       createElementNS: (namespace, tag) => {
         assert.equal(namespace, 'http://www.w3.org/2000/svg');
@@ -209,6 +220,17 @@ function fixture(renderer, saved, initialPresets = presets, mapSheetMaxSize) {
     window, document, body, map, mapOverlays, row, observe,
     routeDiscoveryHeading: heading, routeDiscoveryList: list, nativeLayer, followingSection,
     get list() { return heatmapList(); },
+    keydown(options = {}) {
+      assert.equal(keyboardListeners.length, 1, 'register the shortcut only once');
+      let prevented = false;
+      const event = {
+        key: 'v', target: body,
+        preventDefault() { prevented = true; },
+        ...options,
+      };
+      keyboardListeners[0](event);
+      return prevented;
+    },
     state: () => JSON.parse(stored),
     getSnapLayer: () => getSnapLayer(),
     getSheetLayers: () => getSheetLayers(),
@@ -226,6 +248,68 @@ function fixture(renderer, saved, initialPresets = presets, mapSheetMaxSize) {
 }
 
 for (const renderer of ['leaflet', 'google']) {
+  test(`${renderer} advertises V only on the first layer and toggles it independently`, () => {
+    const f = fixture(renderer);
+    for (let index = 0; index < 3; index++) {
+      const { button } = f.row(index);
+      const grid = button.children[1];
+      assert.equal(button.attributes['aria-keyshortcuts'], index === 0 ? 'V' : undefined);
+      assert.equal(grid.children.length, index === 0 ? 2 : 1);
+      if (index === 0) {
+        assert.ok(grid.children[1].className.split(' ').includes('strava-heatmap-shortcut'));
+        assert.equal(grid.children[1].children[0].className, 'shortcut');
+        assert.equal(grid.children[1].children[0].textContent, 'V');
+      }
+    }
+    f.row(1).button.handlers.click();
+    assert.equal(f.keydown(), true);
+    assert.equal(f.row(0).button.attributes['aria-pressed'], 'false');
+    assert.equal(f.row(1).button.attributes['aria-pressed'], 'true');
+    assert.equal(f.row(2).button.attributes['aria-pressed'], 'false');
+    assert.equal(f.state().layers['strava-heatmap-run'].enabled, false);
+    assert.equal(f.keydown({ key: 'V', shiftKey: true }), true);
+    assert.equal(f.row(0).button.attributes['aria-pressed'], 'true');
+    assert.equal(f.getSnapLayer().id, 'strava-heatmap-run');
+  });
+
+  test(`${renderer} applies V to the current first layer after reorder and UI remounts`, () => {
+    const f = fixture(renderer);
+    f.presetsChanged('ride:purple;run:orange');
+    f.authChanged(false);
+    f.list.children.slice().forEach((item) => item.remove());
+    f.observe();
+    assert.equal(f.row(0).button.attributes['aria-keyshortcuts'], 'V');
+    assert.equal(f.row(1).button.attributes['aria-keyshortcuts'], undefined);
+    assert.equal(f.row(0).button.attributes['aria-pressed'], 'false');
+    assert.equal(f.keydown(), true);
+    assert.equal(f.row(0).button.attributes['aria-pressed'], 'true');
+    assert.equal(f.row(1).button.attributes['aria-pressed'], 'true');
+    assert.equal(f.state().layers['strava-heatmap-ride'].enabled, true);
+  });
+
+  test(`${renderer} ignores V while typing, composing, repeating, or using command modifiers`, () => {
+    const f = fixture(renderer);
+    const editable = new Element('span');
+    editable.isContentEditable = true;
+    const textbox = new Element('div');
+    textbox.setAttribute('role', 'textbox');
+    const nested = new Element('span');
+    textbox.appendChild(nested);
+    for (const options of [
+      { key: 'x' }, { key: 'h' }, { key: 'H' },
+      { defaultPrevented: true }, { repeat: true }, { isComposing: true },
+      { ctrlKey: true }, { altKey: true }, { metaKey: true },
+      ...['input', 'textarea', 'select'].map((tag) => ({ target: new Element(tag) })),
+      { target: editable }, { target: nested },
+      { target: f.body, composedPath: () => [new Element('input'), f.body] },
+    ]) {
+      assert.equal(f.keydown(options), false);
+      assert.equal(f.row(0).button.attributes['aria-pressed'], 'true');
+    }
+    assert.equal(f.keydown({ target: f.row(0).button }), true);
+    assert.equal(f.row(0).button.attributes['aria-pressed'], 'false');
+  });
+
   test(`${renderer} places heatmaps in their own native-styled section below Route Discovery`, () => {
     const f = fixture(renderer);
     const heading = f.routeDiscoveryList.nextElementSibling;

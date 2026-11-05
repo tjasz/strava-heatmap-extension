@@ -254,6 +254,9 @@
 }
 
 .strava-heatmap-title-grid {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
   flex: 1;
   min-width: 0;
 }
@@ -261,6 +264,12 @@
 .strava-heatmap-title-grid > div {
   flex: 1;
   min-width: 0;
+}
+
+.strava-heatmap-title-grid > .strava-heatmap-shortcut {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
 }
 
 .strava-heatmap-swatch {

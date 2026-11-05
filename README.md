@@ -194,6 +194,8 @@ To enable the Strava Heatmap in CalTopo:
 2. In the Map Layers panel to the right of the map, find **Strava Heatmap** immediately below **Route Discovery**. Each configured Strava heatmap has its own button. Toggle any combination of layers; each enabled layer expands to show its own opacity slider. Most recently enabled layers appear on top. Turning a layer off and on brings it to the top; adjusting opacity does not change the stacking order. The stacking order is saved with the layer settings.
 3. Use the extension icon to log into Strava and configure the available heatmap layers in **Layers**. Define custom palettes with ordered color and opacity stops in **Gradients**.
 
+Press **V** to toggle the first configured heatmap layer, marked with a **V** shortcut badge. The shortcut does not activate while typing in an input or text editor.
+
 The live overlay is not shown in CalTopo's print preview because PDFs are rendered
 server-side and cannot include it. To include a heatmap in a printed map, first
 [save it as a map sheet](#save-a-caltopo-heatmap-map-sheet).

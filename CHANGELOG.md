@@ -4,6 +4,7 @@
 
 ### `0.15.0.3` (2026-11-04)
 
+- Add a **V** keyboard shortcut and native-style badge to toggle the first configured heatmap layer.
 - Add a text box input beside the layer opacity slider for precise opacity control.
 - Move each layer's palette emoji from its name into the swatch at 50% opacity for a softer, more consistent visual indication of the heatmap layer.
 - Replace the swatch with CalTopo's check-circle icon when a heatmap layer is selected.

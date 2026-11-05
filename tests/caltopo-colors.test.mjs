@@ -26,8 +26,13 @@ for (const [renderer, page] of ['leaflet', 'google'].flatMap((renderer) => [
     : `CalTopo ${renderer} uses unshifted 256px tiles and preserves palettes across layer/auth changes`, async (t) => {
     const body = element('body');
     let ribbonQueries = 0;
+    const keyboardListeners = [];
     const document = {
       body,
+      addEventListener: (name, callback) => {
+        assert.equal(name, 'keydown');
+        keyboardListeners.push(callback);
+      },
       createElement: element,
       createElementNS: (namespace, tagName) => element(tagName),
       getElementById: () => null,
@@ -103,6 +108,7 @@ for (const [renderer, page] of ['leaflet', 'google'].flatMap((renderer) => [
       assert.equal(body.children[0].id, 'strava-heatmap-filters');
       assert.equal(ribbonQueries, 0, 'print previews must not register Strava Heatmap controls');
       assert.equal(listeners.length, 0);
+      assert.equal(keyboardListeners.length, 0);
       assert.equal(timers.length, 0, 'print previews must not start map integration retries');
       return;
     }

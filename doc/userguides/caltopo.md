@@ -57,6 +57,8 @@ Click the extension icon (either next to or within the browser's puzzle piece ic
 
 Each layer's visibility and opacity are saved separately. The most recently enabled layers appear on top. To bring a layer to the top, turn it off and on again; adjusting opacity does not change its stacking order.
 
+Press **V** to toggle the first configured heatmap layer, marked with a **V** shortcut badge. Reordering layers in the extension changes which layer the shortcut controls. The shortcut is inactive while typing in an input or text editor.
+
 ![Multiple Strava Heatmaps in CalTopo](../../images/screenshot5.png)
 
 The live overlay does **not** appear in CalTopo's print preview. PDFs are rendered server-side and cannot include it, so it would be misleading to show it in the print preview.

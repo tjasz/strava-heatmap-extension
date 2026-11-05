@@ -312,6 +312,20 @@ function updateControls() {
   }
 }
 
+function setupLayerShortcut() {
+  document.addEventListener('keydown', (event) => {
+    if (event.key?.toLowerCase() !== 'v' || event.defaultPrevented || event.repeat
+      || event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return;
+    const target = event.composedPath?.()[0] ?? event.target;
+    if (target?.isContentEditable
+      || target?.closest?.('input, textarea, select, [role="textbox"]')) return;
+    const firstLayer = layerConfigs[0];
+    if (!firstLayer) return;
+    event.preventDefault();
+    toggleOverlay(firstLayer.id);
+  });
+}
+
 function createRibbon() {
   const routeDiscoveryHeading = [...document.querySelectorAll('p')].find(
     ({ textContent }) => textContent.trim() === 'Route Discovery',
@@ -406,6 +420,17 @@ function createLayerControls(config) {
   title.textContent = label;
   titleItem.appendChild(title);
   titleGrid.appendChild(titleItem);
+  if (config.id === layerConfigs[0]?.id) {
+    toggleButton.setAttribute('aria-keyshortcuts', 'V');
+    const shortcutItem = document.createElement('div');
+    shortcutItem.className =
+      'MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-grid-xs-auto css-sz2b20 strava-heatmap-shortcut';
+    const shortcut = document.createElement('span');
+    shortcut.className = 'shortcut';
+    shortcut.textContent = 'V';
+    shortcutItem.appendChild(shortcut);
+    titleGrid.appendChild(shortcutItem);
+  }
   toggleButton.append(swatch, titleGrid);
 
   const controlsCollapse = document.createElement('div');
@@ -524,6 +549,7 @@ async function main() {
   loadState();
   applyLayerConfigs(layerPresets, authenticated, version);
   setupRibbonObserver();
+  setupLayerShortcut();
   installCalTopoMapSheets(
     () => getActiveLayerConfigs()
       .map((config) => ({ ...config, opacity: layerStates.get(config.id).opacity })),
