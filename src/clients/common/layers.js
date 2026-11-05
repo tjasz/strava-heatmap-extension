@@ -172,14 +172,19 @@ function getLayerConfig(
 ) {
   const activityName = ACTIVITIES[activity];
   const colorEmoji = gradientEmoji ?? (COLORS[color] || ['❓'])[0];
+  const label = `${short ? activityName : `Strava Heatmap ${activityName}`}${
+    period === 'weekly' ? ' (Weekly)' : ''
+  }`;
 
   const template = getTileTemplate(activity, color, timestamp, authenticated, version, legacy, period);
   
   return {
     id: `strava-heatmap-${activity}${period === 'weekly' ? '-weekly' : ''}`,
+    emoji: colorEmoji,
+    label,
     name: `${new Array(position).join('󠀠')}${colorEmoji} ${
-      short ? activityName : `Strava Heatmap ${activityName}`
-    }${period === 'weekly' ? ' (Weekly)' : ''}`,
+      label
+    }`,
     description: `Shows ${activityName.toLowerCase()} aggregated, public Strava activities over the last ${period === 'weekly' ? 'week (Strava Premium subscribers only)' : 'year'} in ${colorEmoji} color.`,
     template:
       authenticated && color === 'grayscale'

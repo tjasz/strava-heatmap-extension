@@ -39,6 +39,8 @@ test('named gradients round-trip safely and update every referencing layer', asy
   for (const legacy of [false, true]) {
     for (const config of getLayerConfigs(loaded.layers, true, 'test', false, legacy)) {
       assert.ok(config.name.includes('🌲'));
+      assert.equal(config.emoji, gradient.emoji);
+      assert.equal(config.label, `Strava Heatmap All Foot Sports${config.id.endsWith('-weekly') ? ' (Weekly)' : ''}`);
       assert.equal(config.gradientName, gradient.name);
       assert.ok(config.template.endsWith('#strava-gradient=12345600-abcdef80-ffffffff'));
     }

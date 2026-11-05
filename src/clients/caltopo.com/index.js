@@ -292,9 +292,7 @@ function updateControls() {
   for (const [id, controls] of controlsById) {
     const { enabled, opacity } = layerStates.get(id);
     const { stack, toggleButton, controlsCollapse, opacityInput, opacityValue } = controls;
-    controls.swatch.className = enabled
-      ? 'MuiBox-root css-1myp8s'
-      : 'MuiBox-root strava-heatmap-swatch';
+    controls.swatch.classList.toggle('strava-heatmap-swatch-selected', enabled);
     controls.swatchEmoji.style.display = enabled ? 'none' : '';
     controls.selectedIcon.style.display = enabled ? '' : 'none';
     stack.classList.toggle('strava-heatmap-layer-active', enabled);
@@ -358,7 +356,7 @@ function createLayerControls(config) {
   ribbon.id = `${RIBBON_ID}-${config.id}`;
   ribbon.className =
     'MuiListItem-root MuiListItem-gutters MuiListItem-padding css-5rcv3b';
-  const label = config.name;
+  const label = config.label;
   ribbon.setAttribute('value', label);
 
   const stack = document.createElement('div');
@@ -381,13 +379,13 @@ function createLayerControls(config) {
   swatch.setAttribute('aria-hidden', 'true');
   const swatchEmoji = document.createElement('span');
   swatchEmoji.className = 'strava-heatmap-swatch-emoji';
-  swatchEmoji.textContent = '🔥';
+  swatchEmoji.textContent = config.emoji;
   swatch.appendChild(swatchEmoji);
 
   const selectedIcon = document.createElement('div');
-  selectedIcon.className = 'css-1y66ce9';
+  selectedIcon.className = 'strava-heatmap-selected-icon';
   const checkSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  checkSvg.setAttribute('class', 'MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-140d7vm');
+  checkSvg.setAttribute('class', 'strava-heatmap-check-icon');
   checkSvg.setAttribute('focusable', 'false');
   checkSvg.setAttribute('aria-hidden', 'true');
   checkSvg.setAttribute('viewBox', '0 0 24 24');
