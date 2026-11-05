@@ -362,7 +362,7 @@ function createLayerControls(config) {
   stack.className = 'MuiStack-root css-12mbytc';
 
   const toggleButton = document.createElement('div');
-  toggleButton.className = 'MuiButtonBase-root MuiBox-root css-lp7ikr';
+  toggleButton.className = 'MuiButtonBase-root MuiBox-root css-lp7ikr strava-heatmap-toggle';
   toggleButton.tabIndex = 0;
   toggleButton.setAttribute('role', 'button');
   toggleButton.setAttribute('aria-label', label);
@@ -396,7 +396,7 @@ function createLayerControls(config) {
 
   const titleGrid = document.createElement('div');
   titleGrid.className =
-    'MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-grid-xs-12 css-cjc644';
+    'MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-grid-xs-12 css-cjc644 strava-heatmap-title-grid';
   const titleItem = document.createElement('div');
   titleItem.className =
     'MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-1kofupb';

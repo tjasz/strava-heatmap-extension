@@ -15,6 +15,21 @@ test('CalTopo dims only the swatch emoji to 50% opacity', async () => {
   assert.doesNotMatch(css.match(/\.strava-heatmap-swatch\s*\{[^}]*\}/)[0], /\bopacity\s*:/);
 });
 
+test('CalTopo keeps swatches and names on one row without native generated layout classes', async () => {
+  const css = await readFile(new URL('../src/clients/caltopo.com/index.css', import.meta.url), 'utf8');
+  const toggle = css.match(/\.strava-heatmap-toggle\s*\{[^}]*\}/)[0];
+  assert.match(toggle, /display:\s*flex/);
+  assert.match(toggle, /flex-direction:\s*row/);
+  assert.match(toggle, /flex-wrap:\s*nowrap/);
+  assert.match(toggle, /align-items:\s*center/);
+  const grid = css.match(/\.strava-heatmap-title-grid\s*\{[^}]*\}/)[0];
+  assert.match(grid, /flex:\s*1;/);
+  assert.match(grid, /min-width:\s*0;/);
+  const title = css.match(/\.strava-heatmap-title\s*\{[^}]*\}/)[0];
+  assert.match(title, /white-space:\s*nowrap/);
+  assert.match(title, /text-overflow:\s*ellipsis/);
+});
+
 test('CalTopo matches native selected swatch and SVG styles without generated classes', async () => {
   const css = await readFile(new URL('../src/clients/caltopo.com/index.css', import.meta.url), 'utf8');
   const swatch = css.match(/\.strava-heatmap-swatch\s*\{[^}]*\}/)[0];
@@ -492,6 +507,8 @@ for (const renderer of ['leaflet', 'google']) {
     for (let index = 0; index < 3; index++) {
       const { button } = f.row(index);
       const title = button.children[1].children[0].children[0];
+      assert.ok(button.className.split(' ').includes('strava-heatmap-toggle'));
+      assert.ok(button.children[1].className.split(' ').includes('strava-heatmap-title-grid'));
       const config = getLayerConfigs(
         parseLayerPresets(presets), true, '0', true,
       )[index];

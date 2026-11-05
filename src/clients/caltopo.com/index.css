@@ -245,6 +245,24 @@
     transition: border 0.2s;
 }
 
+.strava-heatmap-toggle {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  width: 100%;
+}
+
+.strava-heatmap-title-grid {
+  flex: 1;
+  min-width: 0;
+}
+
+.strava-heatmap-title-grid > div {
+  flex: 1;
+  min-width: 0;
+}
+
 .strava-heatmap-swatch {
   align-items: center;
   background-color: rgba(204, 93, 49, 0.15);
@@ -292,9 +310,12 @@
 }
 
 .strava-heatmap-title {
-  align-items: center;
-  display: inline-flex;
+  display: block;
   min-height: 28px;
+  line-height: 28px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .strava-heatmap-opacity {
