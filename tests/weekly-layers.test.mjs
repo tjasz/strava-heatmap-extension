@@ -94,7 +94,7 @@ test('custom gradient presets preserve old formats and round-trip both periods',
     assert.equal(new URL(tileURL(weeklyConfig)).searchParams.get('colormap'), 'grayscale');
     assert.ok(new URL(tileURL(globalConfig)).pathname.includes('/run/grayscale/'));
     for (const layer of configs([global, weekly], false, legacy)) {
-      assert.equal(new URL(tileURL(layer)).hash, '');
+      assert.equal(new URL(tileURL(layer)).hash, '#strava-gradient=12345600-abcdef80-ffffffff');
     }
   }
 });
