@@ -306,7 +306,7 @@ handle to move the box in whole-tile steps without changing its dimensions, or i
 edge and corner handles to resize it. The center handle also supports arrow keys.
 The **Sheet name** field suggests
 a name containing the activity, color, resolution, and UTC date, such as
-`All Foot Sports sunset Z15 2026-11-05`. The suggested name follows resolution
+`All Foot Sports Sunset Z15 2026-11-05`. The suggested name follows resolution
 changes unless you have customized it. Keep it or enter your own
 non-empty name, then choose **Capture**.
 The box stops growing before it would include more than `mapsheetmaxsize` tiles at

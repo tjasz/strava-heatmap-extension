@@ -1,4 +1,5 @@
 import { PALETTES } from '../common/palettes.js';
+import { COLOR_OPTIONS } from '../common/layers.js';
 import { slideTileURL } from '../www.openstreetmap.org/slide/tiles.js';
 
 const MAX_ZOOM = 15;
@@ -775,8 +776,12 @@ export function installCalTopoMapSheets(getLayers, getMap, maxTiles = 0) {
     document.querySelector('.expandedMenu img[src$="/menu-close.svg"]')?.click();
     const selected = getLayers();
     const layers = Array.isArray(selected) ? selected : [selected];
-    const names = layers.map((layer) =>
-      `${layer.name.replace(/^\S+\s*/, '')} ${layer.gradientName ?? new URL(layer.template).searchParams.get('heatmap-color')}`);
+    const names = layers.map((layer) => {
+      const color = new URL(layer.template).searchParams.get('heatmap-color');
+      const paletteName = layer.gradientName ??
+        COLOR_OPTIONS.find(([key]) => key === color)?.[1].replace(/^\S+\s*/, '') ?? color;
+      return `${layer.name.replace(/^\S+\s*/, '')} ${paletteName}`;
+    });
     const date = new Date().toISOString().slice(0, 10);
     const getSuggestedTitle = (zoom) => `${names.join(' + ')} Z${zoom} ${date}`;
     const accountId = window.sarsoft.account.id;

@@ -665,7 +665,7 @@ for (const renderer of ['google', 'leaflet']) {
     globalValue(t, 'document', document);
     const fixture = selectionMap(renderer);
     globalValue(t, 'window', { google: fixture.google });
-    const getSuggestedTitle = (zoom) => `All Foot Sports sunset Z${zoom} 2026-11-05`;
+    const getSuggestedTitle = (zoom) => `All Foot Sports Sunset Z${zoom} 2026-11-05`;
     for (const stored of [null, '9']) {
       globalValue(t, 'localStorage', {
         getItem: () => stored,
@@ -1272,6 +1272,19 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(selectedStore.hasInProgressNewObject, false, 'Escape releases the native creation guard');
   const gradientName = 'Forest: mist; <green>';
+  for (const [color, displayName] of [
+    ['orange', 'Orange'], ['sunset', 'Sunset'], ['blue', 'Blue'],
+    ['pink', 'Pink'], ['purple', 'Purple'], ['highcontrast', 'Contrast'],
+    ['bluered', 'Blue-Red'], ['rainbow', 'Rainbow'], ['grayscale', 'Custom Gradient'],
+  ]) {
+    activeLayers = getLayerConfigs([{ activity: 'run', color }], true, '0', true)[0];
+    button.handlers.click();
+    const controls = selectionControls(selectionPanel(selection.container));
+    assert.equal(controls.nameInput.value,
+      `All Foot Sports ${displayName} Z15 ${new Date().toISOString().slice(0, 10)}`);
+    controls.cancel.handlers.click();
+    await new Promise((resolve) => setImmediate(resolve));
+  }
   for (const period of ['global', 'weekly']) {
     const custom = getLayerConfigs([{
       activity: 'run', color: 'grayscale', period, gradientName,
@@ -1282,7 +1295,7 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
       button.handlers.click();
       const controls = selectionControls(selectionPanel(selection.container));
       const expected = `All Foot Sports${period === 'weekly' ? ' (Weekly)' : ''} ${gradientName}` +
-        `${multiple ? ' + All Foot Sports orange' : ''} Z15 ${new Date().toISOString().slice(0, 10)}`;
+        `${multiple ? ' + All Foot Sports Orange' : ''} Z15 ${new Date().toISOString().slice(0, 10)}`;
       assert.equal(controls.nameInput.value, expected);
       controls.cancel.handlers.click();
       await new Promise((resolve) => setImmediate(resolve));
@@ -1314,7 +1327,7 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   assert.equal(requests, 0, 'no downloads or uploads before confirmation');
   assert.equal(body.children.length, 0);
   const { nameInput, confirm } = selectionControls(panel);
-  assert.match(nameInput.value, /^All Foot Sports orange Z15 \d{4}-\d{2}-\d{2}$/);
+  assert.match(nameInput.value, /^All Foot Sports Orange Z15 \d{4}-\d{2}-\d{2}$/);
   expectedTitle = 'Wasatch & <hike> "Loop"';
   nameInput.value = `  ${expectedTitle}  `;
   nameInput.handlers.input();
@@ -1351,7 +1364,7 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   const nextPanel = resizeSelection(selection.container);
   const nextControls = selectionControls(nextPanel);
   expectedTitle = nextControls.nameInput.value;
-  assert.match(expectedTitle, /^All Foot Sports orange Z15 \d{4}-\d{2}-\d{2}$/);
+  assert.match(expectedTitle, /^All Foot Sports Orange Z15 \d{4}-\d{2}-\d{2}$/);
   nextControls.confirm.handlers.click();
   await new Promise((resolve) => setImmediate(resolve));
   const failedDialog = body.children[1];
