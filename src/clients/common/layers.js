@@ -211,7 +211,7 @@ function getLayerConfig(
 // and lets the client match tiles to their palette (see colors.css)
 function getTileTemplate(activity, color, timestamp, authenticated, version, legacy, period) {
   if (!authenticated) {
-    return `https://raw.githubusercontent.com/tjasz/strava-heatmap-extension/refs/heads/caltopo/assets/heatmap-fallback-grayscale.png?v=4&${COLOR_PARAM}=${color}&z={z}&x={x}&y={y}`;
+    return `https://raw.githubusercontent.com/tjasz/strava-heatmap-extension/refs/tags/v${version}/assets/heatmap-fallback-grayscale.png?v=1&${COLOR_PARAM}=${color}&z={z}&x={x}&y={y}`;
   }
   if (period === 'weekly') {
     const colormap = legacy ? LEGACY_COLORS[color.replace(/_dark$/, '')] : 'grayscale';
