@@ -2,19 +2,23 @@
 
 ## Versions
 
-### `0.15.2.0` (2026-11-04)
+### `0.15.2.0` (2026-11-06)
 
-- Ask for confirmation before closing settings with unsaved layer or gradient changes.
-- Retry transient weekly heatmap failures up to three times with exponential backoff and jitter, honoring Retry-After. Share in-flight tile downloads, cancel discarded tiles, and leave exhausted tiles transparent instead of showing broken-image icons.
-- Add a **V** keyboard shortcut and native-style badge to toggle the first configured heatmap layer.
-- Add a text box input beside the layer opacity slider for precise opacity control.
-- Move each layer's palette emoji from its name into the swatch at 50% opacity for a softer, more consistent visual indication of the heatmap layer.
-- Replace the swatch with CalTopo's check-circle icon when a heatmap layer is selected.
+Layer selection:
 - Move heatmap layers into their own **Strava Heatmap** section immediately below **Route Discovery**.
-- Add a button at thte top of the layer section for quick access to layer controls.
-- Add duplicate "All" options at the top of each activity group for easier selection of all activities within that group.
-- Switch to Strava's light heatmap palettes for better visibility on light backgrounds.
-- Capture both light and dark heatmap palettes and select them in a two-column popup with full-size previews on matching backgrounds.
+- Add a settings button at the top of the heatmap layer section for quick access to layer controls.
+- Add a **V** keyboard shortcut to toggle the first configured heatmap layer.
+- Add a text box input beside the layer opacity slider for precise opacity control.
+- Style layer icons and names more consistently with CalTopo's builtin style.
+
+Layer Configuration:
+- Ask for confirmation before closing settings with unsaved changes.
+- Add "All" options at the top of each activity group.
+- Offer both light and dark heatmap palettes.
+
+Other improvements:
+- Switch defaults to Strava's light heatmap palettes for better visibility on light backgrounds.
+- Improve reliability of weekly heatmap layers.
 
 ### `0.15.2` (2026-11-03)
 
