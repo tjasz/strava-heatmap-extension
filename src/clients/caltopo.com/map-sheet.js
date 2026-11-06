@@ -820,6 +820,7 @@ export function installCalTopoMapSheets(getLayers, getMap, maxTiles = 0) {
     try {
       releaseCreation = reserveMapSheetCreation();
       if (!releaseCreation) return;
+      getLayers(true);
       const progress = (message) => { status.textContent = message; };
       const selection = await selectMapSheetRegion(getMap(), controller.signal, getSuggestedTitle, maxTiles);
       if (!selection) return;

@@ -233,7 +233,7 @@ function fixture(renderer, saved, initialPresets = presets, mapSheetMaxSize) {
     },
     state: () => JSON.parse(stored),
     getSnapLayer: () => getSnapLayer(),
-    getSheetLayers: () => getSheetLayers(),
+    getSheetLayers: (activate) => getSheetLayers(activate),
     invalidations: () => invalidations,
     authChanged: (value) => authChanged(value),
     presetsChanged: (value) => presetsChanged(value),
@@ -248,6 +248,63 @@ function fixture(renderer, saved, initialPresets = presets, mapSheetMaxSize) {
 }
 
 for (const renderer of ['leaflet', 'google']) {
+  test(`${renderer} map sheets preview and reactivate the last enabled layer, including after reload`, () => {
+    const f = fixture(renderer);
+    f.row(1).button.handlers.click();
+    f.row(1).input.value = '35';
+    f.row(1).input.handlers.input();
+    f.row(1).button.handlers.click();
+    f.row(0).button.handlers.click();
+    assert.equal(f.mapOverlays.length, 0);
+    assert.equal(f.state().layerId, 'strava-heatmap-run-weekly',
+      'disabling a layer must not overwrite the last enabled layer');
+    for (const current of [f, fixture(renderer, f.state())]) {
+      assert.deepEqual(Array.from(current.getSheetLayers(), (layer) => [layer.id, layer.opacity]), [
+        ['strava-heatmap-run-weekly', 0.35],
+      ]);
+      assert.equal(current.mapOverlays.length, 0, 'previewing must not enable an overlay');
+      assert.equal(current.getSnapLayer(), undefined);
+      const invalidations = current.invalidations();
+      current.getSheetLayers(true);
+      assert.equal(current.mapOverlays.length, 1);
+      assert.equal(current.row(1).button.attributes['aria-pressed'], 'true');
+      assert.equal(current.row(0).button.attributes['aria-pressed'], 'false');
+      assert.equal(current.getSnapLayer().id, 'strava-heatmap-run-weekly');
+      assert.equal(current.state().layers['strava-heatmap-run-weekly'].enabled, true);
+      assert.equal(current.invalidations(), invalidations + 1);
+      current.getSheetLayers(true);
+      assert.equal(current.invalidations(), invalidations + 1, 'already active layers must not be toggled');
+      assert.equal(current.mapOverlays.length, 1);
+      current.flush();
+    }
+  });
+
+  test(`${renderer} map sheets fall back to the first definition without remembered or remaining layers`, () => {
+    const f = fixture(renderer, {
+      layerId: 'removed-layer',
+      layers: {
+        'strava-heatmap-run': { enabled: false, opacity: 0.6 },
+        'strava-heatmap-run-weekly': { enabled: false, opacity: 1 },
+        'strava-heatmap-ride': { enabled: false, opacity: 1 },
+      },
+    });
+    assert.equal(f.mapOverlays.length, 0);
+    assert.equal(f.getSheetLayers()[0].id, 'strava-heatmap-run');
+    assert.equal(f.mapOverlays.length, 0);
+    f.getSheetLayers(true);
+    assert.equal(f.row(0).button.attributes['aria-pressed'], 'true');
+    assert.equal(f.row(0).input.value, '60');
+    f.row(1).button.handlers.click();
+    f.row(1).button.handlers.click();
+    f.row(0).button.handlers.click();
+    f.presetsChanged('ride:purple;run:orange');
+    assert.equal(f.getSheetLayers()[0].id, 'strava-heatmap-ride');
+    f.getSheetLayers(true);
+    assert.equal(f.row(0).button.attributes['aria-pressed'], 'true');
+    assert.equal(f.row(1).button.attributes['aria-pressed'], 'false');
+    f.flush();
+  });
+
   test(`${renderer} advertises V only on the first layer and toggles it independently`, () => {
     const f = fixture(renderer);
     for (let index = 0; index < 3; index++) {
@@ -561,7 +618,7 @@ for (const renderer of ['leaflet', 'google']) {
     }, 'run:orange;run:blue;run:purple:weekly');
     assert.equal(f.list.children.length, 3);
     assert.equal(f.mapOverlays.length, 0);
-    assert.equal(f.getSheetLayers().length, 0);
+    assert.equal(f.getSheetLayers()[0].id, 'strava-heatmap-run');
     assert.equal(f.getSnapLayer(), undefined);
     f.row(0).button.handlers.click();
     f.row(1).button.handlers.click();
@@ -693,7 +750,7 @@ for (const renderer of ['leaflet', 'google']) {
     assert.equal(f.row(1).input.value, '25');
     f.row(0).button.handlers.click();
     f.row(1).button.handlers.click();
-    assert.equal(f.getSheetLayers().length, 0);
+    assert.equal(f.getSheetLayers()[0].id, 'strava-heatmap-run-weekly');
     assert.equal(f.getSnapLayer(), undefined);
     assert.equal(f.mapOverlays.filter((overlay) => overlay.getTile || overlay.template).length, 0);
     f.flush();

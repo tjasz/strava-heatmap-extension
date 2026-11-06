@@ -292,6 +292,9 @@ and adjust their opacities.
 The map sheet combines all enabled layers in the same order and at the same
 opacities as the map. Open **Add > Map Sheet
 from Strava Heatmap**, directly below **Map Sheet**, at any map zoom level.
+If no heatmap layers are active, choosing this option turns on the most recently
+enabled layer, or the first defined layer if none is remembered. The last enabled
+layer is remembered across reloads. Strava sign-in is still required.
 The selection form sits at the bottom left of the map. Finish or cancel any
 other item you are creating first; CalTopo allows only one new item at a time,
 including heatmap map sheets.

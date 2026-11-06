@@ -1210,8 +1210,15 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
     constructor(callback) { observer = callback; }
     observe() {}
   });
-  let activeLayers = layer;
-  installCalTopoMapSheets(() => activeLayers, () => selection.map, 100);
+  let activeLayers = [];
+  let activations = 0;
+  installCalTopoMapSheets((activate) => {
+    if (activate && Array.isArray(activeLayers) && !activeLayers.length) {
+      activeLayers = layer;
+      activations++;
+    }
+    return Array.isArray(activeLayers) && !activeLayers.length ? [layer] : activeLayers;
+  }, () => selection.map, 100);
   const menu = group.children[1];
   assert.equal(menu.id, 'strava-heatmap-map-sheet');
   const button = menu.children[0];
@@ -1248,14 +1255,17 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   refresh();
   assert.equal(button.attributes['aria-disabled'], 'false');
   assert.match(description.textContent, /Adjust an area/);
+  assert.equal(activations, 0, 'menu refresh must not activate hidden layers');
   cardsUiStore.showNewCard();
   button.handlers.click();
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(blockedCreations, 1, 'reuse the native creation guard when another form is open');
   assert.equal(selection.container.children.length, 0, 'do not open selection over a native creation form');
   assert.equal(body.children.length, 0);
+  assert.equal(activations, 0, 'blocked item creation must not activate hidden layers');
   selectedStore.editingObjects = [];
   button.handlers.click();
+  assert.equal(activations, 1, 'clicking the enabled action activates the fallback before selection');
   assert.equal(selectedStore.hasInProgressNewObject, true);
   cardsUiStore.showNewCard();
   assert.equal(blockedCreations, 2, 'native forms must be blocked during heatmap selection');
