@@ -4,6 +4,25 @@
   let lastErrorTime = 0;
   const COOLDOWN = 10000; // 10 seconds
 
+  async function revalidateCredentials(status) {
+    const now = Date.now();
+    if (now - lastErrorTime < COOLDOWN) return;
+    lastErrorTime = now;
+    console.log('[StravaHeatmapExt] Auth or network error detected:', status);
+    try {
+      await browser.runtime.sendMessage({ type: 'requestCredentials' });
+      console.log('[StravaHeatmapExt] Credentials re-validated, fallback tiles will load');
+    } catch (error) {
+      console.error('[StravaHeatmapExt] Error handling tile failure:', error);
+    }
+  }
+
+  window.addEventListener('message', (event) => {
+    if (event.source !== window || event.data?.type !== 'stravaHeatmapTileError') return;
+    const status = event.data.status;
+    if (status === 401 || status === 403) revalidateCredentials(status);
+  });
+
   // Fetch the image to check status code
   async function checkTileStatus(url) {
     try {
@@ -21,6 +40,9 @@
     'error',
     async (event) => {
       const target = event.target;
+
+      // Weekly requests report their actual status through the shared loader.
+      if (target.tagName === 'IMG' && target.src?.includes('strava.com/weeklyheat/')) return;
 
       // Check if it's a Strava heatmap tile
       if (
@@ -44,22 +66,7 @@
 
         // Trigger on auth errors (403, 401) OR network/CORS errors
         if (status === 403 || status === 401 || status === 'NETWORK_ERROR') {
-          lastErrorTime = now;
-
-          console.log('[StravaHeatmapExt] Auth or network error detected:', status);
-
-          try {
-            // Request credential re-validation (will clear expired credentials)
-            await browser.runtime.sendMessage({
-              type: 'requestCredentials',
-            });
-
-            console.log(
-              '[StravaHeatmapExt] Credentials re-validated, fallback tiles will load'
-            );
-          } catch (error) {
-            console.error('[StravaHeatmapExt] Error handling tile failure:', error);
-          }
+          await revalidateCredentials(status);
         } else if (status === 404) {
           console.debug('[StravaHeatmapExt] Tile not found (404), ignoring');
         }

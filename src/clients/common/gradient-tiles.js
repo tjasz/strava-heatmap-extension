@@ -1,4 +1,5 @@
 import { PALETTES } from './palettes.js';
+import { createWeeklyTileLoader, isWeeklyTile } from './weekly-tiles.js';
 
 const PALETTE_RAMPS = Object.fromEntries(
   Object.entries(PALETTES).map(([name, ramp]) => [
@@ -128,11 +129,16 @@ function installImageInterceptor(nativeFetch, getColors) {
     HTMLImageElement.prototype,
     'src'
   );
+  const transparentTile =
+    'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
 
   function cancelPendingImage(image, source) {
     const state = imageStates.get(image);
-    if (!state || state.outputSource === source) return;
+    if (!state || (state.outputSource !== undefined && state.outputSource === source)) return;
 
+    state.controller.abort();
+    state.cleanupOutput?.();
+    if (state.outputSource?.startsWith('blob:')) URL.revokeObjectURL(state.outputSource);
     image.style.visibility = state.visibility;
     imageStates.delete(image);
   }
@@ -140,52 +146,75 @@ function installImageInterceptor(nativeFetch, getColors) {
   async function processImage(image, source) {
     if (source === null && imageStates.has(image)) return;
 
-    const gradient = getColors(source);
-    if (!gradient) {
+    const weekly = isWeeklyTile(source);
+    const gradient = weekly ? getColorRamp(source, true) : getColors(source);
+    if (!gradient && !weekly) {
       cancelPendingImage(image, source);
       return;
     }
     const previousState = imageStates.get(image);
     if (previousState?.source === source) return;
+    cancelPendingImage(image, source);
 
     const state = {
       source,
       visibility: previousState?.visibility ?? image.style.visibility,
       outputSource: undefined,
       failed: false,
+      controller: new AbortController(),
     };
     imageStates.set(image, state);
     image.style.visibility = 'hidden';
 
     try {
-      const response = await nativeFetch(source);
+      const response = await nativeFetch(source, { signal: state.controller.signal });
       if (!response.ok) {
         throw new Error(`Tile request failed with status ${response.status}.`);
       }
-      const recolored = await recolorBlob(await response.blob(), gradient);
+      const blob = await response.blob();
+      const recolored = gradient ? await recolorBlob(blob, gradient) : blob;
       if (imageStates.get(image) !== state) return;
 
       const objectUrl = URL.createObjectURL(recolored);
       state.outputSource = objectUrl;
-      image.addEventListener(
-        'load',
-        () => {
-          URL.revokeObjectURL(objectUrl);
-          if (imageStates.get(image) === state) {
-            image.style.visibility = state.visibility;
-            imageStates.delete(image);
-          }
-        },
-        { once: true }
-      );
+      const onLoad = () => {
+        state.cleanupOutput();
+        if (imageStates.get(image) === state) {
+          image.style.visibility = state.visibility;
+          imageStates.delete(image);
+        }
+      };
+      const onError = () => {
+        state.cleanupOutput();
+        if (imageStates.get(image) !== state) return;
+        state.failed = true;
+        state.outputSource = transparentTile;
+        sourceDescriptor.set.call(image, transparentTile);
+        console.warn('[StravaHeatmapExt] Could not decode weekly heatmap tile.');
+      };
+      state.cleanupOutput = () => {
+        image.removeEventListener('load', onLoad);
+        if (weekly) image.removeEventListener('error', onError);
+        URL.revokeObjectURL(objectUrl);
+        state.outputSource = undefined;
+        state.cleanupOutput = undefined;
+      };
+      image.addEventListener('load', onLoad, { once: true });
+      if (weekly) image.addEventListener('error', onError, { once: true });
       sourceDescriptor.set.call(image, objectUrl);
     } catch (error) {
+      if (state.controller.signal.aborted) return;
       if (imageStates.get(image) === state) {
-        image.style.visibility = state.visibility;
         state.failed = true;
-        sourceDescriptor.set.call(image, source);
+        if (weekly) {
+          state.outputSource = transparentTile;
+          sourceDescriptor.set.call(image, transparentTile);
+        } else {
+          image.style.visibility = state.visibility;
+          sourceDescriptor.set.call(image, source);
+        }
       }
-      console.error('[StravaHeatmapExt] Failed to recolor grayscale tile.', error);
+      console.error('[StravaHeatmapExt] Failed to load heatmap tile.', error);
     }
   }
 
@@ -193,9 +222,9 @@ function installImageInterceptor(nativeFetch, getColors) {
     ...sourceDescriptor,
     set(value) {
       const source = String(value);
-      if (getColors(source)) {
+      if (getColors(source) || isWeeklyTile(source)) {
         const state = imageStates.get(this);
-        if (state?.source === source && state.failed) {
+        if (state?.source === source && state.failed && !isWeeklyTile(source)) {
           sourceDescriptor.set.call(this, value);
           return;
         }
@@ -213,11 +242,18 @@ function installImageInterceptor(nativeFetch, getColors) {
         if (record.target instanceof HTMLImageElement) {
           const source = record.target.getAttribute('src');
           const state = imageStates.get(record.target);
-          if (state?.source !== source || !state.failed) {
+          if (source === null) {
+            cancelPendingImage(record.target);
+          } else if (state?.source !== source || !state.failed) {
             processImage(record.target, source);
           }
         }
         continue;
+      }
+      for (const node of record.removedNodes ?? []) {
+        if (!(node instanceof Element) || node.isConnected) continue;
+        if (node instanceof HTMLImageElement) cancelPendingImage(node);
+        node.querySelectorAll('img').forEach((image) => cancelPendingImage(image));
       }
       for (const node of record.addedNodes) {
         if (!(node instanceof Element)) continue;
@@ -247,7 +283,8 @@ export function installGradientTileRecoloring({ recolorPalettes = false } = {}) 
   window.__stravaGradientTileRecoloringInstalled = true;
 
   const nativeFetch = window.fetch.bind(window);
+  const fetchTile = createWeeklyTileLoader(nativeFetch);
   const getColors = (url) => getColorRamp(url, recolorPalettes);
-  installFetchInterceptor(nativeFetch, getColors);
-  installImageInterceptor(nativeFetch, getColors);
+  installFetchInterceptor(fetchTile, getColors);
+  installImageInterceptor(fetchTile, getColors);
 }

@@ -134,6 +134,14 @@ every layer using it. Resetting layers to defaults leaves your custom palettes i
 
 ## Troubleshooting
 
+### Weekly heatmap tiles have gaps
+
+The extension retries temporary server and network failures up to three times,
+waiting about 1, 2, and 4 seconds between attempts (longer if Strava sends a
+`Retry-After` header). Tiles that still fail remain transparent rather than
+showing a broken-image icon. If gaps persist, toggle the layer off and on to
+request the tiles again, or try later if Strava is unavailable.
+
 ### The extension asks me to sign into Strava
 
 If you see "Click the Strava Heatmap extension icon to log into Strava and enable the heatmap," click the extension icon to sign in and authorize access. This message appears when you are not logged into Strava and have not visited the [Strava Global Heatmap](https://www.strava.com/heatmap).

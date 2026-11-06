@@ -4,6 +4,7 @@
 
 ### `0.15.2.0` (2026-11-04)
 
+- Retry transient weekly heatmap failures up to three times with exponential backoff and jitter, honoring Retry-After. Share in-flight tile downloads, cancel discarded tiles, and leave exhausted tiles transparent instead of showing broken-image icons.
 - Add a **V** keyboard shortcut and native-style badge to toggle the first configured heatmap layer.
 - Add a text box input beside the layer opacity slider for precise opacity control.
 - Move each layer's palette emoji from its name into the swatch at 50% opacity for a softer, more consistent visual indication of the heatmap layer.

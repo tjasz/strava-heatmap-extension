@@ -239,6 +239,9 @@ test('authentication and CORS rules cover weekly and global tiles, not unrelated
     assert.equal(update.addRules[0], rule);
     assert.equal(rule.action.requestHeaders?.[0].value, credentials ?? undefined);
     assert.equal(rule.action.responseHeaders[0].value, '*');
+    assert.ok(rule.action.responseHeaders.some((header) =>
+      header.header === 'Access-Control-Expose-Headers' &&
+      header.operation === 'append' && header.value === 'Retry-After'));
     assert.deepEqual(rule.condition.excludedInitiatorDomains, ['strava.com']);
     const pattern = new RegExp(rule.condition.regexFilter);
     for (const layer of configs([globalLayer, weeklyLayer])) {

@@ -27,6 +27,11 @@ export async function updateHeatmapRules(credentials) {
           operation: 'set',
           value: '*',
         },
+        {
+          header: 'Access-Control-Expose-Headers',
+          operation: 'append',
+          value: 'Retry-After',
+        },
       ],
     },
   };

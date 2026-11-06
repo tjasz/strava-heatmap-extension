@@ -4,7 +4,7 @@ import { installGradientTileRecoloring } from '../src/clients/common/gradient-ti
 import { getLayerConfigs } from '../src/clients/common/layers.js';
 import { PALETTES } from '../src/clients/common/palettes.js';
 
-function setup(t, pixels, recolorPalettes = true) {
+function setup(t, pixels, recolorPalettes = true, fetchTile) {
   const replace = (target, key, value) => {
     const previous = Object.getOwnPropertyDescriptor(target, key);
     Object.defineProperty(target, key, { configurable: true, writable: true, value });
@@ -20,6 +20,7 @@ function setup(t, pixels, recolorPalettes = true) {
   let closed = 0;
   const nativeFetch = async (...args) => {
     requests.push(args);
+    if (fetchTile) return fetchTile(...args);
     return new Response(new Blob(['original']), {
       headers: { 'content-length': '8', 'content-encoding': 'gzip' },
     });
@@ -33,16 +34,24 @@ function setup(t, pixels, recolorPalettes = true) {
     get src() { return this.source; }
     set src(value) {
       this.source = value;
-      for (const listener of this.listeners.splice(0)) listener();
+      for (const { type, listener } of [...this.listeners]) {
+        if (type === 'load') listener();
+      }
       this.resolveLoad();
     }
     getAttribute() { return this.source ?? null; }
     addEventListener(type, listener) {
-      assert.equal(type, 'load');
-      this.listeners.push(listener);
+      this.listeners.push({ type, listener });
+    }
+    removeEventListener(type, listener) {
+      this.listeners = this.listeners.filter((entry) => entry.type !== type || entry.listener !== listener);
     }
   }
-  replace(globalThis, 'window', { fetch: nativeFetch });
+  const messages = [];
+  replace(globalThis, 'window', {
+    fetch: nativeFetch, location: { origin: 'https://caltopo.com' },
+    postMessage: (message) => messages.push(message),
+  });
   replace(globalThis, 'HTMLImageElement', Image);
   replace(globalThis, 'Element', Image);
   replace(globalThis, 'MutationObserver', class {
@@ -75,7 +84,7 @@ function setup(t, pixels, recolorPalettes = true) {
   replace(URL, 'revokeObjectURL', (url) => revoked.push(url));
   installGradientTileRecoloring({ recolorPalettes });
   return {
-    requests, blobs, revoked, Image,
+    requests, blobs, revoked, messages, Image,
     notify: (records) => observer(records),
     closed: () => closed,
   };
@@ -159,4 +168,82 @@ test('image src and attribute mutations recolor presets and restore visibility',
     );
     assert.equal(state.revoked.at(-1), image.src);
   }
+});
+
+test('weekly CSS palette images are recolored after their source becomes a blob URL', async (t) => {
+  const state = setup(t, [128, 17, 43, 128], false);
+  const image = new state.Image();
+  image.src = tile('pink', 'weekly');
+  await image.loaded;
+  assert.equal(image.style.visibility, 'visible');
+  assert.deepEqual(await bytes(state.blobs[0]),
+    PALETTES.pink.slice(128 * 8, 129 * 8).match(/../g).map((hex) => parseInt(hex, 16)));
+});
+
+test('weekly image failures stay hidden and load a transparent placeholder, without retrying auth or 404', async (t) => {
+  for (const status of [401, 403, 404]) {
+    await t.test(String(status), async (t) => {
+      const state = setup(t, [], false, async () => new Response('failed', { status }));
+      const image = new state.Image();
+      image.src = tile('pink', 'weekly');
+      await image.loaded;
+      assert.equal(image.style.visibility, 'hidden');
+      assert.match(image.src, /^data:image\/gif/);
+      assert.equal(state.requests.length, 1);
+      assert.deepEqual(state.messages, status === 404 ? [] :
+        [{ type: 'stravaHeatmapTileError', status }]);
+      image.src = 'https://example.com/image.png';
+      assert.equal(image.style.visibility, 'visible');
+    });
+  }
+});
+
+test('discarding one weekly image leaves a shared download alive until all consumers cancel', async (t) => {
+  let signal;
+  const state = setup(t, [], false, async (_input, options) => {
+    signal = options.signal;
+    return new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    });
+  });
+  const images = [new state.Image(), new state.Image()];
+  const url = tile('pink', 'weekly');
+  for (const image of images) image.src = url;
+  assert.equal(state.requests.length, 1);
+  images[0].isConnected = false;
+  images[0].querySelectorAll = () => [];
+  state.notify([{ removedNodes: [images[0]], addedNodes: [] }]);
+  assert.equal(signal.aborted, false);
+  images[1].src = 'https://example.com/replacement.png';
+  assert.equal(signal.aborted, true);
+  await new Promise(setImmediate);
+  assert.equal(state.blobs.length, 0);
+});
+
+test('a replaced weekly image never receives a stale download', async (t) => {
+  let resolve;
+  const state = setup(t, [], false, () => new Promise((done) => { resolve = done; }));
+  const image = new state.Image();
+  image.src = tile('pink', 'weekly');
+  image.src = 'https://example.com/replacement.png';
+  resolve(new Response('tile'));
+  await new Promise(setImmediate);
+  assert.equal(image.src, 'https://example.com/replacement.png');
+  assert.equal(image.style.visibility, 'visible');
+  assert.equal(state.blobs.length, 0);
+});
+
+test('removing the src attribute cancels a pending weekly tile', async (t) => {
+  let signal;
+  const state = setup(t, [], false, async (_input, options) => {
+    signal = options.signal;
+    return new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    });
+  });
+  const image = new state.Image();
+  image.src = tile('pink', 'weekly');
+  state.notify([{ type: 'attributes', target: image }]);
+  assert.equal(signal.aborted, true);
+  await new Promise(setImmediate);
 });
