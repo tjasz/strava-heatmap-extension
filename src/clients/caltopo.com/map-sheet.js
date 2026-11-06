@@ -2,8 +2,9 @@ import { PALETTES } from '../common/palettes.js';
 import { slideTileURL } from '../www.openstreetmap.org/slide/tiles.js';
 
 const MAX_ZOOM = 15;
+const MIN_ZOOM = 3;
+const RESOLUTION_KEY = 'strava-heatmap-extension:caltopo-map-sheet-resolution';
 const TILE_SIZE = 512;
-const TILE_COUNT = 2 ** MAX_ZOOM;
 const INITIAL_TILE_SIDE = 10;
 const INITIAL_VIEW_PADDING = 16;
 const MAX_LATITUDE = 85.0511287798066;
@@ -13,64 +14,66 @@ function checkAbort(signal) {
   if (signal.aborted) throw new DOMException('Map sheet cancelled.', 'AbortError');
 }
 
-function longitude(x) {
-  return x / TILE_COUNT * 360 - 180;
+function longitude(x, zoom = MAX_ZOOM) {
+  return x / 2 ** zoom * 360 - 180;
 }
 
-function latitude(y) {
-  return Math.atan(Math.sinh(Math.PI * (1 - 2 * y / TILE_COUNT))) * 180 / Math.PI;
+function latitude(y, zoom = MAX_ZOOM) {
+  return Math.atan(Math.sinh(Math.PI * (1 - 2 * y / 2 ** zoom))) * 180 / Math.PI;
 }
 
-function tileY(lat) {
+function tileY(lat, zoom) {
   const radians = lat * Math.PI / 180;
-  return (1 - Math.asinh(Math.tan(radians)) / Math.PI) / 2 * TILE_COUNT;
+  return (1 - Math.asinh(Math.tan(radians)) / Math.PI) / 2 * 2 ** zoom;
 }
 
 function snapTileEdge(value) {
   return Math.abs(value - Math.round(value)) < 1e-8 ? Math.round(value) : value;
 }
 
-function regionFromTiles(minX, maxX, minY, maxY) {
+function regionFromTiles(minX, maxX, minY, maxY, zoom = MAX_ZOOM) {
   const columns = maxX - minX + 1;
   const rows = maxY - minY + 1;
   return {
-    minX, maxX, minY, maxY, columns, rows, count: columns * rows,
+    minX, maxX, minY, maxY, zoom, columns, rows, count: columns * rows,
     width: columns * TILE_SIZE, height: rows * TILE_SIZE,
   };
 }
 
-export function mapSheetRegion({ west, south, east, north } = {}) {
+export function mapSheetRegion({ west, south, east, north } = {}, zoom = MAX_ZOOM) {
+  const tileCount = 2 ** zoom;
   if (![west, south, east, north].every(Number.isFinite) ||
       south >= north || south < -MAX_LATITUDE || north > MAX_LATITUDE ||
       west < -180 || east > 180 || west >= east) {
     throw new Error('Move the view inside the world map, away from the poles and date line.');
   }
   // Snap round-off at exact tile edges before selecting intersecting tiles.
-  const minX = Math.floor(snapTileEdge((west + 180) / 360 * TILE_COUNT));
-  const maxX = Math.ceil(snapTileEdge((east + 180) / 360 * TILE_COUNT)) - 1;
-  const minY = Math.max(0, Math.floor(snapTileEdge(tileY(north))));
-  const maxY = Math.min(TILE_COUNT - 1, Math.ceil(snapTileEdge(tileY(south))) - 1);
-  return regionFromTiles(minX, maxX, minY, maxY);
+  const minX = Math.floor(snapTileEdge((west + 180) / 360 * tileCount));
+  const maxX = Math.ceil(snapTileEdge((east + 180) / 360 * tileCount)) - 1;
+  const minY = Math.max(0, Math.floor(snapTileEdge(tileY(north, zoom))));
+  const maxY = Math.min(tileCount - 1, Math.ceil(snapTileEdge(tileY(south, zoom))) - 1);
+  return regionFromTiles(minX, maxX, minY, maxY, zoom);
 }
 
-function tilePoint([lng, lat]) {
+function tilePoint([lng, lat], zoom = MAX_ZOOM) {
   if (!Number.isFinite(lng) || !Number.isFinite(lat) || lng < -180 || lng > 180 ||
       Math.abs(lat) > MAX_LATITUDE) {
     throw new Error('Select an area inside the world map, away from the poles and date line.');
   }
-  return [(lng + 180) / 360 * TILE_COUNT, tileY(lat)].map(snapTileEdge);
+  return [(lng + 180) / 360 * 2 ** zoom, tileY(lat, zoom)].map(snapTileEdge);
 }
 
-export function limitMapSheetSelection(anchor, corner, maxTiles) {
-  const start = tilePoint(anchor);
-  const end = tilePoint(corner);
+export function limitMapSheetSelection(anchor, corner, maxTiles, zoom = MAX_ZOOM) {
+  const tileCount = 2 ** zoom;
+  const start = tilePoint(anchor, zoom);
+  const end = tilePoint(corner, zoom);
   const at = (fraction) => {
     const point = start.map((value, i) => value + (end[i] - value) * fraction);
-    const clamp = (value) => Math.max(0, Math.min(TILE_COUNT - 1, value));
+    const clamp = (value) => Math.max(0, Math.min(tileCount - 1, value));
     const min = start.map((value, i) => clamp(Math.floor(snapTileEdge(Math.min(value, point[i])))));
     const max = start.map((value, i) => Math.max(min[i],
       clamp(Math.ceil(snapTileEdge(Math.max(value, point[i]))) - 1)));
-    return regionFromTiles(min[0], max[0], min[1], max[1]);
+    return regionFromTiles(min[0], max[0], min[1], max[1], zoom);
   };
   const requested = at(1);
   if (requested.count <= maxTiles) return { region: requested, limited: false };
@@ -86,22 +89,24 @@ export function limitMapSheetSelection(anchor, corner, maxTiles) {
 }
 
 export function resizeMapSheetSelection(region, handle, point, maxTiles) {
-  const [x, y] = tilePoint(point);
+  const { zoom } = region;
+  const tileCount = 2 ** zoom;
+  const [x, y] = tilePoint(point, zoom);
   let left = region.minX;
   let right = region.maxX + 1;
   let top = region.minY;
   let bottom = region.maxY + 1;
   if (handle.includes('w')) left = Math.max(0, Math.min(right - 1, Math.floor(x)));
-  if (handle.includes('e')) right = Math.min(TILE_COUNT, Math.max(left + 1, Math.ceil(x)));
+  if (handle.includes('e')) right = Math.min(tileCount, Math.max(left + 1, Math.ceil(x)));
   if (handle.includes('n')) top = Math.max(0, Math.min(bottom - 1, Math.floor(y)));
-  if (handle.includes('s')) bottom = Math.min(TILE_COUNT, Math.max(top + 1, Math.ceil(y)));
-  const requested = regionFromTiles(left, right - 1, top, bottom - 1);
+  if (handle.includes('s')) bottom = Math.min(tileCount, Math.max(top + 1, Math.ceil(y)));
+  const requested = regionFromTiles(left, right - 1, top, bottom - 1, zoom);
   if (requested.count <= maxTiles) return { region: requested, limited: false };
   if (handle.length === 2) {
     return limitMapSheetSelection(
-      [longitude(handle.includes('w') ? right : left), latitude(handle.includes('n') ? bottom : top)],
-      [longitude(handle.includes('w') ? left : right), latitude(handle.includes('n') ? top : bottom)],
-      maxTiles,
+      [longitude(handle.includes('w') ? right : left, zoom), latitude(handle.includes('n') ? bottom : top, zoom)],
+      [longitude(handle.includes('w') ? left : right, zoom), latitude(handle.includes('n') ? top : bottom, zoom)],
+      maxTiles, zoom,
     );
   }
   const columns = Math.floor(maxTiles / region.rows);
@@ -110,19 +115,31 @@ export function resizeMapSheetSelection(region, handle, point, maxTiles) {
   if (handle === 'e') right = left + columns;
   if (handle === 'n') top = bottom - rows;
   if (handle === 's') bottom = top + rows;
-  return { region: regionFromTiles(left, right - 1, top, bottom - 1), limited: true };
+  return { region: regionFromTiles(left, right - 1, top, bottom - 1, zoom), limited: true };
 }
 
 export function moveMapSheetSelection(region, dx, dy) {
   if (![dx, dy].every(Number.isFinite)) {
     throw new Error('Could not determine the map sheet position. Try moving the handle again.');
   }
-  const x = Math.max(0, Math.min(TILE_COUNT - region.columns, region.minX + Math.round(dx)));
-  const y = Math.max(0, Math.min(TILE_COUNT - region.rows, region.minY + Math.round(dy)));
-  return regionFromTiles(x, x + region.columns - 1, y, y + region.rows - 1);
+  const tileCount = 2 ** region.zoom;
+  const x = Math.max(0, Math.min(tileCount - region.columns, region.minX + Math.round(dx)));
+  const y = Math.max(0, Math.min(tileCount - region.rows, region.minY + Math.round(dy)));
+  return regionFromTiles(x, x + region.columns - 1, y, y + region.rows - 1, region.zoom);
 }
 
 export function selectMapSheetRegion(map, signal, suggestedTitle, maxTiles) {
+  let zoom = MAX_ZOOM;
+  try {
+    const stored = localStorage.getItem(RESOLUTION_KEY);
+    if (stored !== null) {
+      const value = Number(stored);
+      if (Number.isInteger(value) && value >= MIN_ZOOM && value <= MAX_ZOOM) zoom = value;
+      else console.warn('[StravaHeatmapExt] Invalid saved map sheet resolution; using 15.', stored);
+    }
+  } catch (error) {
+    console.warn('[StravaHeatmapExt] Could not restore CalTopo map sheet resolution.', error);
+  }
   const container = map?.getContainer?.() || map?.getDiv?.();
   const leaflet = typeof map?.containerPointToLatLng === 'function';
   let googleOverlay;
@@ -144,11 +161,11 @@ export function selectMapSheetRegion(map, signal, suggestedTitle, maxTiles) {
   const toPixel = (x, y) => {
     if (!leaflet) {
       const point = googleOverlay.getProjection().fromLatLngToDivPixel(
-        new window.google.maps.LatLng(latitude(y), longitude(x)),
+        new window.google.maps.LatLng(latitude(y, zoom), longitude(x, zoom)),
       );
       return [point.x, point.y];
     }
-    const point = map.latLngToContainerPoint([latitude(y), longitude(x)]);
+    const point = map.latLngToContainerPoint([latitude(y, zoom), longitude(x, zoom)]);
     return [point.x, point.y];
   };
   return new Promise((resolve, reject) => {
@@ -164,7 +181,22 @@ export function selectMapSheetRegion(map, signal, suggestedTitle, maxTiles) {
     const heading = document.createElement('h2');
     heading.textContent = 'Map Sheet from Strava Heatmap';
     const instructions = document.createElement('p');
-    instructions.textContent = `Drag the center handle to move the area, or its edge and corner handles to resize it (up to ${maxTiles} zoom-${MAX_ZOOM} tiles).`;
+    const updateInstructions = () => {
+      instructions.textContent = `Drag the center handle to move the area, or its edge and corner handles to resize it (up to ${maxTiles} zoom-${zoom} tiles).`;
+    };
+    updateInstructions();
+    const resolutionLabel = document.createElement('label');
+    resolutionLabel.className = 'strava-heatmap-map-sheet-name';
+    resolutionLabel.textContent = 'Resolution';
+    const resolution = document.createElement('select');
+    for (let value = MIN_ZOOM; value <= MAX_ZOOM; value++) {
+      const option = document.createElement('option');
+      option.value = String(value);
+      option.textContent = String(value);
+      resolution.appendChild(option);
+    }
+    resolution.value = String(zoom);
+    resolutionLabel.appendChild(resolution);
     const nameLabel = document.createElement('label');
     nameLabel.className = 'strava-heatmap-map-sheet-name';
     nameLabel.textContent = 'Sheet name';
@@ -190,7 +222,7 @@ export function selectMapSheetRegion(map, signal, suggestedTitle, maxTiles) {
     const actions = document.createElement('div');
     actions.className = 'strava-heatmap-map-sheet-actions';
     actions.append(cancel, confirm);
-    panel.append(heading, instructions, nameLabel, status, actions);
+    panel.append(heading, instructions, nameLabel, resolutionLabel, status, actions);
     overlay.append(box, panel);
     let drag;
     let region;
@@ -207,18 +239,19 @@ export function selectMapSheetRegion(map, signal, suggestedTitle, maxTiles) {
         if (!region) {
           const rect = container.getBoundingClientRect();
           if (!rect.width || !rect.height) throw new Error('Wait for the map to finish loading.');
-          const center = tilePoint(fromPixel(rect.width / 2, rect.height / 2));
+          const tileCount = 2 ** zoom;
+          const center = tilePoint(fromPixel(rect.width / 2, rect.height / 2), zoom);
           const padding = Math.min(INITIAL_VIEW_PADDING, rect.width / 4, rect.height / 4);
           const visible = [
             fromPixel(padding, padding),
             fromPixel(rect.width - padding, rect.height - padding),
           ].map(([lng, lat]) => {
             return tilePoint([Math.max(-180, Math.min(180, lng)),
-              Math.max(-MAX_LATITUDE, Math.min(MAX_LATITUDE, lat))]);
+              Math.max(-MAX_LATITUDE, Math.min(MAX_LATITUDE, lat))], zoom);
           });
           const bounds = center.map((_, axis) => {
             const first = Math.max(0, Math.ceil(Math.min(...visible.map((point) => point[axis]))));
-            const end = Math.min(TILE_COUNT, Math.floor(Math.max(...visible.map((point) => point[axis]))));
+            const end = Math.min(tileCount, Math.floor(Math.max(...visible.map((point) => point[axis]))));
             return [first, end];
           });
           const size = Math.max(1, Math.min(INITIAL_TILE_SIDE, Math.floor(Math.sqrt(maxTiles)),
@@ -226,10 +259,10 @@ export function selectMapSheetRegion(map, signal, suggestedTitle, maxTiles) {
           const [x, y] = center.map((value, axis) => {
             const [first, end] = bounds[axis];
             const min = end > first ? first : 0;
-            const max = end > first ? end - size : TILE_COUNT - size;
+            const max = end > first ? end - size : tileCount - size;
             return Math.max(min, Math.min(max, Math.round(value - size / 2)));
           });
-          region = regionFromTiles(x, x + size - 1, y, y + size - 1);
+          region = regionFromTiles(x, x + size - 1, y, y + size - 1, zoom);
           showSelection();
         }
         const a = toPixel(region.minX, region.minY);
@@ -251,6 +284,27 @@ export function selectMapSheetRegion(map, signal, suggestedTitle, maxTiles) {
       drag = undefined;
       if (active?.element.hasPointerCapture(active.pointer)) active.element.releasePointerCapture(active.pointer);
     };
+    resolution.addEventListener('change', () => {
+      releasePointer();
+      const previous = region;
+      zoom = Number(resolution.value);
+      updateInstructions();
+      if (previous) {
+        const selection = limitMapSheetSelection(
+          [longitude(previous.minX, previous.zoom), latitude(previous.minY, previous.zoom)],
+          [longitude(previous.maxX + 1, previous.zoom), latitude(previous.maxY + 1, previous.zoom)],
+          maxTiles, zoom,
+        );
+        region = selection.region;
+        showSelection(selection.limited);
+      }
+      draw();
+      try {
+        localStorage.setItem(RESOLUTION_KEY, String(zoom));
+      } catch (error) {
+        console.warn('[StravaHeatmapExt] Could not save CalTopo map sheet resolution.', error);
+      }
+    });
     const finish = (result, error) => {
       if (finished) return;
       finished = true;
@@ -280,7 +334,7 @@ export function selectMapSheetRegion(map, signal, suggestedTitle, maxTiles) {
     const update = (event) => {
       try {
         const corner = pointerPoint(event);
-        const point = drag.handle === 'move' ? tilePoint(corner) : null;
+        const point = drag.handle === 'move' ? tilePoint(corner, zoom) : null;
         const selection = point
           ? { region: moveMapSheetSelection(drag.region, point[0] - drag.anchor[0],
             point[1] - drag.anchor[1]), limited: false }
@@ -314,7 +368,7 @@ export function selectMapSheetRegion(map, signal, suggestedTitle, maxTiles) {
         let anchor;
         if (direction === 'move') {
           try {
-            anchor = tilePoint(pointerPoint(event));
+            anchor = tilePoint(pointerPoint(event), zoom);
           } catch (error) {
             status.setAttribute('role', 'alert');
             status.textContent = error.message;
@@ -361,8 +415,8 @@ export function selectMapSheetRegion(map, signal, suggestedTitle, maxTiles) {
         const edgeX = direction.includes('w') ? region.minX : region.maxX + 1;
         const edgeY = direction.includes('n') ? region.minY : region.maxY + 1;
         const selection = resizeMapSheetSelection(region, direction,
-          [longitude(Math.max(0, Math.min(TILE_COUNT, edgeX + delta[0]))),
-            latitude(Math.max(0, Math.min(TILE_COUNT, edgeY + delta[1])))], maxTiles);
+          [longitude(Math.max(0, Math.min(2 ** zoom, edgeX + delta[0])), zoom),
+            latitude(Math.max(0, Math.min(2 ** zoom, edgeY + delta[1])), zoom)], maxTiles);
         region = selection.region;
         showSelection(selection.limited);
         draw();
@@ -408,15 +462,15 @@ export function selectMapSheetRegion(map, signal, suggestedTitle, maxTiles) {
 }
 
 export function mapSheetAlignment(region, id, title) {
-  const { minX, minY, width, height } = region;
+  const { minX, minY, width, height, zoom } = region;
   return {
     properties: {
       title, url: `/tmpgeo/${encodeURIComponent(id)}`, taskid: id,
       x1: 0, y1: 0, x2: width - 1, y2: height - 1,
-      lat1: latitude(minY), lng1: longitude(minX),
+      lat1: latitude(minY, zoom), lng1: longitude(minX, zoom),
       // The opposite reference is the last pixel, not the outer tile edge.
-      lat2: latitude(minY + (height - 1) / TILE_SIZE),
-      lng2: longitude(minX + (width - 1) / TILE_SIZE),
+      lat2: latitude(minY + (height - 1) / TILE_SIZE, zoom),
+      lng2: longitude(minX + (width - 1) / TILE_SIZE, zoom),
     },
   };
 }
@@ -477,7 +531,7 @@ export async function renderMapSheet(region, layer, signal, progress, maxTiles) 
     throw new Error('Map sheets require a positive integer mapsheetmaxsize setting.');
   }
   if (region.count > maxTiles || region.count < 1) {
-    throw new Error(`Select an area containing at most ${maxTiles} zoom-${MAX_ZOOM} tiles.`);
+    throw new Error(`Select an area containing at most ${maxTiles} zoom-${region.zoom} tiles.`);
   }
   const layers = Array.isArray(layer) ? layer : layer ? [layer] : [];
   if (!layers.length) throw new Error('Enable a Strava heatmap layer before saving a map sheet.');
@@ -521,7 +575,7 @@ export async function renderMapSheet(region, layer, signal, progress, maxTiles) 
       const { x, y } = jobs[next++];
       tileContext.clearRect(0, 0, TILE_SIZE, TILE_SIZE);
       for (const source of sources) {
-        const blob = await request(slideTileURL(source, x, y, MAX_ZOOM), {
+        const blob = await request(slideTileURL(source, x, y, region.zoom), {
           credentials: 'omit',
         }, controller.signal, 20000, (response) => response.blob());
         const image = await createImageBitmap(blob);
@@ -606,7 +660,7 @@ export function mapSheetAvailability({ pro, accountId, layer, busy }, maxTiles) 
   }
   return {
     enabled: true, pro: true,
-    message: `Adjust an area of up to ${maxTiles} zoom-${MAX_ZOOM} heatmap tiles to save privately.`,
+    message: `Adjust an area of up to ${maxTiles} heatmap tiles at your chosen resolution to save privately.`,
   };
 }
 

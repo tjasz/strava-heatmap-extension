@@ -129,7 +129,8 @@
   margin-bottom: 8px;
 }
 
-.strava-heatmap-map-sheet-name input {
+.strava-heatmap-map-sheet-name input,
+.strava-heatmap-map-sheet-name select {
   display: block;
   box-sizing: border-box;
   width: 100%;
@@ -142,7 +143,8 @@
   font: inherit;
 }
 
-.strava-heatmap-map-sheet-name input:focus {
+.strava-heatmap-map-sheet-name input:focus,
+.strava-heatmap-map-sheet-name select:focus {
   outline: 2px solid #cc5d31;
   outline-offset: -2px;
 }

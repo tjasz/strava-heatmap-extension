@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   mapSheetRegion, mapSheetAlignment, colorizeMapSheetPixels,
@@ -34,9 +34,17 @@ function globalValue(t, name, value) {
   });
 }
 
+beforeEach((t) => {
+  const values = new Map();
+  globalValue(t, 'localStorage', {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, String(value)),
+  });
+});
+
 test('tile selection covers partial tiles and excludes touching edges', () => {
   assert.deepEqual(region, {
-    minX: 6200, maxX: 6201, minY: 12000, maxY: 12002,
+    minX: 6200, maxX: 6201, minY: 12000, maxY: 12002, zoom: 15,
     columns: 2, rows: 3, count: 6, width: 1024, height: 1536,
   });
   assert.equal(mapSheetRegion(boundsFor(6200.2, 12000.2, 1, 1)).count, 4);
@@ -165,7 +173,7 @@ test('configured tile limits replace 100 for selection, resizing, and availabili
       assert.ok(resized.region.count >= 1 && resized.region.count <= maxTiles, `${maxTiles}: ${handle}`);
     }
     assert.match(mapSheetAvailability({ pro: true, accountId: 'account', layer }, maxTiles).message,
-      new RegExp(`up to ${maxTiles} zoom-15`));
+      new RegExp(`up to ${maxTiles} heatmap tiles`));
   }
 });
 
@@ -193,6 +201,35 @@ test('automatic alignment maps actual image pixels to exact Mercator coordinates
     assert.equal(p.url, '/tmpgeo/task');
     assert.equal(p.taskid, 'task');
     assert.equal(p.title, 'title');
+  }
+});
+
+test('every resolution uses its own tile grid for selection, resizing, moving, and alignment', () => {
+  for (let zoom = 3; zoom <= 15; zoom++) {
+    const scale = 2 ** (15 - zoom);
+    const area = mapSheetRegion(boundsFor(2 * scale, 3 * scale, 2 * scale, 3 * scale), zoom);
+    assert.deepEqual(area, {
+      minX: 2, maxX: 3, minY: 3, maxY: 5, zoom,
+      columns: 2, rows: 3, count: 6, width: 1024, height: 1536,
+    });
+    const resized = resizeWithLimit(area, 'se', [lng(8 * scale), lat(8 * scale)], 12);
+    assert.equal(resized.region.zoom, zoom);
+    assert.ok(resized.region.count <= 12);
+    assert.equal(resized.region.minX, 2);
+    assert.equal(resized.region.minY, 3);
+    const moved = moveMapSheetSelection(area, 1e6, 1e6);
+    assert.equal(moved.maxX, 2 ** zoom - 1);
+    assert.equal(moved.maxY, 2 ** zoom - 1);
+    assert.equal(moved.zoom, zoom);
+    assert.equal(moved.count, 6);
+    const limited = limitWithLimit([lng(0), lat(0)], [lng(32768), lat(32768)], 25, zoom);
+    assert.equal(limited.region.zoom, zoom);
+    assert.ok(limited.region.count <= 25);
+    const { properties: p } = mapSheetAlignment(area, 'task', 'title');
+    assert.ok(Math.abs(p.lng1 - lng(2 * scale)) < 1e-10);
+    assert.ok(Math.abs(p.lat1 - lat(3 * scale)) < 1e-10);
+    assert.ok(Math.abs(p.lng2 - lng((2 + 1023 / 512) * scale)) < 1e-10);
+    assert.ok(Math.abs(p.lat2 - lat((3 + 1535 / 512) * scale)) < 1e-10);
   }
 });
 
@@ -289,6 +326,23 @@ test('rendering enforces the configured limit and can capture more than 100 tile
   for (const limit of [0, -1, 1.5, '100', undefined]) {
     await assert.rejects(renderWithLimit(region, layer, signal, () => {}, limit), /positive integer/);
   }
+});
+
+test('rendering requests the selected resolution at every supported zoom', async (t) => {
+  const fixture = canvasFixture(t);
+  const requests = [];
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    requests.push(url);
+    return new Response('png');
+  });
+  for (let zoom = 3; zoom <= 15; zoom++) {
+    const scale = 2 ** (15 - zoom);
+    const selected = mapSheetRegion(boundsFor(2 * scale, 3 * scale, scale, scale), zoom);
+    await renderMapSheet(selected, layer, new AbortController().signal, () => {});
+    assert.match(requests.at(-1), new RegExp(`/run/grayscale/${zoom}/2/3\\.png`));
+  }
+  assert.equal(requests.length, 13);
+  assert.equal(fixture.closed(), 13);
 });
 
 test('map sheets composite every enabled layer in configured order at its own opacity', async (t) => {
@@ -597,14 +651,54 @@ function resizeSelection(container) {
 }
 
 function selectionControls(panel) {
-  const [heading, instructions, nameLabel, status, actions] = panel.children;
+  const [heading, instructions, nameLabel, resolutionLabel, status, actions] = panel.children;
   return {
-    heading, instructions, nameInput: nameLabel.children[0], status,
+    heading, instructions, nameInput: nameLabel.children[0], resolution: resolutionLabel.children[0], status,
     cancel: actions.children[0], confirm: actions.children[1],
   };
 }
 
 for (const renderer of ['google', 'leaflet']) {
+  test(`${renderer} resolution defaults to 15, changes the grid, enforces limits, and persists across dialogs`, async (t) => {
+    const document = new Element('document');
+    document.createElement = (tag) => new Element(tag);
+    globalValue(t, 'document', document);
+    const fixture = selectionMap(renderer);
+    globalValue(t, 'window', { google: fixture.google });
+    const work = selectMapSheetRegion(fixture.map, new AbortController().signal, 'Resolution test');
+    const { resolution, instructions, status, confirm } = selectionControls(selectionPanel(fixture.container));
+    assert.equal(resolution.value, '15');
+    assert.deepEqual(resolution.children.map((option) => option.value),
+      Array.from({ length: 13 }, (_, index) => String(index + 3)));
+    const oldBox = { ...selectionBox(fixture.container).style };
+    resolution.value = '14';
+    resolution.handlers.change();
+    assert.match(instructions.textContent, /zoom-14 tiles/);
+    assert.ok(Number(status.textContent.split('/')[0]) < 100);
+    assert.notEqual(selectionBox(fixture.container).style.width, oldBox.width);
+    resolution.value = '3';
+    resolution.handlers.change();
+    assert.match(status.textContent, /^1\/100 tiles selected/);
+    assert.equal(localStorage.getItem('strava-heatmap-extension:caltopo-map-sheet-resolution'), '3');
+    confirm.click();
+    const selected = (await work).region;
+    assert.equal(selected.zoom, 3);
+    assert.equal(selected.count, 1);
+    const reopened = selectMapSheetRegion(fixture.map, new AbortController().signal, 'Restored');
+    const restored = selectionControls(selectionPanel(fixture.container));
+    assert.equal(restored.resolution.value, '3');
+    restored.resolution.value = '15';
+    restored.resolution.handlers.change();
+    assert.match(restored.status.textContent, /Limit reached/);
+    assert.equal(restored.confirm.disabled, false);
+    const move = selectionBox(fixture.container).children.at(-1);
+    move.handlers.keydown({ key: 'ArrowRight', preventDefault() {}, stopPropagation() {} });
+    restored.confirm.click();
+    const enlarged = (await reopened).region;
+    assert.equal(enlarged.zoom, 15);
+    assert.ok(enlarged.count >= 1 && enlarged.count <= 100);
+  });
+
   test(`${renderer} selection uses the configured limit for its initial size, text, and keyboard resizing`, async (t) => {
     const document = new Element('document');
     document.createElement = (tag) => new Element(tag);
@@ -647,7 +741,7 @@ for (const renderer of ['google', 'leaflet']) {
     const { heading, instructions, nameInput, status, confirm } = selectionControls(panel);
     assert.equal(heading.textContent, 'Map Sheet from Strava Heatmap');
     assert.doesNotMatch(instructions.textContent, /zoom buttons|mouse wheel/);
-    assert.equal(panel.children.length, 5, 'no separate zoom controls');
+    assert.equal(panel.children.length, 6, 'includes a resolution dropdown');
     assert.match(confirm.className, /strava-heatmap-map-sheet-primary/);
     assert.equal(confirm.type, 'button');
     assert.equal(box.children.length, 9);
@@ -897,6 +991,39 @@ for (const renderer of ['google', 'leaflet']) {
     assert.equal(region.minX, 16380);
   });
 }
+
+test('invalid saved resolutions fall back to 15 and storage failures are logged without blocking selection', async (t) => {
+  const document = new Element('document');
+  document.createElement = (tag) => new Element(tag);
+  globalValue(t, 'document', document);
+  const warnings = [];
+  t.mock.method(console, 'warn', (...args) => warnings.push(args));
+  for (const stored of ['2', '16', '3.5', '', 'invalid']) {
+    localStorage.setItem('strava-heatmap-extension:caltopo-map-sheet-resolution', stored);
+    const fixture = selectionMap('leaflet');
+    const work = selectMapSheetRegion(fixture.map, new AbortController().signal, 'Invalid stored resolution');
+    const { resolution, cancel } = selectionControls(selectionPanel(fixture.container));
+    assert.equal(resolution.value, '15');
+    cancel.click();
+    assert.equal(await work, null);
+  }
+  assert.equal(warnings.length, 5);
+  globalValue(t, 'localStorage', {
+    getItem() { throw new Error('Storage unavailable'); },
+    setItem() { throw new Error('Storage unavailable'); },
+  });
+  const fixture = selectionMap('leaflet');
+  const work = selectMapSheetRegion(fixture.map, new AbortController().signal, 'Unavailable storage');
+  const { resolution, confirm } = selectionControls(selectionPanel(fixture.container));
+  assert.equal(resolution.value, '15');
+  resolution.value = '10';
+  resolution.handlers.change();
+  confirm.click();
+  assert.equal((await work).region.zoom, 10);
+  assert.equal(warnings.length, 7);
+  assert.match(warnings[5][0], /Could not restore/);
+  assert.match(warnings[6][0], /Could not save/);
+});
 
 test('initial selection waits for the Google projection and recovers when the map loads', async (t) => {
   const document = new Element('document');
