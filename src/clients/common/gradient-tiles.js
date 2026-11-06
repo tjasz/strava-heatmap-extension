@@ -37,7 +37,7 @@ function getColorRamp(url, recolorPalettes) {
   if (typeof url !== 'string') return null;
 
   // Fallback images use the canvas path even on clients with CSS palettes.
-  const fallback = /^https:\/\/raw\.githubusercontent\.com\/tjasz\/strava-heatmap-extension\/refs\/(?:tags|heads)\/v[^/]+\/assets\/heatmap-fallback-grayscale\.png(?:[?#]|$)/.test(url);
+  const fallback = /^https:\/\/raw\.githubusercontent\.com\/tjasz\/strava-heatmap-extension\/refs\/(?:tags|heads)\/[^/]+\/assets\/heatmap-fallback-grayscale\.png(?:[?#]|$)/.test(url);
   if (
     !fallback && (
       !recolorPalettes ||

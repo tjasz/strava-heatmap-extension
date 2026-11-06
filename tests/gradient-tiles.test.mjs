@@ -151,6 +151,28 @@ test('fallback fetches use every palette entry, including on CSS clients', async
   }
 });
 
+test('fallback palette recoloring accepts non-versioned branches and tags', async (t) => {
+  for (const recolorPalettes of [false, true]) {
+    await t.test(String(recolorPalettes), async (t) => {
+      setup(t, [0, 0, 0, 255, 255, 255, 255, 255], recolorPalettes);
+      for (const reference of [
+        'heads/caltopo',
+        'heads/fixes/fallback',
+        'tags/v0.15.2.0',
+        'tags/fallback-preview',
+      ]) {
+        const url = `https://raw.githubusercontent.com/tjasz/strava-heatmap-extension/refs/${reference}/assets/heatmap-fallback-grayscale.png?heatmap-color=pink&z=12&x=1&y=2`;
+        const response = await window.fetch(url);
+        assert.deepEqual(await bytes(await response.blob()),
+          [0, 255].flatMap((intensity) => PALETTES.pink
+            .slice(intensity * 8, (intensity + 1) * 8)
+            .match(/../g).map((hex) => Number.parseInt(hex, 16))),
+          reference);
+      }
+    });
+  }
+});
+
 test('fallback images retain custom gradient stops and opacity without authentication', async (t) => {
   for (const recolorPalettes of [false, true]) {
     await t.test(String(recolorPalettes), async (t) => {
