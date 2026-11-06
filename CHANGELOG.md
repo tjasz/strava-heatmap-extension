@@ -19,6 +19,7 @@ Layer Configuration:
 Other improvements:
 - Switch defaults to Strava's light heatmap palettes for better visibility on light backgrounds.
 - Improve reliability of weekly heatmap layers.
+- Color the logged-out sign-in message with the layer's palette or custom gradient.
 
 ### `0.15.2` (2026-11-03)
 

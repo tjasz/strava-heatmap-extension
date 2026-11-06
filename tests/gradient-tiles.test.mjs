@@ -90,8 +90,8 @@ function setup(t, pixels, recolorPalettes = true, fetchTile) {
   };
 }
 
-const tile = (color, period = 'global') => getLayerConfigs(
-  [{ activity: 'ride', color, period }], true, 'test', true
+const tile = (color, period = 'global', authenticated = true) => getLayerConfigs(
+  [{ activity: 'ride', color, period }], authenticated, 'test', true
 )[0].template.replace('{z}', '12').replace('{x}', '1').replace('{y}', '2');
 const bytes = async (blob) => [...new Uint8Array(await blob.arrayBuffer())];
 
@@ -129,14 +129,85 @@ test('custom gradients retain interpolation and source alpha with either install
   }
 });
 
-test('CSS clients leave named palettes untouched; unrelated URLs and fallback images bypass recoloring', async (t) => {
+test('fallback fetches use every palette entry, including on CSS clients', async (t) => {
+  const pixels = Array.from({ length: 256 }, (_, intensity) =>
+    [intensity, intensity, intensity, 255]).flat();
+  for (const recolorPalettes of [false, true]) {
+    await t.test(String(recolorPalettes), async (t) => {
+      const state = setup(t, pixels, recolorPalettes);
+      for (const [color, ramp] of Object.entries(PALETTES)) {
+        for (const period of ['global', 'weekly']) {
+          const url = tile(color, period, false);
+          assert.match(url, /\/heatmap-fallback-grayscale\.png\?/);
+          assert.equal(new URL(url).searchParams.get('heatmap-color'), color);
+          const response = await window.fetch(new Request(url));
+          assert.deepEqual(await bytes(await response.blob()),
+            ramp.match(/../g).map((hex) => Number.parseInt(hex, 16)),
+            `${color} ${period}`);
+        }
+      }
+      assert.equal(state.closed(), Object.keys(PALETTES).length * 2);
+    });
+  }
+});
+
+test('fallback images retain custom gradient stops and opacity without authentication', async (t) => {
+  for (const recolorPalettes of [false, true]) {
+    await t.test(String(recolorPalettes), async (t) => {
+      setup(t, [0, 0, 0, 255, 255, 255, 255, 255], recolorPalettes);
+      for (const period of ['global', 'weekly']) {
+        for (const legacy of [false, true]) {
+          const [config] = getLayerConfigs([{
+            activity: 'ride', color: 'grayscale', period,
+            gradientStops: [
+              { color: '#123456', opacity: 0 },
+              { color: '#abcdef', opacity: 0.5 },
+            ],
+          }], false, 'test', true, legacy);
+          assert.ok(config.template.endsWith('#strava-gradient=12345600-abcdef80'));
+          assert.deepEqual(config.zoomExtent, [0, 20]);
+          const response = await window.fetch(config.template);
+          assert.deepEqual(await bytes(await response.blob()), [
+            0x12, 0x34, 0x56, 0, 0xab, 0xcd, 0xef, 128,
+          ]);
+        }
+      }
+    });
+  }
+});
+
+test('fallback image sources and attribute mutations use palettes on CSS clients', async (t) => {
+  const state = setup(t, [0, 0, 0, 255, 128, 128, 128, 255, 255, 255, 255, 255], false);
+  for (const mutation of [false, true]) {
+    const image = new state.Image();
+    const url = tile('pink', mutation ? 'weekly' : 'global', false);
+    if (mutation) {
+      image.source = url;
+      state.notify([{ type: 'attributes', target: image }]);
+    } else {
+      image.src = url;
+    }
+    assert.equal(image.style.visibility, 'hidden');
+    await image.loaded;
+    assert.equal(image.style.visibility, 'visible');
+    assert.deepEqual(await bytes(state.blobs.at(-1)), [0, 128, 255].flatMap((intensity) =>
+      PALETTES.pink.slice(intensity * 8, (intensity + 1) * 8)
+        .match(/../g).map((hex) => Number.parseInt(hex, 16))));
+    assert.equal(state.revoked.at(-1), image.src);
+  }
+});
+
+test('CSS clients leave named Strava palettes untouched; unrelated and old fallback URLs bypass recoloring', async (t) => {
   for (const recolorPalettes of [false, true]) {
     await t.test(String(recolorPalettes), async (t) => {
       const state = setup(t, [128, 128, 128, 255], recolorPalettes);
       const urls = [
         'https://example.com/weeklyheat/1/2/3?heatmap-color=pink',
         'https://raw.githubusercontent.com/example/fallback.png',
+        'https://raw.githubusercontent.com/example/heatmap-fallback-grayscale.png?heatmap-color=pink',
+        'https://raw.githubusercontent.com/tjasz/strava-heatmap-extension/refs/tags/vtest/assets/heatmap-fallback.png?heatmap-color=pink',
         tile('unknown'),
+        tile('unknown', 'global', false),
       ];
       if (!recolorPalettes) urls.push(tile('pink'));
       for (const url of urls) {

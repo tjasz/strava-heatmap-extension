@@ -198,7 +198,7 @@ function getLayerConfig(
     }`,
     description: `Shows ${activityName.toLowerCase()} aggregated, public Strava activities over the last ${period === 'weekly' ? 'week (Strava Premium subscribers only)' : 'year'} in ${colorEmoji} color.`,
     template:
-      authenticated && color === 'grayscale'
+      color === 'grayscale'
         ? `${template}#strava-gradient=${gradientStops
             .map(formatGradientStop)
             .join('-')}`
@@ -211,7 +211,7 @@ function getLayerConfig(
 // and lets the client match tiles to their palette (see colors.css)
 function getTileTemplate(activity, color, timestamp, authenticated, version, legacy, period) {
   if (!authenticated) {
-    return `https://raw.githubusercontent.com/tjasz/strava-heatmap-extension/refs/tags/v${version}/assets/heatmap-fallback_light.png?v=1&z={z}&x={x}&y={y}`;
+    return `https://raw.githubusercontent.com/tjasz/strava-heatmap-extension/refs/tags/v${version}/assets/heatmap-fallback-grayscale.png?v=1&${COLOR_PARAM}=${color}&z={z}&x={x}&y={y}`;
   }
   if (period === 'weekly') {
     const colormap = legacy ? LEGACY_COLORS[color.replace(/_dark$/, '')] : 'grayscale';

@@ -759,7 +759,7 @@ for (const renderer of ['leaflet', 'google']) {
     f.row(0).input.value = '25';
     f.row(0).input.handlers.input();
     f.authChanged(false);
-    assert.ok(f.getSheetLayers().every((layer) => layer.template.includes('heatmap-fallback.png')));
+    assert.ok(f.getSheetLayers().every((layer) => layer.template.includes('heatmap-fallback-grayscale.png')));
     assert.equal(f.mapOverlays.length, 2);
     f.authChanged(true);
     assert.equal(f.row(0).input.value, '25');

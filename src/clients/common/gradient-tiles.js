@@ -34,10 +34,15 @@ function hexToRgba(hex) {
 function getColorRamp(url, recolorPalettes) {
   const gradient = getGradient(url);
   if (gradient) return { stops: gradient, palette: false };
+  if (typeof url !== 'string') return null;
+
+  // Fallback images use the canvas path even on clients with CSS palettes.
+  const fallback = /^https:\/\/raw\.githubusercontent\.com\/tjasz\/strava-heatmap-extension\/refs\/(?:tags|heads)\/v[^/]+\/assets\/heatmap-fallback-grayscale\.png(?:[?#]|$)/.test(url);
   if (
-    !recolorPalettes ||
-    typeof url !== 'string' ||
-    !/^https:\/\/content-[a-c]\.strava\.com\/(?:identified\/globalheat|weeklyheat)\//.test(url)
+    !fallback && (
+      !recolorPalettes ||
+      !/^https:\/\/content-[a-c]\.strava\.com\/(?:identified\/globalheat|weeklyheat)\//.test(url)
+    )
   ) return null;
 
   const color = new URL(url).searchParams.get('heatmap-color');

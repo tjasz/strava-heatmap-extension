@@ -211,8 +211,8 @@ for (const [renderer, page] of ['leaflet', 'google'].flatMap((renderer) => [
     assert.match(tileURL(), /\/ride\/grayscale\/.*heatmap-color=purple&/);
     message('authStatusChanged', false);
     assertTiling(20);
-    assert.match(tileURL(), /heatmap-fallback\.png/);
-    assert.doesNotMatch(tileURL(), /heatmap-color=/);
+    assert.match(tileURL(), /heatmap-fallback-grayscale\.png/);
+    assert.equal(new URL(tileURL()).searchParams.get('heatmap-color'), 'purple');
     message('authStatusChanged', true);
     assertTiling(15);
     assert.match(tileURL(), /\/ride\/grayscale\/.*heatmap-color=purple&/);

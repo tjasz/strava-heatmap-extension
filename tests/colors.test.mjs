@@ -225,7 +225,8 @@ test('every named palette matches its tile URL; custom gradients are not filtere
   assert.ok(custom.template.endsWith('#strava-gradient=12345600-abcdefff'));
   assert.ok(rules.every(([, selector]) => !custom.template.includes(selector)));
   const [unauthenticated] = getLayerConfigs(presets, false, '0.14.0');
-  assert.ok(rules.every(([, selector]) => !unauthenticated.template.includes(selector)));
+  assert.equal(new URL(unauthenticated.template).searchParams.get('heatmap-color'), presets[0].color);
+  assert.doesNotMatch(unauthenticated.template, /\/(?:globalheat|weeklyheat)\//);
 });
 
 test('GPX Studio requests grayscale tiles and enables exact palette recoloring', async () => {
