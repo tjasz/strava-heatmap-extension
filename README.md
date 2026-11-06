@@ -305,7 +305,9 @@ If a single tile exceeds the view, zoom out to see all its handles. Drag the cen
 handle to move the box in whole-tile steps without changing its dimensions, or its
 edge and corner handles to resize it. The center handle also supports arrow keys.
 The **Sheet name** field suggests
-a name containing the activity, color, and UTC date; keep it or enter your own
+a name containing the activity, color, resolution, and UTC date, such as
+`All Foot Sports sunset Z15 2026-11-05`. The suggested name follows resolution
+changes unless you have customized it. Keep it or enter your own
 non-empty name, then choose **Capture**.
 The box stops growing before it would include more than `mapsheetmaxsize` tiles at
 the selected resolution. Changing resolution snaps the current area to the new

@@ -23,7 +23,7 @@ const renderMapSheet = (region, layer, signal, progress, maxTiles = 100) =>
 const limitMapSheetSelection = (anchor, corner, maxTiles = 100) => limitWithLimit(anchor, corner, maxTiles);
 const resizeMapSheetSelection = (region, handle, point, maxTiles = 100) =>
   resizeWithLimit(region, handle, point, maxTiles);
-const selectMapSheetRegion = (map, signal, title, maxTiles = 100) => selectWithLimit(map, signal, title, maxTiles);
+const selectMapSheetRegion = (map, signal, title, maxTiles = 100) => selectWithLimit(map, signal, () => title, maxTiles);
 
 function globalValue(t, name, value) {
   const previous = Object.getOwnPropertyDescriptor(globalThis, name);
@@ -659,6 +659,38 @@ function selectionControls(panel) {
 }
 
 for (const renderer of ['google', 'leaflet']) {
+  test(`${renderer} suggested names follow restored and changed resolutions without overwriting custom names`, async (t) => {
+    const document = new Element('document');
+    document.createElement = (tag) => new Element(tag);
+    globalValue(t, 'document', document);
+    const fixture = selectionMap(renderer);
+    globalValue(t, 'window', { google: fixture.google });
+    const getSuggestedTitle = (zoom) => `All Foot Sports sunset Z${zoom} 2026-11-05`;
+    for (const stored of [null, '9']) {
+      globalValue(t, 'localStorage', {
+        getItem: () => stored,
+        setItem() {},
+      });
+      const work = selectWithLimit(fixture.map, new AbortController().signal, getSuggestedTitle, 100);
+      const { nameInput, resolution, confirm } = selectionControls(selectionPanel(fixture.container));
+      assert.equal(nameInput.value, getSuggestedTitle(stored === null ? 15 : 9));
+      for (const zoom of [14, 3, 15]) {
+        resolution.value = String(zoom);
+        resolution.handlers.change();
+        assert.equal(nameInput.value, getSuggestedTitle(zoom));
+      }
+      nameInput.value = 'My custom sheet';
+      nameInput.handlers.input();
+      resolution.value = '12';
+      resolution.handlers.change();
+      assert.equal(nameInput.value, 'My custom sheet');
+      confirm.click();
+      const result = await work;
+      assert.equal(result.title, 'My custom sheet');
+      assert.equal(result.region.zoom, 12);
+    }
+  });
+
   test(`${renderer} resolution defaults to 15, changes the grid, enforces limits, and persists across dialogs`, async (t) => {
     const document = new Element('document');
     document.createElement = (tag) => new Element(tag);
@@ -1250,7 +1282,7 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
       button.handlers.click();
       const controls = selectionControls(selectionPanel(selection.container));
       const expected = `All Foot Sports${period === 'weekly' ? ' (Weekly)' : ''} ${gradientName}` +
-        `${multiple ? ' + All Foot Sports orange' : ''} ${new Date().toISOString().slice(0, 10)}`;
+        `${multiple ? ' + All Foot Sports orange' : ''} Z15 ${new Date().toISOString().slice(0, 10)}`;
       assert.equal(controls.nameInput.value, expected);
       controls.cancel.handlers.click();
       await new Promise((resolve) => setImmediate(resolve));
@@ -1282,7 +1314,7 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   assert.equal(requests, 0, 'no downloads or uploads before confirmation');
   assert.equal(body.children.length, 0);
   const { nameInput, confirm } = selectionControls(panel);
-  assert.match(nameInput.value, /^All Foot Sports orange \d{4}-\d{2}-\d{2}$/);
+  assert.match(nameInput.value, /^All Foot Sports orange Z15 \d{4}-\d{2}-\d{2}$/);
   expectedTitle = 'Wasatch & <hike> "Loop"';
   nameInput.value = `  ${expectedTitle}  `;
   nameInput.handlers.input();
@@ -1319,7 +1351,7 @@ test('Add menu selects at any zoom, waits for confirmation, then saves privately
   const nextPanel = resizeSelection(selection.container);
   const nextControls = selectionControls(nextPanel);
   expectedTitle = nextControls.nameInput.value;
-  assert.match(expectedTitle, /^All Foot Sports orange \d{4}-\d{2}-\d{2}$/);
+  assert.match(expectedTitle, /^All Foot Sports orange Z15 \d{4}-\d{2}-\d{2}$/);
   nextControls.confirm.handlers.click();
   await new Promise((resolve) => setImmediate(resolve));
   const failedDialog = body.children[1];

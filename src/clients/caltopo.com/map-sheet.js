@@ -128,7 +128,7 @@ export function moveMapSheetSelection(region, dx, dy) {
   return regionFromTiles(x, x + region.columns - 1, y, y + region.rows - 1, region.zoom);
 }
 
-export function selectMapSheetRegion(map, signal, suggestedTitle, maxTiles) {
+export function selectMapSheetRegion(map, signal, getSuggestedTitle, maxTiles) {
   let zoom = MAX_ZOOM;
   try {
     const stored = localStorage.getItem(RESOLUTION_KEY);
@@ -203,6 +203,7 @@ export function selectMapSheetRegion(map, signal, suggestedTitle, maxTiles) {
     const nameInput = document.createElement('input');
     nameInput.type = 'text';
     nameInput.required = true;
+    let suggestedTitle = getSuggestedTitle(zoom);
     nameInput.value = suggestedTitle;
     nameInput.addEventListener('input', () => nameInput.setCustomValidity(''));
     nameLabel.appendChild(nameInput);
@@ -288,6 +289,9 @@ export function selectMapSheetRegion(map, signal, suggestedTitle, maxTiles) {
       releasePointer();
       const previous = region;
       zoom = Number(resolution.value);
+      const nextTitle = getSuggestedTitle(zoom);
+      if (nameInput.value === suggestedTitle) nameInput.value = nextTitle;
+      suggestedTitle = nextTitle;
       updateInstructions();
       if (previous) {
         const selection = limitMapSheetSelection(
@@ -773,7 +777,8 @@ export function installCalTopoMapSheets(getLayers, getMap, maxTiles = 0) {
     const layers = Array.isArray(selected) ? selected : [selected];
     const names = layers.map((layer) =>
       `${layer.name.replace(/^\S+\s*/, '')} ${layer.gradientName ?? new URL(layer.template).searchParams.get('heatmap-color')}`);
-    const suggestedTitle = `${names.join(' + ')} ${new Date().toISOString().slice(0, 10)}`;
+    const date = new Date().toISOString().slice(0, 10);
+    const getSuggestedTitle = (zoom) => `${names.join(' + ')} Z${zoom} ${date}`;
     const accountId = window.sarsoft.account.id;
     const controller = new AbortController();
     const dialog = document.createElement('dialog');
@@ -781,7 +786,7 @@ export function installCalTopoMapSheets(getLayers, getMap, maxTiles = 0) {
     const heading = document.createElement('h2');
     heading.textContent = 'Map Sheet from Strava Heatmap';
     const name = document.createElement('p');
-    name.textContent = suggestedTitle;
+    name.textContent = getSuggestedTitle(MAX_ZOOM);
     const privacy = document.createElement('p');
     privacy.textContent = 'Share publicly: Off. Heatmap map sheets are saved privately.';
     const status = document.createElement('p');
@@ -811,7 +816,7 @@ export function installCalTopoMapSheets(getLayers, getMap, maxTiles = 0) {
       releaseCreation = reserveMapSheetCreation();
       if (!releaseCreation) return;
       const progress = (message) => { status.textContent = message; };
-      const selection = await selectMapSheetRegion(getMap(), controller.signal, suggestedTitle, maxTiles);
+      const selection = await selectMapSheetRegion(getMap(), controller.signal, getSuggestedTitle, maxTiles);
       if (!selection) return;
       const { region, title: sheetTitle } = selection;
       name.textContent = sheetTitle;
