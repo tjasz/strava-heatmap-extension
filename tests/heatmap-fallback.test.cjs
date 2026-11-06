@@ -4,7 +4,7 @@ const path = require('node:path');
 const test = require('node:test');
 const sharp = require('sharp');
 
-test('fallback PNG has centered white text, a mid-gray outline and a blurred dark-gray shadow on black', async () => {
+test('fallback PNG has centered white text with only a blurred dark-gray shadow on black', async () => {
   const asset = path.resolve(__dirname, '..', 'assets', 'heatmap-fallback-grayscale');
   const svg = await fs.readFile(`${asset}.svg`, 'utf8');
   const message = [...svg.matchAll(/<text[^>]*>([^<]+)<\/text>/g)]
@@ -15,8 +15,9 @@ test('fallback PNG has centered white text, a mid-gray outline and a blurred dar
   assert.match(svg, /<feGaussianBlur stdDeviation="2"/);
   assert.match(svg, /<feOffset dx="0" dy="2"/);
   assert.match(svg, /<use href="#message" fill="#404040" stroke="#404040"[^>]+filter="url\(#shadow\)"/);
-  assert.ok(svg.indexOf('filter="url(#shadow)"') < svg.indexOf('stroke="#808080"'));
-  assert.match(svg, /<use href="#message" fill="none" stroke="#808080" stroke-width="3"/);
+  assert.ok(svg.indexOf('filter="url(#shadow)"') < svg.indexOf('fill="#fff"'));
+  assert.doesNotMatch(svg, /#808080/);
+  assert.equal([...svg.matchAll(/<use\b/g)].length, 2, 'only shadow and white text layers');
   assert.match(svg, /<use href="#message" fill="#fff"/);
   const image = sharp(`${asset}.png`);
   const metadata = await image.metadata();
@@ -27,7 +28,6 @@ test('fallback PNG has centered white text, a mid-gray outline and a blurred dar
   assert.equal(info.channels, 3);
   let minX = 256, minY = 256, maxX = -1, maxY = -1;
   let white = 0;
-  let midGray = 0;
   let antialiased = 0;
   for (let y = 0; y < 256; y++) {
     for (let x = 0; x < 256; x++) {
@@ -44,12 +44,10 @@ test('fallback PNG has centered white text, a mid-gray outline and a blurred dar
       if (intensity > 0) {
         if (intensity === 255) white++;
         else antialiased++;
-        if (intensity === 128) midGray++;
       }
     }
   }
   assert.ok(white > 0);
-  assert.ok(midGray >= 300, 'the outline must include a substantial solid mid-intensity region');
   assert.ok(antialiased > 0);
   assert.ok(minX >= 12 && maxX < 244, 'text must not touch the tile edges');
   assert.ok(Math.abs((minX + maxX) / 2 - 127.5) <= 2, 'horizontally centered');
@@ -61,6 +59,6 @@ test('fallback PNG has centered white text, a mid-gray outline and a blurred dar
       if (intensity > 0 && intensity <= 64) shadowPixels++;
     }
   }
-  assert.ok(shadowPixels >= 20, 'a blurred dark shadow must extend below the text outline');
+  assert.ok(shadowPixels >= 20, 'a blurred dark shadow must extend below the text');
   assert.equal(data[0], 0);
 });

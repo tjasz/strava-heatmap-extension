@@ -13,6 +13,5 @@
     </g>
   </defs>
   <use href="#message" fill="#404040" stroke="#404040" stroke-width="3" stroke-linejoin="round" filter="url(#shadow)"/>
-  <use href="#message" fill="none" stroke="#808080" stroke-width="3" stroke-linejoin="round"/>
   <use href="#message" fill="#fff"/>
 </svg>
