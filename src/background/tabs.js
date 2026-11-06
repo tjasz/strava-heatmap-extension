@@ -2,6 +2,15 @@ import { showNotification } from './notifications.js';
 
 let authNotificationId = null;
 
+export async function openSettings() {
+  await browser.windows.create({
+    url: browser.runtime.getURL('src/popups/settings.html'),
+    type: 'popup',
+    width: 615,
+    height: 770,
+  });
+}
+
 export async function redirectComplete(tabId, sender) {
   try {
     const tab = await browser.tabs.get(tabId);

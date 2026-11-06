@@ -9,7 +9,7 @@ import {
 import { showInstalledNotification } from './installs.js';
 import { migrateLayerPresets, requestLayerPresets, resetLayerPresets } from './layers.js';
 import { checkPermissions } from './permissions.js';
-import { redirectComplete, openLogin } from './tabs.js';
+import { redirectComplete, openLogin, openSettings } from './tabs.js';
 
 async function onMessage(message, sender) {
   const MESSAGE_HANDLERS = {
@@ -19,6 +19,7 @@ async function onMessage(message, sender) {
     expireCredentials,
     redirectComplete,
     openLogin,
+    openSettings,
   };
 
   if (MESSAGE_HANDLERS[message.type]) {

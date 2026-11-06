@@ -5,13 +5,19 @@ import vm from 'node:vm';
 
 const source = await readFile(new URL('../src/content/inject-client.js', import.meta.url), 'utf8');
 
-async function inject(stored, failure) {
+async function inject(stored, failure, host = 'caltopo.com') {
   const appended = [];
   const writes = [];
   const warnings = [];
   const errors = [];
+  const messages = [];
+  const listeners = {};
+  const window = {
+    location: { host, hash: '', origin: `https://${host}` },
+    addEventListener: (type, handler) => { listeners[type] = handler; },
+  };
   await vm.runInNewContext(source, {
-    window: { location: { host: 'caltopo.com', hash: '' } },
+    window,
     console: {
       debug() {}, log() {},
       warn: (...args) => warnings.push(args),
@@ -21,7 +27,11 @@ async function inject(stored, failure) {
       runtime: {
         getManifest: () => ({ version: '0' }),
         getURL: (path) => `chrome-extension://test/${path}`,
-        sendMessage: async ({ type }) => type === 'requestLayerPresets' ? 'run:orange' : true,
+        sendMessage: async ({ type }) => {
+          messages.push(type);
+          if (type === 'openSettings' && failure === 'settings') throw new Error('Popup failed');
+          return type === 'requestLayerPresets' ? 'run:orange' : true;
+        },
       },
       storage: { local: {
         get: async (key) => {
@@ -42,9 +52,36 @@ async function inject(stored, failure) {
   });
   return {
     script: appended.find((element) => element.type === 'module'),
-    writes, warnings, errors,
+    writes, warnings, errors, messages, listeners, window,
   };
 }
+
+test('CalTopo forwards only same-window, same-origin settings requests', async () => {
+  for (const host of ['caltopo.com', 'www.caltopo.com']) {
+    const f = await inject(0, undefined, host);
+    const event = {
+      source: f.window, origin: f.window.location.origin,
+      data: { type: 'stravaHeatmapOpenSettings' },
+    };
+    await f.listeners.message({ ...event, source: {} });
+    await f.listeners.message({ ...event, origin: 'https://other.example' });
+    await f.listeners.message({ ...event, data: { type: 'openLogin' } });
+    assert.ok(!f.messages.includes('openSettings'));
+    await f.listeners.message(event);
+    assert.equal(f.messages.filter((type) => type === 'openSettings').length, 1);
+  }
+  const other = await inject(0, undefined, 'brouter.de');
+  assert.equal(other.listeners.message, undefined);
+});
+
+test('settings popup failures are reported', async () => {
+  const f = await inject(0, 'settings');
+  await f.listeners.message({
+    source: f.window, origin: f.window.location.origin,
+    data: { type: 'stravaHeatmapOpenSettings' },
+  });
+  assert.match(f.errors[0][0], /Error opening heatmap settings/);
+});
 
 test('client injection persists a missing map-sheet limit as zero and passes it to CalTopo', async () => {
   const result = await inject();

@@ -351,6 +351,29 @@ function createRibbon() {
     heatmapHeading.id = SECTION_HEADING_ID;
     heatmapHeading.className = routeDiscoveryHeading.className;
     heatmapHeading.textContent = 'Strava Heatmap';
+    const settingsButton = document.createElement('button');
+    settingsButton.type = 'button';
+    settingsButton.className = 'strava-heatmap-settings';
+    settingsButton.title = 'Configure heatmap layers and gradients';
+    settingsButton.setAttribute('aria-label', settingsButton.title);
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    icon.setAttribute('viewBox', '0 0 70 70');
+    icon.setAttribute('aria-hidden', 'true');
+    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    group.setAttribute('transform', 'scale(0.9) translate(4,4)');
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', '35');
+    circle.setAttribute('cy', '35');
+    circle.setAttribute('r', '13.78');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M64.89,43.54,60.06,39.4a25.66,25.66,0,0,0,0-8.8l4.83-4.14a2.58,2.58,0,0,0,.43-3.39l-4.83-8.36a2.58,2.58,0,0,0-3.15-1.33l-6,2.12a25.53,25.53,0,0,0-7.62-4.41L42.55,4.84a2.57,2.57,0,0,0-2.72-2.06H30.17a2.57,2.57,0,0,0-2.72,2.06l-1.17,6.25a25.53,25.53,0,0,0-7.62,4.41l-6-2.12a2.58,2.58,0,0,0-3.15,1.33L4.68,23.07a2.58,2.58,0,0,0,.43,3.39L9.94,30.6a25.66,25.66,0,0,0,0,8.8L5.11,43.54a2.58,2.58,0,0,0-.43,3.39l4.83,8.36a2.58,2.58,0,0,0,3.15,1.33l6-2.12a25.53,25.53,0,0,0,7.62,4.41l1.17,6.25a2.57,2.57,0,0,0,2.72,2.06h9.66a2.57,2.57,0,0,0,2.72-2.06l1.17-6.25a25.53,25.53,0,0,0,7.62-4.41l6,2.12a2.58,2.58,0,0,0,3.15-1.33l4.83-8.36A2.58,2.58,0,0,0,64.89,43.54Z');
+    group.append(circle, path);
+    icon.appendChild(group);
+    settingsButton.appendChild(icon);
+    settingsButton.addEventListener('click', () => {
+      window.postMessage({ type: 'stravaHeatmapOpenSettings' }, window.location.origin);
+    });
+    heatmapHeading.appendChild(settingsButton);
   }
   let heatmapList = document.getElementById(SECTION_LIST_ID);
   if (!heatmapList) {

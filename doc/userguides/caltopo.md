@@ -95,7 +95,7 @@ If suggestions cannot cross a gap, click off the options to draw a straight segm
 
 ## Configure Heatmap Layers
 
-1. Click the extension icon again to open the layer settings.
+1. Click the small gear on the right of the **Strava Heatmap** heading in CalTopo to open the layer and gradient settings in a popup window. You can also click the extension icon to open settings.
 2. In the **Layers** tab, choose **Global** (the default) or **Weekly (Premium)** for each layer.
 3. Choose the sport and color, then click **Apply changes**.
 

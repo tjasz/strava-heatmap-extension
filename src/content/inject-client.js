@@ -2,6 +2,18 @@
   const initialHash = window.location.hash;
   console.debug('[StravaHeatmapExt] executing content/inject-client.js');
 
+  if (['caltopo.com', 'www.caltopo.com'].includes(window.location.host)) {
+    window.addEventListener('message', async (event) => {
+      if (event.source !== window || event.origin !== window.location.origin
+        || event.data?.type !== 'stravaHeatmapOpenSettings') return;
+      try {
+        await browser.runtime.sendMessage({ type: 'openSettings' });
+      } catch (error) {
+        console.error('[StravaHeatmapExt] Error opening heatmap settings:', error);
+      }
+    });
+  }
+
   function getManifestVersion() {
     try {
       const manifest = browser.runtime.getManifest();

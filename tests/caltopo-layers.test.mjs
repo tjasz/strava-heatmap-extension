@@ -9,6 +9,20 @@ const source = (await readFile(new URL('../src/clients/caltopo.com/index.js', im
 const storageKey = 'strava-heatmap-extension:caltopo-layer-state';
 const presets = 'run:orange;run:blue:weekly;ride:purple';
 
+test('CalTopo keeps the small settings gear right-aligned on the heading row', async () => {
+  const css = await readFile(new URL('../src/clients/caltopo.com/index.css', import.meta.url), 'utf8');
+  const heading = css.match(/#strava-heatmap-caltopo-ribbon-heading\s*\{[^}]*\}/)[0];
+  assert.match(heading, /display:\s*flex/);
+  assert.match(heading, /align-items:\s*center/);
+  assert.match(heading, /justify-content:\s*space-between/);
+  const button = css.match(/\.strava-heatmap-settings\s*\{[^}]*\}/)[0];
+  assert.match(button, /margin-left:\s*auto/);
+  assert.match(button, /margin-right:\s*7px/);
+  const svg = css.match(/\.strava-heatmap-settings svg\s*\{[^}]*\}/)[0];
+  assert.match(svg, /width:\s*18px/);
+  assert.match(svg, /height:\s*18px/);
+});
+
 test('CalTopo dims only the swatch emoji to 50% opacity', async () => {
   const css = await readFile(new URL('../src/clients/caltopo.com/index.css', import.meta.url), 'utf8');
   assert.match(css, /\.strava-heatmap-swatch-emoji\s*\{\s*opacity:\s*0\.5;\s*\}/);
@@ -248,6 +262,25 @@ function fixture(renderer, saved, initialPresets = presets, mapSheetMaxSize) {
 }
 
 for (const renderer of ['leaflet', 'google']) {
+  test(`${renderer} heading has one accessible gear that requests settings after repeated updates`, () => {
+    const f = fixture(renderer);
+    f.observe();
+    f.observe();
+    const heading = f.routeDiscoveryList.nextElementSibling;
+    assert.equal(heading.children.length, 1);
+    const button = heading.children[0];
+    assert.equal(button.tagName, 'BUTTON');
+    assert.equal(button.type, 'button');
+    assert.equal(button.attributes['aria-label'], 'Configure heatmap layers and gradients');
+    assert.equal(button.children[0].attributes.viewBox, '0 0 70 70');
+    assert.equal(button.children[0].attributes['aria-hidden'], 'true');
+    let message;
+    f.window.postMessage = (data, origin) => { message = { data, origin }; };
+    button.handlers.click();
+    assert.equal(message.data.type, 'stravaHeatmapOpenSettings');
+    assert.equal(message.origin, 'https://caltopo.com');
+  });
+
   test(`${renderer} map sheets preview and reactivate the last enabled layer, including after reload`, () => {
     const f = fixture(renderer);
     f.row(1).button.handlers.click();

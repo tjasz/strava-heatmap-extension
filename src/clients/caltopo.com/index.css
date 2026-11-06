@@ -1,5 +1,44 @@
 @import '../common/colors.css';
 
+#strava-heatmap-caltopo-ribbon-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.strava-heatmap-settings {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  margin-left: auto;
+  margin-right: 7px;
+  padding: 3px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #414042;
+  cursor: pointer;
+}
+
+.strava-heatmap-settings:hover {
+  background: rgba(65, 64, 66, 0.1);
+}
+
+.strava-heatmap-settings:focus-visible {
+  outline: 2px solid #cc5d31;
+  outline-offset: 2px;
+}
+
+.strava-heatmap-settings svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linejoin: round;
+  stroke-width: 5;
+}
+
 .strava-heatmap-controls {
   display: flex;
   flex-direction: column;
