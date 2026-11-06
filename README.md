@@ -1,6 +1,8 @@
-# Strava Heatmap extension
+# Strava Heatmap for CalTopo extension
 
-This browser extension seamlessly integrates the [Strava Global Heatmap](https://www.strava.com/maps/global-heatmap) into popular mapping editors, including the OpenStreetMap [iD editor](https://www.openstreetmap.org/edit?editor=id), [GPX Studio](https://gpx.studio/app), [CalTopo](https://caltopo.com/), [Geotab](https://tjasz.github.io/geotab/), and [BRouter](https://brouter.de/brouter-web/), enhancing your mapping and route analysis capabilities.
+This browser extension seamlessly integrates the [Strava Global Heatmap](https://www.strava.com/maps/global-heatmap) into [CalTopo](https://caltopo.com/), allowing users to visualize and trace popular routes and trails across Strava's 22 supported sports and 5 multi-sport categories directly on the CalTopo platform.
+
+This repository also includes clients for the OpenStreetMap [iD editor](https://www.openstreetmap.org/edit?editor=id), [GPX Studio](https://gpx.studio/app), [Geotab](https://tjasz.github.io/geotab/), and [BRouter](https://brouter.de/brouter-web/). These are experimental and not part of the released CalTopo-focused extension and may have limited support.
 
 The extension includes an implementation of [Strava Slide](#strava-slide-id). In iD, Slide snaps a roughly drawn line onto the heatmap trail. In CalTopo, Slide suggests continuations along the heatmap trails. In BRouter, the extension adds a mode which allows points to be joined by Slide paths.
 
