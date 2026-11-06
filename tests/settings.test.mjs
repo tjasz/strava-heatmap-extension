@@ -209,6 +209,7 @@ test('custom gradient tabs are hidden by default and require an explicit opt-in'
         async set(value) { writes.push(structuredClone(value)); },
       } } },
       Sortable: { create() {} },
+      window: { addEventListener() {} },
       getExtensionName: () => 'Strava Heatmap',
       getGradientSettings: async () => ({ layers: [], gradients: [], gradientOrder: [] }),
       getGradientOrder, formatLayerPresets, validateLayerPresets, validateCustomGradients,
@@ -243,6 +244,10 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
   let paletteSorting;
   const gradientSorting = new WeakMap();
   let closed = false;
+  let beforeUnload;
+  let confirmLeave = false;
+  let confirmations = 0;
+  let failSave = false;
   let gradients = [];
   let gradientOrder = getGradientOrder([]);
   let nextGradient = 0;
@@ -273,7 +278,26 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
     .replace(/^import[\s\S]*?from ['"][^'"]+['"];?/gm, '');
   vm.runInNewContext(source, {
     document,
-    window: { close() { closed = true; } },
+    window: {
+      addEventListener(name, callback) {
+        assert.equal(name, 'beforeunload');
+        beforeUnload = callback;
+      },
+      removeEventListener(name, callback) {
+        assert.equal(name, 'beforeunload');
+        assert.equal(callback, beforeUnload);
+        beforeUnload = undefined;
+      },
+      confirm(message) {
+        assert.match(message, /unsaved changes.*sure.*leave/i);
+        confirmations++;
+        return confirmLeave;
+      },
+      close() {
+        assertWarnsOnUnload(false);
+        closed = true;
+      },
+    },
     Sortable: { create(node, options) {
       if (node === list) sorting = options;
       else if (node === ids['gradient-list']) paletteSorting = options;
@@ -286,19 +310,32 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
     formatLayerPresets, validateLayerPresets, validateCustomGradients, resolveGradientLayers,
     getGradientOrder,
     crypto: { randomUUID: () => `custom-${++nextGradient}` },
-    console,
+    console: { error() {} },
     browser: { storage: { local: {
       get: async () => ({ customgradients: true }),
     } } },
     getExtensionName: () => 'Strava Heatmap',
     getGradientSettings: async () => structuredClone({ layers: presets, gradients, gradientOrder }),
     setGradientSettings: async (value, palettes, order) => {
+      if (failSave) throw new Error('Save failed');
       presets = structuredClone(value);
       gradients = structuredClone(palettes);
       gradientOrder = structuredClone(order);
     },
     resetLayerPresets: async () => { presets = [{ activity: 'all', color: 'orange' }]; },
   });
+  function assertWarnsOnUnload(expected) {
+    const event = { preventDefault() { this.prevented = true; } };
+    beforeUnload?.(event);
+    assert.equal(event.prevented === true, expected);
+    assert.equal(event.returnValue, expected ? '' : undefined);
+  }
+  await onReady();
+  assertWarnsOnUnload(false);
+  ids['close-settings'].onclick();
+  assert.equal(closed, true, 'unchanged settings close without confirmation');
+  assert.equal(confirmations, 0);
+  closed = false;
   await onReady();
   const select = (index, kind) => list.children[index].querySelector(`.layer-${kind}`);
   assert.equal(select(0, 'period').value, 'global');
@@ -310,6 +347,14 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
   assert.deepEqual(select(0, 'color').options.map((o) => o.value),
     select(1, 'color').options.map((o) => o.value));
 
+  await ids['add-layer'].onclick();
+  assertWarnsOnUnload(true);
+  ids['close-settings'].onclick();
+  assert.equal(closed, false, 'canceling keeps incomplete edits open');
+  assert.equal(confirmations, 1);
+  assert.equal(list.children.length, 3);
+  await list.children[2].querySelector('.layer-remove').onclick();
+  assertWarnsOnUnload(false);
   await ids['add-layer'].onclick();
   select(2, 'period').value = 'weekly';
   await select(2, 'period').onchange();
@@ -327,9 +372,16 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
   assert.equal(select(0, 'activity').value, 'run');
   assert.equal(select(0, 'period').value, 'weekly');
   assert.equal(select(2, 'period').value, 'global');
+  failSave = true;
+  await ids['apply-settings'].onclick();
+  assert.equal(closed, false, 'failed saves leave settings open');
+  assert.equal(ids['settings-error'].textContent, 'Save failed');
+  assertWarnsOnUnload(true);
+  failSave = false;
   await ids['apply-settings'].onclick();
   assert.equal(formatLayerPresets(presets), 'run:purple:weekly;run:blue:weekly;run:orange');
   assert.equal(closed, true);
+  assertWarnsOnUnload(false);
 
   select(2, 'period').value = 'weekly';
   await select(2, 'period').onchange();
@@ -482,6 +534,7 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
   emptyName.value = ' ';
   await emptyName.oninput();
   assert.equal(ids['apply-settings'].disabled, true, 'unnamed gradients cannot be saved');
+  assertWarnsOnUnload(true);
   emptyName.value = 'Renamed';
   await emptyName.oninput();
   assert.equal(ids['apply-settings'].disabled, false);
@@ -494,6 +547,7 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
   assert.equal(ids['apply-settings'].disabled, true);
 
   await ids['add-gradient'].onclick();
+  assertWarnsOnUnload(true);
   await ids['apply-settings'].onclick();
   assert.equal(gradients.length, 2, 'unused custom palettes are saved');
   await onReady();
@@ -600,7 +654,16 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
   assert.equal(gradients.length, 0);
   gradientList.children.reverse();
   await paletteSorting.onEnd();
+  assertWarnsOnUnload(true);
   await ids['reset-gradients'].onclick();
   assert.deepEqual(displayedOrder(), defaultOrder, 'reset also works without custom gradients');
   assert.equal(ids['apply-settings'].disabled, true);
+  assertWarnsOnUnload(false);
+  await ids['add-layer'].onclick();
+  closed = false;
+  confirmLeave = true;
+  ids['close-settings'].onclick();
+  assert.equal(confirmations, 2);
+  assert.equal(closed, true, 'confirming discards edits without a second unload warning');
+  assert.equal(beforeUnload, undefined);
 });

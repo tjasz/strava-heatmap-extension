@@ -412,6 +412,16 @@ function settingsSignature(layers, customGradients, order = gradientOrder) {
   ]);
 }
 
+function hasUnsavedChanges(layers = getCurrentLayers()) {
+  return savedSettings !== undefined && settingsSignature(layers, gradients) !== savedSettings;
+}
+
+function warnBeforeUnload(event) {
+  if (!hasUnsavedChanges()) return;
+  event.preventDefault();
+  event.returnValue = '';
+}
+
 function updateApplyButton() {
   const layers = getCurrentLayers();
   const reset = document.getElementById('reset-gradients');
@@ -429,7 +439,7 @@ function updateApplyButton() {
     layers.length === 0 ||
     !validateLayerPresets(layers) ||
     !validateCustomGradients(gradients) ||
-    settingsSignature(layers, gradients) === savedSettings;
+    !hasUnsavedChanges(layers);
 }
 
 function createGradientPreview(gradient) {
@@ -676,7 +686,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     },
   });
 
-  document.getElementById('close-settings').addEventListener('click', async () => {
+  window.addEventListener('beforeunload', warnBeforeUnload);
+  document.getElementById('close-settings').addEventListener('click', () => {
+    if (hasUnsavedChanges() &&
+        !window.confirm('You have unsaved changes. Are you sure you want to leave without saving?')) {
+      return;
+    }
+    window.removeEventListener('beforeunload', warnBeforeUnload);
     window.close();
   });
 
@@ -725,6 +741,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (current.length >= 1 && validateLayerPresets(current) && validateCustomGradients(gradients)) {
       try {
         await setGradientSettings(current, gradients, gradientOrder);
+        savedSettings = settingsSignature(current, gradients);
         window.close();
       } catch (error) {
         showError(error);
