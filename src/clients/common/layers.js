@@ -1,6 +1,6 @@
 // Available color schemes for the heatmap (see palettes.js), in the order of
 // Strava's color picker. Blue-Red is no longer offered there, so it comes last.
-const COLORS = {
+const PALETTE_COLORS = {
   orange: ['🟠', 'Orange'],
   sunset: ['🌅', 'Sunset'],
   blue: ['🔵', 'Blue'],
@@ -9,6 +9,13 @@ const COLORS = {
   highcontrast: ['⚪', 'Contrast'],
   bluered: ['🔴', 'Blue-Red'],
   rainbow: ['🌈', 'Rainbow'],
+};
+
+const COLORS = {
+  ...PALETTE_COLORS,
+  ...Object.fromEntries(Object.entries(PALETTE_COLORS)
+    .filter(([id]) => id !== 'rainbow')
+    .map(([id, [emoji, name]]) => [`${id}_dark`, [emoji, `${name} (Dark)`]])),
   grayscale: ['⚫', 'Custom Gradient'],
 };
 
@@ -207,11 +214,11 @@ function getTileTemplate(activity, color, timestamp, authenticated, version, leg
     return `https://raw.githubusercontent.com/tjasz/strava-heatmap-extension/refs/heads/v${version}/assets/heatmap-fallback.png?v=1&z={z}&x={x}&y={y}`;
   }
   if (period === 'weekly') {
-    const colormap = legacy ? LEGACY_COLORS[color] : 'grayscale';
+    const colormap = legacy ? LEGACY_COLORS[color.replace(/_dark$/, '')] : 'grayscale';
     return `https://content-a.strava.com/weeklyheat/{z}/{x}/{y}?sport_types=${activity}&format=png&colormap=${colormap}&missing=empty&${COLOR_PARAM}=${color}&t=${timestamp}`;
   }
   if (legacy) {
-    return `https://content-a.strava.com/identified/globalheat/${activity}/${LEGACY_COLORS[color]}/{z}/{x}/{y}.png?v=19&t=${timestamp}`;
+    return `https://content-a.strava.com/identified/globalheat/${activity}/${LEGACY_COLORS[color.replace(/_dark$/, '')]}/{z}/{x}/{y}.png?v=19&t=${timestamp}`;
   }
   return `https://content-a.strava.com/identified/globalheat/${activity}/grayscale/{z}/{x}/{y}.png?v=20&missing=empty&${COLOR_PARAM}=${color}&t=${timestamp}`;
 }

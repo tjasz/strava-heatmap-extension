@@ -2,7 +2,7 @@ body {
   font-family: sans-serif;
   margin: 0;
   padding: 1em;
-  width: 400px;
+  width: 568px;
 }
 
 h2,
@@ -81,9 +81,95 @@ p {
     grid-row: 2;
   }
 
-  .layer-color {
+  .palette-picker {
     grid-column: 3;
     grid-row: 2;
+    min-width: 0;
+  }
+
+  .palette-trigger {
+    width: 100%;
+    padding: 0.3em;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .palette-trigger.invalid {
+    border: 1px solid red;
+  }
+
+  .palette-trigger::after {
+    content: ' \25be';
+    float: right;
+  }
+
+  .palette-dialog {
+    padding: 0.5rem;
+    border: 1px solid #999;
+    border-radius: 8px;
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+  }
+
+  .palette-dialog::backdrop {
+    background: #0006;
+  }
+
+  .palette-close {
+    display: block;
+    margin: 0 0 0.5rem auto;
+    cursor: pointer;
+  }
+
+  .palette-columns {
+    display: grid;
+    grid-template-columns: repeat(2, 276px);
+  }
+
+  .palette-column {
+    padding: 10px;
+  }
+
+  .palette-light {
+    background: #fafafa;
+    color: #222;
+  }
+
+  .palette-dark {
+    background: #202124;
+    color: #f5f5f5;
+    color-scheme: dark;
+  }
+
+  .palette-option {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    width: 256px;
+    margin-top: 6px;
+    padding: 5px 0;
+    border: none;
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    border-radius: 3px;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .palette-option:hover,
+  .palette-option:focus-visible {
+    outline-color: #888;
+  }
+
+  .palette-option[aria-pressed='true'] {
+    outline-color: #fc4c02;
+  }
+
+  .palette-option .gradient-preview {
+    background: transparent;
+    flex-shrink: 0;
   }
 
   select.invalid {

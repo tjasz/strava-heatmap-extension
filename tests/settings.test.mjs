@@ -12,8 +12,11 @@ import { PALETTES } from '../src/clients/common/palettes.js';
 function element(tagName) {
   const node = {
     tagName, children: [], className: '', dataset: {}, disabled: false,
-    appendChild(child) { this.children.push(child); },
-    append(...children) { this.children.push(...children); },
+    appendChild(child) { child.parentElement = this; this.children.push(child); },
+    append(...children) { children.forEach((child) => this.appendChild(child)); },
+    remove() {
+      this.parentElement.children = this.parentElement.children.filter((child) => child !== this);
+    },
     setAttribute(name, value) { this[name] = value; },
     addEventListener(name, callback) { this[`on${name}`] = callback; },
     focus() { this.focused = true; },
@@ -36,6 +39,10 @@ function element(tagName) {
       createImageData(width, height) { return { data: new Uint8ClampedArray(width * height * 4) }; },
       putImageData(image) { node.image = image; },
     });
+  }
+  if (tagName === 'dialog') {
+    node.showModal = () => { node.open = true; };
+    node.close = () => { node.open = false; node.onclose(); };
   }
   node.classList = {
     add(name) { this.toggle(name, true); },
@@ -60,6 +67,86 @@ function element(tagName) {
   }
   return node;
 }
+
+test('palette popup shows exact light/dark previews and supports selection and dismissal', async () => {
+  const source = (await readFile(new URL('../src/popups/settings.js', import.meta.url), 'utf8'))
+    .replace(/^import[\s\S]*?from ['"][^'"]+['"];?/gm, '');
+  const context = vm.createContext({
+    document: {
+      createElement: element,
+      getElementById: () => element('h1'),
+      addEventListener() {},
+    },
+    getExtensionName: () => 'Strava Heatmap',
+    COLOR_OPTIONS, PALETTES, getGradientOrder, normalizeGradientStops,
+  });
+  vm.runInContext(source, context);
+  vm.runInContext(`gradients = [{
+    id: 'custom-test', name: 'Trail', emoji: 'T',
+    gradientStops: [{ color: '#123456', opacity: 0.2 }, { color: '#abcdef', opacity: 1 }],
+  }];`, context);
+  let changes = 0;
+  const picker = context.createColorPicker('blue_dark', () => { changes++; });
+  const select = picker.querySelector('.layer-color');
+  const trigger = picker.querySelector('.palette-trigger');
+  assert.equal(select.hidden, true);
+  assert.equal(trigger.textContent, '🔵 Blue (Dark)');
+  assert.equal(trigger['aria-haspopup'], 'dialog');
+  trigger.onclick();
+  const dialog = picker.querySelector('dialog');
+  assert.equal(dialog.open, true);
+  assert.equal(trigger['aria-expanded'], 'true');
+  const light = dialog.querySelector('.palette-light').querySelectorAll('.palette-option');
+  const dark = dialog.querySelector('.palette-dark').querySelectorAll('.palette-option');
+  assert.deepEqual(light.map((button) => button.dataset.id),
+    [...COLOR_OPTIONS.filter(([id]) => id in PALETTES && !id.endsWith('_dark')).map(([id]) => id),
+      'custom-test']);
+  assert.deepEqual(dark.map((button) => button.dataset.id),
+    COLOR_OPTIONS.filter(([id]) => id.endsWith('_dark')).map(([id]) => id));
+  assert.equal(dark.find((button) => button.dataset.id === 'blue_dark').focused, true);
+  for (const button of [...light, ...dark]) {
+    const preview = button.querySelector('canvas');
+    assert.equal(preview.width, 256);
+    assert.equal(preview.height, 10);
+    assert.equal(button['aria-pressed'], String(button.dataset.id === 'blue_dark'));
+    if (button.dataset.id in PALETTES) {
+      for (let row = 0; row < 10; row++) {
+        assert.equal(Buffer.from(preview.image.data.slice(row * 1024, (row + 1) * 1024))
+          .toString('hex'), PALETTES[button.dataset.id]);
+      }
+    } else {
+      assert.deepEqual([...preview.image.data.slice(0, 4)], [18, 52, 86, 51]);
+    }
+  }
+  let prevented = false;
+  light[0].onkeydown({ key: 'ArrowRight', preventDefault() { prevented = true; } });
+  assert.equal(dark[0].focused, true);
+  assert.equal(prevented, true);
+  dark[0].onkeydown({ key: 'End', preventDefault() {} });
+  assert.equal(dark.at(-1).focused, true);
+  await dark[0].onclick();
+  assert.equal(select.value, dark[0].dataset.id);
+  assert.equal(changes, 1);
+  assert.equal(picker.querySelector('dialog'), undefined);
+  assert.equal(trigger['aria-expanded'], 'false');
+  trigger.onclick();
+  picker.querySelector('dialog').querySelector('.palette-close').onclick();
+  assert.equal(changes, 1, 'dismissal does not change the selection');
+  assert.equal(trigger.focused, true);
+  trigger.onclick();
+  picker.querySelector('dialog').onkeydown({ key: 'Escape', preventDefault() {} });
+  assert.equal(picker.querySelector('dialog'), undefined);
+  assert.equal(changes, 1, 'Escape dismisses without selecting');
+  trigger.onclick();
+  await picker.querySelector('dialog').querySelector('.palette-light')
+    .querySelectorAll('.palette-option').at(-1).onclick();
+  assert.equal(select.value, 'custom-test');
+  assert.equal(changes, 2, 'custom gradients remain selectable');
+
+  const empty = context.createColorPicker(undefined, () => {});
+  assert.ok(empty.querySelector('.palette-trigger').className.includes('invalid'));
+  assert.equal(empty.querySelector('.layer-color').value, '');
+});
 
 test('activity selects restore the first occurrence and preserve duplicate choices', async () => {
   const source = (await readFile(new URL('../src/popups/settings.js', import.meta.url), 'utf8'))
@@ -250,7 +337,7 @@ test('settings preserve weekly types through editing, adding, sorting, applying 
   await ids['apply-settings'].onclick();
   assert.equal(formatLayerPresets(presets), 'run:purple:weekly;run:blue:weekly;run:orange:weekly');
 
-  await list.children[0].querySelector('button').onclick();
+  await list.children[0].querySelector('.layer-remove').onclick();
   assert.equal(list.children.length, 2);
   assert.equal(select(0, 'period').value, 'weekly');
   await ids['reset-settings'].onclick();

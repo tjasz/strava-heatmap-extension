@@ -62,8 +62,11 @@ function createActivitySelect(selected) {
   return select;
 }
 
-function createColorPicker(selected) {
+function createColorPicker(selected, changeCallback) {
+  const picker = document.createElement('div');
+  picker.className = 'palette-picker';
   const select = document.createElement('select');
+  select.hidden = true;
   select.classList.add('layer-color');
   select.classList.toggle('invalid', selected === undefined);
 
@@ -74,14 +77,108 @@ function createColorPicker(selected) {
   placeholder.selected = selected === undefined;
   select.appendChild(placeholder);
 
-  gradientOptions().forEach(([value, label]) => {
+  const options = gradientOptions();
+  options.forEach(([value, label]) => {
     const option = document.createElement('option');
     option.value = value;
     option.textContent = label;
     if (value === selected) option.selected = true;
     select.appendChild(option);
   });
-  return select;
+  select.onchange = changeCallback;
+
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'palette-trigger';
+  trigger.classList.toggle('invalid', selected === undefined);
+  trigger.textContent = options.find(([id]) => id === selected)?.[1] ?? '✨ Pick a Color';
+  trigger.setAttribute('aria-label', `Color: ${trigger.textContent}`);
+  trigger.setAttribute('aria-haspopup', 'dialog');
+  trigger.setAttribute('aria-expanded', 'false');
+  trigger.addEventListener('click', () => {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'palette-dialog';
+    dialog.setAttribute('aria-label', 'Choose a palette');
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'palette-close';
+    close.textContent = 'Close';
+    close.addEventListener('click', () => dialog.close());
+    const columns = document.createElement('div');
+    columns.className = 'palette-columns';
+    const choices = [];
+    for (const mode of ['light', 'dark']) {
+      const column = document.createElement('section');
+      column.className = `palette-column palette-${mode}`;
+      const heading = document.createElement('h3');
+      heading.textContent = mode === 'light' ? 'Light backgrounds' : 'Dark backgrounds';
+      column.appendChild(heading);
+      const buttons = [];
+      for (const [id, label] of options) {
+        if (id.endsWith('_dark') !== (mode === 'dark')) continue;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'palette-option';
+        button.dataset.id = id;
+        button.setAttribute('aria-pressed', String(id === select.value));
+        const name = document.createElement('span');
+        name.textContent = label;
+        const gradient = gradients.find((gradient) => gradient.id === id) ?? { id, name: label };
+        button.append(name, createGradientPreview(gradient));
+        button.addEventListener('click', async () => {
+          select.value = id;
+          dialog.close();
+          await changeCallback();
+        });
+        buttons.push(button);
+        column.appendChild(button);
+      }
+      choices.push(buttons);
+      columns.appendChild(column);
+    }
+    choices.forEach((buttons, column) => buttons.forEach((button, row) => {
+      button.addEventListener('keydown', (event) => {
+        let target;
+        if (event.key === 'ArrowUp') target = buttons[Math.max(0, row - 1)];
+        if (event.key === 'ArrowDown') target = buttons[Math.min(buttons.length - 1, row + 1)];
+        if (event.key === 'Home') target = buttons[0];
+        if (event.key === 'End') target = buttons[buttons.length - 1];
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+          const other = choices[event.key === 'ArrowLeft' ? 0 : 1];
+          target = other[Math.min(row, other.length - 1)];
+        }
+        if (target) {
+          event.preventDefault();
+          target.focus();
+        }
+      });
+    }));
+    dialog.append(close, columns);
+    dialog.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        dialog.close();
+      }
+    });
+    dialog.addEventListener('click', (event) => {
+      if (event.target !== dialog) return;
+      const bounds = dialog.getBoundingClientRect();
+      if (event.clientX < bounds.left || event.clientX > bounds.right ||
+          event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
+    });
+    dialog.addEventListener('close', () => {
+      trigger.setAttribute('aria-expanded', 'false');
+      dialog.remove();
+      trigger.focus();
+    });
+    picker.appendChild(dialog);
+    trigger.setAttribute('aria-expanded', 'true');
+    dialog.showModal();
+    const allChoices = choices.flat();
+    (allChoices.find((button) => button.dataset.id === select.value) ?? allChoices[0]).focus();
+  });
+  picker.append(select, trigger);
+  return picker;
 }
 
 function createGradientControls(layer, changeCallback) {
@@ -241,10 +338,11 @@ function createLayerItem(
   activitySelect.className = `${activitySelect.className} layer-activity`.trim();
   activitySelect.setAttribute('aria-label', 'Sport');
   activitySelect.onchange = () => changeCallback();
-  const colorSelect = createColorPicker(layer.gradientId ?? layer.color);
-  colorSelect.className = `${colorSelect.className} layer-color`.trim();
-  colorSelect.setAttribute('aria-label', 'Color');
-  colorSelect.onchange = () => changeCallback();
+  const colorPicker = createColorPicker(layer.gradientId ?? layer.color, async () => {
+    await changeCallback();
+    document.getElementById('layer-list').children[index]
+      ?.querySelector('.palette-trigger')?.focus();
+  });
   const periodSelect = createPeriodSelect(layer.period);
   periodSelect.onchange = () => changeCallback();
 
@@ -255,7 +353,7 @@ function createLayerItem(
 
   const main = document.createElement('div');
   main.className = 'layer-main';
-  main.append(dragHandle, periodSelect, activitySelect, colorSelect, deleteButton);
+  main.append(dragHandle, periodSelect, activitySelect, colorPicker, deleteButton);
   li.appendChild(main);
   return li;
 }
