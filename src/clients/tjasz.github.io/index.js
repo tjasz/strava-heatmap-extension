@@ -125,6 +125,7 @@ async function main() {
   injectHeatmapColorFilters();
   const script = document.querySelector('script#strava-heatmap-client');
   const version = script.dataset.version;
+  const athleteId = script.dataset.athleteId;
   let authenticated = script.dataset.authenticated === 'true';
   let layerPresets = parseLayerPresets(script.dataset.layers);
   let { map, overlays } = await waitForGeotab();
@@ -161,7 +162,9 @@ async function main() {
       layerPresets,
       authenticated,
       version,
-      true
+      true,
+      false,
+      athleteId
     );
     controlState = createOverlayControl(
       map,

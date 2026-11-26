@@ -57,11 +57,11 @@ function saveVisibility(visible) {
   }
 }
 
-async function applyOverlays(layerPresets, authenticated, version) {
+async function applyOverlays(layerPresets, authenticated, version, athleteId) {
   console.log('[StravaHeatmapExt] Applying overlays to gpx.studio', { layerPresets, authenticated });
 
   if (window.gpxstudio.version === 2) {
-    const layerConfigs = getLayerConfigs(layerPresets, authenticated, version, true);
+    const layerConfigs = getLayerConfigs(layerPresets, authenticated, version, true, false, athleteId);
     const saved = getSavedVisibility();
     window.gpxstudio.setOverlays(
       'Strava Heatmap',
@@ -104,6 +104,7 @@ async function main() {
   const script = document.querySelector('script#strava-heatmap-client');
 
   const version = script.dataset.version;
+  const athleteId = script.dataset.athleteId;
 
   let authenticated = script.dataset.authenticated === 'true';
   let layerPresets = parseLayerPresets(script.dataset.layers);
@@ -124,7 +125,7 @@ async function main() {
       : window.gpxstudio.ensureLoaded());
 
     // Apply initial overlays
-    await applyOverlays(layerPresets, authenticated, version);
+    await applyOverlays(layerPresets, authenticated, version, athleteId);
 
     // Remember the overlays the user shows or hides
     if (window.gpxstudio.version === 2) {
@@ -135,14 +136,14 @@ async function main() {
     setupAuthStatusChangeListener(async (newAuthenticated) => {
       console.log('[StravaHeatmapExt] Authentication status changed:', newAuthenticated);
       authenticated = newAuthenticated;
-      await applyOverlays(layerPresets, authenticated, version);
+      await applyOverlays(layerPresets, authenticated, version, athleteId);
     });
 
     // Listen for layer preset changes
     setupLayerPresetsChangeListener(async (layers) => {
       console.log('[StravaHeatmapExt] Layer presets changed:', layers);
       layerPresets = parseLayerPresets(layers);
-      await applyOverlays(layerPresets, authenticated, version);
+      await applyOverlays(layerPresets, authenticated, version, athleteId);
     });
   } catch (error) {
     console.error('[StravaHeatmapExt] Failed to initialize gpx.studio integration:', error);

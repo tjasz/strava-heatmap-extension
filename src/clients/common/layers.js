@@ -167,6 +167,11 @@ function formatLayerColor(value) {
   return `${emoji} ${label}`;
 }
 
+// Strava serves personal tiles up to zoom 14. Not every sport filter has tiles.
+const PERSONAL_MAX_ZOOM = 14;
+
+const PERIOD_SUFFIX = { weekly: ' (Weekly)', personal: ' (Personal)' };
+
 // Creates a layer configuration object
 function getLayerConfig(
   position,
@@ -179,39 +184,65 @@ function getLayerConfig(
   short,
   legacy,
   period,
-  gradientEmoji
+  gradientEmoji,
+  athleteId
 ) {
   const activityName = ACTIVITIES[activity];
   const colorEmoji = gradientEmoji ?? (COLORS[color] || ['❓'])[0];
   const label = `${short ? activityName : `Strava Heatmap ${activityName}`}${
-    period === 'weekly' ? ' (Weekly)' : ''
+    PERIOD_SUFFIX[period] ?? ''
   }`;
 
-  const template = getTileTemplate(activity, color, timestamp, authenticated, version, legacy, period);
+  const template = getTileTemplate(
+    activity,
+    color,
+    timestamp,
+    authenticated,
+    version,
+    legacy,
+    period,
+    athleteId
+  );
   
   return {
-    id: `strava-heatmap-${activity}${period === 'weekly' ? '-weekly' : ''}`,
+    id: `strava-heatmap-${activity}${period === 'global' || !period ? '' : `-${period}`}`,
     emoji: colorEmoji,
     label,
     name: `${new Array(position).join('󠀠')}${colorEmoji} ${
       label
     }`,
-    description: `Shows ${activityName.toLowerCase()} aggregated, public Strava activities over the last ${period === 'weekly' ? 'week (Strava Premium subscribers only)' : 'year'} in ${colorEmoji} color.`,
+    description:
+      period === 'personal'
+        ? `Shows ${activityName.toLowerCase()} from your own Strava activities (Strava Premium subscribers only) in ${colorEmoji} color.`
+        : `Shows ${activityName.toLowerCase()} aggregated, public Strava activities over the last ${period === 'weekly' ? 'week (Strava Premium subscribers only)' : 'year'} in ${colorEmoji} color.`,
     template:
       color === 'grayscale'
         ? `${template}#strava-gradient=${gradientStops
             .map(formatGradientStop)
             .join('-')}`
         : template,
-    zoomExtent: authenticated ? [0, 15] : [0, 20],
+    ...(period === 'personal' && { personal: true }),
+    zoomExtent: period === 'personal' ? [0, PERSONAL_MAX_ZOOM] : authenticated ? [0, 15] : [0, 20],
   };
 }
 
 // Grayscale tiles are colorized client-side; the color param is ignored by Strava
 // and lets the client match tiles to their palette (see colors.css)
-function getTileTemplate(activity, color, timestamp, authenticated, version, legacy, period) {
+function getTileTemplate(
+  activity,
+  color,
+  timestamp,
+  authenticated,
+  version,
+  legacy,
+  period,
+  athleteId
+) {
   if (!authenticated) {
     return `https://raw.githubusercontent.com/tjasz/strava-heatmap-extension/refs/tags/v${version}/assets/heatmap-fallback-grayscale.png?v=1&${COLOR_PARAM}=${color}&z={z}&x={x}&y={y}`;
+  }
+  if (period === 'personal') {
+    return `https://personal-heatmaps-external.strava.com/tiles/${athleteId}/grayscale/{z}/{x}/{y}@2x.png?missing=empty&${COLOR_PARAM}=${color}&filter_type=${activity}&include_everyone=true&include_followers_only=true&include_only_me=true&respect_privacy_zones=false&include_commutes=false&t=${timestamp}`;
   }
   if (period === 'weekly') {
     const colormap = legacy ? LEGACY_COLORS[color.replace(/_dark$/, '')] : 'grayscale';
@@ -229,12 +260,18 @@ export function getLayerConfigs(
   authenticated,
   version,
   short = false,
-  legacy = false
+  legacy = false,
+  athleteId = null
 ) {
   const timestamp = Date.now().toString();
   const occurrences = new Map();
 
-  return layerPresets.map((layer, index) => {
+  // The personal heatmap needs an authenticated session and a known athlete id
+  const available = layerPresets.filter(
+    ({ period }) => period !== 'personal' || (authenticated && athleteId)
+  );
+
+  return available.map((layer, index) => {
     const {
       activity,
       color,
@@ -252,7 +289,8 @@ export function getLayerConfigs(
       short,
       legacy,
       period,
-      layer.gradientEmoji
+      layer.gradientEmoji,
+      athleteId
     );
     const occurrence = (occurrences.get(config.id) ?? 0) + 1;
     if (color === 'grayscale' && layer.gradientName !== undefined) {

@@ -91,14 +91,17 @@ function getActiveLayerConfigs() {
   return layerOrder.map((id) => layerConfigs.find((config) => config.id === id));
 }
 
+// Snap reads heat at zoom 15+, which personal tiles don't have.
 function getTopLayerConfig() {
-  return getActiveLayerConfigs().at(-1);
+  return getActiveLayerConfigs().filter(({ personal }) => !personal).at(-1);
 }
 
 function getMapSheetLayers(activate = false) {
-  let configs = getActiveLayerConfigs();
+  // Map sheets need zoom 15 tiles, which personal heatmaps don't have.
+  const usable = layerConfigs.filter(({ personal }) => !personal);
+  let configs = getActiveLayerConfigs().filter(({ personal }) => !personal);
   if (!configs.length) {
-    const config = layerConfigs.find(({ id }) => id === lastEnabledLayerId) ?? layerConfigs[0];
+    const config = usable.find(({ id }) => id === lastEnabledLayerId) ?? usable[0];
     if (!config) return [];
     if (activate) toggleOverlay(config.id);
     configs = [config];
@@ -556,10 +559,10 @@ function setupRibbonObserver() {
   ribbonObserver.observe(document.body, { childList: true, subtree: true });
 }
 
-function applyLayerConfigs(layerPresets, authenticated, version) {
+function applyLayerConfigs(layerPresets, authenticated, version, athleteId) {
   const previousLayerId = layerOrder.at(-1) ?? lastEnabledLayerId ?? layerConfigs[0]?.id;
   const previousState = layerStates.get(previousLayerId) ?? initialLayerState;
-  layerConfigs = getLayerConfigs(layerPresets, authenticated, version, true);
+  layerConfigs = getLayerConfigs(layerPresets, authenticated, version, true, false, athleteId);
   const selectedLayerId = layerConfigs.some(({ id }) => id === previousLayerId)
     ? previousLayerId
     : layerConfigs.find(({ id }) => layerStates.get(id)?.enabled)?.id ?? layerConfigs[0]?.id;
@@ -589,11 +592,12 @@ async function main() {
 
   const script = document.querySelector('script#strava-heatmap-client');
   const version = script.dataset.version;
+  const athleteId = script.dataset.athleteId;
   let authenticated = script.dataset.authenticated === 'true';
   let layerPresets = parseLayerPresets(script.dataset.layers);
 
   loadState();
-  applyLayerConfigs(layerPresets, authenticated, version);
+  applyLayerConfigs(layerPresets, authenticated, version, athleteId);
   setupRibbonObserver();
   setupLayerShortcut();
   installCalTopoMapSheets(
@@ -604,12 +608,12 @@ async function main() {
 
   setupAuthStatusChangeListener((newAuthenticated) => {
     authenticated = newAuthenticated;
-    applyLayerConfigs(layerPresets, authenticated, version);
+    applyLayerConfigs(layerPresets, authenticated, version, athleteId);
   });
 
   setupLayerPresetsChangeListener((layers) => {
     layerPresets = parseLayerPresets(layers);
-    applyLayerConfigs(layerPresets, authenticated, version);
+    applyLayerConfigs(layerPresets, authenticated, version, athleteId);
   });
 
   let attempts = 0;

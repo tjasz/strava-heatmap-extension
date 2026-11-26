@@ -149,6 +149,18 @@ same heatmap type with different colors. Weekly tiles
 require you to be a Strava Premium subscriber and authenticate through the
 extension; the extension does not unlock subscription-only data.
 
+### Personal heatmap layer (Strava Premium)
+
+Choose **Personal (Premium)** as a layer's heatmap type to show your own
+activities instead of the global heatmap. You can pick the same sports as for the
+global heatmap, though Strava doesn't seem to serve personal tiles for every
+sport. It includes private activities and areas you've hidden from others;
+commutes are left out. Strava serves personal tiles up to zoom 14, so closer
+zoom levels enlarge the zoom 14 tiles. Slide, Snap and map sheets skip personal
+layers, because they need the finer global or weekly tiles. You must be signed
+in to Strava and a Premium subscriber; the extension reads your athlete ID from
+your sign-in cookie.
+
 ### Custom gradients (experimental)
 
 Custom gradient definition is hidden by default. Enable it in the extension's

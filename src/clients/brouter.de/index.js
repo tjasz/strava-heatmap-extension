@@ -37,6 +37,7 @@ async function main() {
   injectHeatmapColorFilters();
   const script = document.querySelector('script#strava-heatmap-client');
   const version = script.dataset.version;
+  const athleteId = script.dataset.athleteId;
   let authenticated = script.dataset.authenticated === 'true';
   let layerPresets = parseLayerPresets(script.dataset.layers);
   const { map, control, routing } = await waitForBrouter();
@@ -49,7 +50,7 @@ async function main() {
   let applyingOverlays = false;
   const getSlideLayer = (restoreId) => {
     if (restoreId) {
-      const restored = layers.find(({ id }) => id === restoreId);
+      const restored = layers.find(({ id, config }) => id === restoreId && !config.personal);
       if (restored) {
         selectedId = restored.id;
         if (!map.hasLayer(restored.layer)) map.addLayer(restored.layer);
@@ -58,8 +59,9 @@ async function main() {
       console.warn('[StravaHeatmapExt] Saved BRouter Slide layer is no longer configured:', restoreId);
       return undefined;
     }
-    const entry = layers.find(({ id, layer }) => id === selectedId && map.hasLayer(layer)) ??
-      layers.find(({ layer }) => map.hasLayer(layer));
+    const usable = layers.filter(({ config }) => !config.personal);
+    const entry = usable.find(({ id, layer }) => id === selectedId && map.hasLayer(layer)) ??
+      usable.find(({ layer }) => map.hasLayer(layer));
     return entry?.config;
   };
   map.on('overlayadd', ({ layer }) => {
@@ -85,7 +87,7 @@ async function main() {
       control.removeLayer(layer);
     });
 
-    layers = getLayerConfigs(layerPresets, authenticated, version).map((config) => {
+    layers = getLayerConfigs(layerPresets, authenticated, version, false, false, athleteId).map((config) => {
       const previous = previousLayers.find(({ id }) => id === config.id);
       const layer = window.L.tileLayer(config.template, {
         pane: HEATMAP_PANE,

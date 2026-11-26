@@ -20,7 +20,7 @@ This guide covers using the Strava Heatmap extension in CalTopo.
 ## Requirements
 
 - A free [Strava account](https://www.strava.com/register/free) for Global heatmaps. You can sign up with Google, Apple, Facebook, or email.
-- A Strava Premium subscription for access to Weekly heatmaps. The extension does not unlock subscription-only data.
+- A Strava Premium subscription for access to Weekly and Personal heatmaps. The extension does not unlock subscription-only data.
 - A supported browser:
   - Chrome
   - Edge
@@ -65,7 +65,7 @@ The live overlay does **not** appear in CalTopo's print preview. PDFs are render
 
 ## Snap drawing segments to Strava
 
-The extension adds a "Strava" option to the line and polygon tools' **Snap To** dropdown. Selecting it enables route suggestions that follow paths on the topmost enabled Strava heatmap layer.
+The extension adds a "Strava" option to the line and polygon tools' **Snap To** dropdown. Selecting it enables route suggestions that follow paths on the topmost enabled Global or Weekly Strava heatmap layer; Personal layers are skipped.
 
 Strava snapping suggests continuations along heatmap trails as you draw. These suggestions come from heatmap imagery, not mapped trail data, so always review them before saving, especially at forks.
 
@@ -96,10 +96,12 @@ If suggestions cannot cross a gap, click off the options to draw a straight segm
 ## Configure Heatmap Layers
 
 1. Click the small gear on the right of the **Strava Heatmap** heading in CalTopo to open the layer and gradient settings in a popup window. You can also click the extension icon to open settings.
-2. In the **Layers** tab, choose **Global** (the default) or **Weekly (Premium)** for each layer.
+2. In the **Layers** tab, choose **Global** (the default), **Weekly (Premium)**, or **Personal (Premium)** for each layer.
 3. Choose the sport and color, then click **Apply changes**.
 
 You can configure multiple layers for the same sport, including layers of the same heatmap type with different colors. Use the extension settings to manage the available layers.
+
+**Personal (Premium)** shows all of your own activities, including private ones and areas you've hidden from others, but not commutes. The sport menu is the same as for the global heatmap, though Strava doesn't seem to serve personal tiles for every sport. Strava serves personal tiles only up to zoom 14, so closer zooms enlarge the zoom 14 tiles. Snap and map sheets skip personal layers.
 
 ![Configuring Strava Heatmap Layers](../../images/screenshot3.png)
 

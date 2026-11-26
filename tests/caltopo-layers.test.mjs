@@ -195,7 +195,7 @@ function fixture(renderer, saved, initialPresets = presets, mapSheetMaxSize) {
       getElementById: (id) => all(body).find((element) => element.id === id),
       querySelectorAll: (tag) => all(body).filter((element) => element.tagName === tag.toUpperCase()),
       querySelector: () => ({ dataset: {
-        version: '0', authenticated: 'true', layers: initialPresets, mapsheetmaxsize: mapSheetMaxSize,
+        version: '0', authenticated: 'true', athleteId: '12345', layers: initialPresets, mapsheetmaxsize: mapSheetMaxSize,
       } }),
     };
   vm.runInNewContext(source, {
@@ -789,3 +789,10 @@ for (const renderer of ['leaflet', 'google']) {
     f.flush();
   });
 }
+
+test('CalTopo Snap and map sheets skip personal layers', () => {
+  const current = fixture('leaflet', undefined, 'run:orange:personal;ride:purple');
+  current.getSheetLayers(true);
+  assert.deepEqual(Array.from(current.getSheetLayers(), ({ id }) => id), ['strava-heatmap-ride']);
+  assert.equal(current.getSnapLayer().id, 'strava-heatmap-ride');
+});

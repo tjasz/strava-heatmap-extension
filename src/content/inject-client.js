@@ -38,6 +38,11 @@
     }
   }
 
+  async function retrieveAthleteId() {
+    const { athleteId } = await browser.storage.local.get('athleteId');
+    return athleteId;
+  }
+
   async function requestCredentials() {
     try {
       // Send message to request credentials
@@ -79,7 +84,7 @@
     }
   }
 
-  function injectClientScript(layerPresets, authenticated, manifestVersion) {
+  function injectClientScript(layerPresets, authenticated, manifestVersion, mapSheetMaxSize, athleteId) {
     try {
       const host = getClientHost();
       const path = `src/clients/${host}/index.js`;
@@ -92,6 +97,7 @@
       script.dataset.version = manifestVersion;
       script.dataset.layers = layerPresets;
       script.dataset.mapsheetmaxsize = mapSheetMaxSize;
+      if (athleteId) script.dataset.athleteId = athleteId;
       if (host === 'brouter.de') script.dataset.initialHash = initialHash;
       script.onload = () => {
         // script.remove();
@@ -133,6 +139,7 @@
   const authenticated = await requestCredentials();
   const mapSheetMaxSize = await retrieveMapSheetMaxSize();
 
-  injectClientScript(layerPresets, authenticated, manifestVersion, mapSheetMaxSize);
+  const athleteId = await retrieveAthleteId();
+  injectClientScript(layerPresets, authenticated, manifestVersion, mapSheetMaxSize, athleteId);
   injectClientCSS();
 })();

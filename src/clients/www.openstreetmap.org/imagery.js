@@ -5,8 +5,15 @@ import {
   getDefaultOverlaysHash,
 } from './overlays.js';
 
-export async function applyImagery(context, layerPresets, authenticated, version) {
-  const stravaConfigs = getLayerConfigs(layerPresets, authenticated, version);
+export async function applyImagery(context, layerPresets, authenticated, version, athleteId) {
+  const stravaConfigs = getLayerConfigs(
+    layerPresets,
+    authenticated,
+    version,
+    false,
+    false,
+    athleteId
+  );
   const background = context.background();
   const imagery = await background.ensureLoaded();
 
@@ -32,6 +39,8 @@ export async function applyImagery(context, layerPresets, authenticated, version
         'https://wiki.openstreetmap.org/wiki/Strava#Data_Permission_-_Allowed_for_tracing!',
     });
     preserveGradientFragment(source, config.template);
+    // iD's source constructor drops unknown fields; Slide reads this to skip personal layers
+    source.personal = config.personal;
     imagery.backgrounds.push(source);
   });
 

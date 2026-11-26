@@ -421,7 +421,7 @@ export async function setupSlide(
     return context
       .background()
       .overlayLayerSources()
-      .filter((source) => source.id.startsWith('strava-heatmap-'));
+      .filter((source) => source.id.startsWith('strava-heatmap-') && !source.personal);
   }
 
   // Shift+S handler. iD's bundled operation registry cannot be extended from

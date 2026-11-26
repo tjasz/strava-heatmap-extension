@@ -310,7 +310,7 @@ function createPeriodSelect(selected = 'global') {
   const select = document.createElement('select');
   select.className = 'layer-period';
   select.setAttribute('aria-label', 'Heatmap type');
-  for (const [value, label] of [['global', 'Global'], ['weekly', 'Weekly (Premium)']]) {
+  for (const [value, label] of [['global', 'Global'], ['weekly', 'Weekly (Premium)'], ['personal', 'Personal (Premium)']]) {
     const option = document.createElement('option');
     option.value = value;
     option.textContent = label;

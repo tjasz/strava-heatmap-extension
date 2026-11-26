@@ -47,3 +47,16 @@ export async function clearCookies(url, cookieNames) {
     console.error(`Error clearing cookies for ${url}:`, error);
   }
 }
+
+// _strava_idcf is a JWT whose payload carries the athlete id that personal
+// heatmap tile URLs need.
+export function athleteIdFromCredentials(credentials) {
+  const token = /(?:^|; )_strava_idcf=([^;]+)/.exec(credentials ?? '')?.[1];
+  try {
+    const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const { athleteId } = JSON.parse(atob(payload));
+    return athleteId ? String(athleteId) : null;
+  } catch {
+    return null;
+  }
+}

@@ -15,6 +15,7 @@ async function main() {
   const script = document.querySelector('script#strava-heatmap-client');
 
   const version = script.dataset.version;
+  const athleteId = script.dataset.athleteId;
 
   let authenticated = script.dataset.authenticated === 'true';
   let layerPresets = parseLayerPresets(script.dataset.layers);
@@ -31,7 +32,7 @@ async function main() {
     // make sure ui fully loaded
     await context.ui().ensureLoaded();
 
-    await applyImagery(context, layerPresets, authenticated, version);
+    await applyImagery(context, layerPresets, authenticated, version, athleteId);
 
     await setupOverlaysListeners(context);
 
@@ -47,12 +48,12 @@ async function main() {
 
     setupAuthStatusChangeListener(async (newAuthenticated) => {
       authenticated = newAuthenticated;
-      await applyImagery(context, layerPresets, authenticated, version);
+      await applyImagery(context, layerPresets, authenticated, version, athleteId);
     });
 
     setupLayerPresetsChangeListener(async (layers) => {
       layerPresets = parseLayerPresets(layers);
-      await applyImagery(context, layerPresets, authenticated, version);
+      await applyImagery(context, layerPresets, authenticated, version, athleteId);
     });
 
     // ensure document is focused to listen to keyboard events

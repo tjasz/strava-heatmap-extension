@@ -41,7 +41,7 @@ function getColorRamp(url, recolorPalettes) {
   if (
     !fallback && (
       !recolorPalettes ||
-      !/^https:\/\/content-[a-c]\.strava\.com\/(?:identified\/globalheat|weeklyheat)\//.test(url)
+      !/^https:\/\/(?:content-[a-c]\.strava\.com\/(?:identified\/globalheat|weeklyheat)\/|personal-heatmaps-external\.strava\.com\/tiles\/)/.test(url)
     )
   ) return null;
 

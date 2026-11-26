@@ -1,4 +1,4 @@
-import { clearCookies, fetchCookies } from './cookies.js';
+import { athleteIdFromCredentials, clearCookies, fetchCookies } from './cookies.js';
 import { updateHeatmapRules } from './rules.js';
 import { updateContextMenuAuth } from './context-menu.js';
 import { showNotification } from './notifications.js';
@@ -11,6 +11,11 @@ const STRAVA_COOKIE_NAMES = [
   'CloudFront-Policy',
   'CloudFront-Signature',
 ];
+
+// Personal heatmap tiles sit behind a gateway that wants the login session too.
+// Kept out of STRAVA_COOKIE_NAMES (those get cleared, and this one is the user's
+// login) and out of stored credentials: only the personal request rule uses it.
+const STRAVA_SESSION_COOKIE_NAME = '_strava4_session';
 
 const VALIDATION_TILE_URL =
   'https://content-a.strava.com/identified/globalheat/all/grayscale/8/198/114.png?v=20';
@@ -34,6 +39,17 @@ async function getCurrentTabId() {
   return currentTab.id;
 }
 
+async function withSession(credentials) {
+  const session = credentials
+    ? await fetchCookies(STRAVA_COOKIE_URL, [STRAVA_SESSION_COOKIE_NAME])
+    : null;
+  if (!session) {
+    console.warn('[StravaHeatmapExt] Strava session cookie missing; personal heatmap tiles will fail.');
+    return credentials;
+  }
+  return `${credentials}; ${session}`;
+}
+
 export async function requestCredentials(skipValidation = false) {
   let credentials = await fetchCookies(STRAVA_COOKIE_URL, STRAVA_COOKIE_NAMES);
   console.debug('[StravaHeatmapExt] Credentials fetched:', Boolean(credentials));
@@ -47,7 +63,7 @@ export async function requestCredentials(skipValidation = false) {
     credentials = storedCredentials;
   }
 
-  const rules = await updateHeatmapRules(credentials);
+  const rules = await updateHeatmapRules(credentials, await withSession(credentials));
   console.debug('[StravaHeatmapExt] Heatmap rules updated', rules.length);
 
   // Validate credentials by attempting to access a protected tile
@@ -59,6 +75,10 @@ export async function requestCredentials(skipValidation = false) {
       credentials = null;
     }
   }
+
+  const athleteId = athleteIdFromCredentials(credentials);
+  if (athleteId) await browser.storage.local.set({ athleteId });
+  else await browser.storage.local.remove('athleteId');
 
   // Update local storage only if credentials changed
   if (credentials !== storedCredentials) {

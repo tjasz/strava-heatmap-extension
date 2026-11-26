@@ -1,46 +1,46 @@
 /* Colorize grayscale Strava heatmap tiles with their palette (see colors.js) */
-img:is([src*='/globalheat/'], [src*='/weeklyheat/'])[src*='heatmap-color=blue&'] {
+img:is([src*='/globalheat/'], [src*='/weeklyheat/'], [src*='personal-heatmaps-external.strava.com/'])[src*='heatmap-color=blue&'] {
   filter: url(#strava-heatmap-blue);
 }
-img:is([src*='/globalheat/'], [src*='/weeklyheat/'])[src*='heatmap-color=purple&'] {
+img:is([src*='/globalheat/'], [src*='/weeklyheat/'], [src*='personal-heatmaps-external.strava.com/'])[src*='heatmap-color=purple&'] {
   filter: url(#strava-heatmap-purple);
 }
-img:is([src*='/globalheat/'], [src*='/weeklyheat/'])[src*='heatmap-color=orange&'] {
+img:is([src*='/globalheat/'], [src*='/weeklyheat/'], [src*='personal-heatmaps-external.strava.com/'])[src*='heatmap-color=orange&'] {
   filter: url(#strava-heatmap-orange);
 }
-img:is([src*='/globalheat/'], [src*='/weeklyheat/'])[src*='heatmap-color=sunset&'] {
+img:is([src*='/globalheat/'], [src*='/weeklyheat/'], [src*='personal-heatmaps-external.strava.com/'])[src*='heatmap-color=sunset&'] {
   filter: url(#strava-heatmap-sunset);
 }
-img:is([src*='/globalheat/'], [src*='/weeklyheat/'])[src*='heatmap-color=pink&'] {
+img:is([src*='/globalheat/'], [src*='/weeklyheat/'], [src*='personal-heatmaps-external.strava.com/'])[src*='heatmap-color=pink&'] {
   filter: url(#strava-heatmap-pink);
 }
-img:is([src*='/globalheat/'], [src*='/weeklyheat/'])[src*='heatmap-color=highcontrast&'] {
+img:is([src*='/globalheat/'], [src*='/weeklyheat/'], [src*='personal-heatmaps-external.strava.com/'])[src*='heatmap-color=highcontrast&'] {
   filter: url(#strava-heatmap-highcontrast);
 }
-img:is([src*='/globalheat/'], [src*='/weeklyheat/'])[src*='heatmap-color=bluered&'] {
+img:is([src*='/globalheat/'], [src*='/weeklyheat/'], [src*='personal-heatmaps-external.strava.com/'])[src*='heatmap-color=bluered&'] {
   filter: url(#strava-heatmap-bluered);
 }
-img:is([src*='/globalheat/'], [src*='/weeklyheat/'])[src*='heatmap-color=rainbow&'] {
+img:is([src*='/globalheat/'], [src*='/weeklyheat/'], [src*='personal-heatmaps-external.strava.com/'])[src*='heatmap-color=rainbow&'] {
   filter: url(#strava-heatmap-rainbow);
 }
-img:is([src*='/globalheat/'], [src*='/weeklyheat/'])[src*='heatmap-color=blue_dark&'] {
+img:is([src*='/globalheat/'], [src*='/weeklyheat/'], [src*='personal-heatmaps-external.strava.com/'])[src*='heatmap-color=blue_dark&'] {
   filter: url(#strava-heatmap-blue_dark);
 }
-img:is([src*='/globalheat/'], [src*='/weeklyheat/'])[src*='heatmap-color=purple_dark&'] {
+img:is([src*='/globalheat/'], [src*='/weeklyheat/'], [src*='personal-heatmaps-external.strava.com/'])[src*='heatmap-color=purple_dark&'] {
   filter: url(#strava-heatmap-purple_dark);
 }
-img:is([src*='/globalheat/'], [src*='/weeklyheat/'])[src*='heatmap-color=orange_dark&'] {
+img:is([src*='/globalheat/'], [src*='/weeklyheat/'], [src*='personal-heatmaps-external.strava.com/'])[src*='heatmap-color=orange_dark&'] {
   filter: url(#strava-heatmap-orange_dark);
 }
-img:is([src*='/globalheat/'], [src*='/weeklyheat/'])[src*='heatmap-color=sunset_dark&'] {
+img:is([src*='/globalheat/'], [src*='/weeklyheat/'], [src*='personal-heatmaps-external.strava.com/'])[src*='heatmap-color=sunset_dark&'] {
   filter: url(#strava-heatmap-sunset_dark);
 }
-img:is([src*='/globalheat/'], [src*='/weeklyheat/'])[src*='heatmap-color=pink_dark&'] {
+img:is([src*='/globalheat/'], [src*='/weeklyheat/'], [src*='personal-heatmaps-external.strava.com/'])[src*='heatmap-color=pink_dark&'] {
   filter: url(#strava-heatmap-pink_dark);
 }
-img:is([src*='/globalheat/'], [src*='/weeklyheat/'])[src*='heatmap-color=highcontrast_dark&'] {
+img:is([src*='/globalheat/'], [src*='/weeklyheat/'], [src*='personal-heatmaps-external.strava.com/'])[src*='heatmap-color=highcontrast_dark&'] {
   filter: url(#strava-heatmap-highcontrast_dark);
 }
-img:is([src*='/globalheat/'], [src*='/weeklyheat/'])[src*='heatmap-color=bluered_dark&'] {
+img:is([src*='/globalheat/'], [src*='/weeklyheat/'], [src*='personal-heatmaps-external.strava.com/'])[src*='heatmap-color=bluered_dark&'] {
   filter: url(#strava-heatmap-bluered_dark);
 }

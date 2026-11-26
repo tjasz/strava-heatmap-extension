@@ -199,7 +199,7 @@ test('each grayscale-tile client loads the shared palette filters and CSS', asyn
 test('every named palette matches its tile URL; custom gradients are not filtered', async () => {
   const css = await read('src/clients/common/colors.css');
   const rules = [...css.matchAll(
-    /img:is\(\[src\*='\/globalheat\/'\], \[src\*='\/weeklyheat\/'\]\)\[src\*='([^']+)'\]\s*\{\s*filter: url\(#([^)]+)\);\s*\}/g
+    /img:is\(\[src\*='\/globalheat\/'\], \[src\*='\/weeklyheat\/'\], \[src\*='personal-heatmaps-external\.strava\.com\/'\]\)\[src\*='([^']+)'\]\s*\{\s*filter: url\(#([^)]+)\);\s*\}/g
   )];
   assert.equal(rules.length, palettes.length);
   const presets = palettes.map((color) => ({ activity: 'ride', color }));
@@ -231,7 +231,7 @@ test('every named palette matches its tile URL; custom gradients are not filtere
 
 test('GPX Studio requests grayscale tiles and enables exact palette recoloring', async () => {
   const script = await read('src/clients/gpx.studio/index.js');
-  assert.match(script, /getLayerConfigs\(layerPresets, authenticated, version, true\)/);
+  assert.match(script, /getLayerConfigs\(layerPresets, authenticated, version, true, false, athleteId\)/);
   assert.match(script, /installGradientTileRecoloring\(\{ recolorPalettes: true \}\)/);
   for (const period of ['global', 'weekly']) {
     const configs = getLayerConfigs(

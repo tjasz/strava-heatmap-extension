@@ -35,6 +35,7 @@ async function inject(stored, failure, host = 'caltopo.com') {
       },
       storage: { local: {
         get: async (key) => {
+          if (key === 'athleteId') return {};
           assert.equal(key, 'mapsheetmaxsize');
           if (failure === 'get') throw new Error('Storage read failed');
           return stored === undefined ? {} : { mapsheetmaxsize: stored };

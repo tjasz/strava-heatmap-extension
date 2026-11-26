@@ -191,7 +191,7 @@ test('CalTopo-only packages retain their dependencies without other client integ
     assert.equal(built.name, manifest.name.replace(/\s*\[DEV\]\s*$/, '').trim());
     assert.equal(built.description, 'Overlay Strava Global Heatmap in CalTopo to reveal popular routes and patterns.');
     assert.deepEqual(built.host_permissions, [
-      '*://www.strava.com/*', '*://content-a.strava.com/*',
+      '*://www.strava.com/*', '*://content-a.strava.com/*', '*://personal-heatmaps-external.strava.com/*',
       '*://caltopo.com/*', '*://www.caltopo.com/*',
     ]);
     assert.deepEqual(built.content_scripts, manifest.content_scripts.filter(

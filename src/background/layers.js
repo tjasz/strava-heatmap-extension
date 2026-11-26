@@ -89,7 +89,7 @@ export function formatLayerPresets(layerPresets) {
 export function validateLayerPresets(layerPresets) {
 	for (const { activity, color, gradientStops, period = 'global' } of layerPresets) {
 		if (activity === undefined || color === undefined ||
-			!['global', 'weekly'].includes(period)) {
+			!['global', 'weekly', 'personal'].includes(period)) {
 			return false;
 		}
 		if (

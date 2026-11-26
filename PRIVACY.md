@@ -14,11 +14,13 @@ and Android version 142 and later; older Firefox versions are not supported.
 
 The extension reads Strava authentication cookies and stores a local copy in your browser to authenticate requests for protected Strava Global Heatmap tiles. These credentials are sent to Strava for heatmap access, not to the extension developer.
 
+To show a Personal heatmap, the extension also reads your Strava login session cookie and attaches it only to requests for your personal heatmap tiles, which go to Strava. It does not store that cookie. It reads your athlete ID from your sign-in cookie and stores it locally to build those tile requests.
+
 The extension also stores your heatmap layer preferences and temporary sign-in navigation information locally in your browser. It can remove Strava authentication cookies when they expire or when you select "Clear Strava Cookies."
 
 ## External requests
 
-The extension connects to Strava for sign-in and heatmap tiles. Tile requests include the coordinates of the requested map tiles, which identify the map area being viewed.
+The extension connects to Strava for sign-in, heatmap tiles, and personal heatmap tiles. Tile requests include the coordinates of the requested map tiles, which identify the map area being viewed.
 
 When signed out, the extension loads a fallback image from GitHub's raw content service. These image requests also include map tile coordinates.
 

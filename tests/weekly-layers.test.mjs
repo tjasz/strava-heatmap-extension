@@ -278,6 +278,6 @@ test('every color filter applies to weekly and global heatmap images', async () 
       assert.ok(!css.includes('heatmap-color=grayscale&'));
       continue;
     }
-    assert.ok(css.includes(`img:is([src*='/globalheat/'], [src*='/weeklyheat/'])[src*='heatmap-color=${color}&']`));
+    assert.ok(css.includes(`img:is([src*='/globalheat/'], [src*='/weeklyheat/'], [src*='personal-heatmaps-external.strava.com/'])[src*='heatmap-color=${color}&']`));
   }
 });
