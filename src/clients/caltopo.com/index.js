@@ -80,11 +80,40 @@ function getGoogleMap() {
   return window.google?.maps && googleMap?.overlayMapTypes ? googleMap : null;
 }
 
+function getCalTopoMap() {
+  return window.map?.map?.map;
+}
+
+// 3D mode swaps the map for a Mapbox GL one, which also has addLayer/removeLayer
+// and rejects Leaflet layers, so it must be told apart from Leaflet.
+function getMapboxMap() {
+  const map = getCalTopoMap();
+  return typeof map?.addSource === 'function' && typeof map.getStyle === 'function' ? map : null;
+}
+
 function getLeafletMap() {
-  const leafletMap = window.map?.map?.map;
-  return window.L?.tileLayer && leafletMap?.addLayer && leafletMap?.removeLayer
+  const leafletMap = getCalTopoMap();
+  return !getMapboxMap() && window.L?.tileLayer && leafletMap?.addLayer && leafletMap?.removeLayer
     ? leafletMap
     : null;
+}
+
+// Keeps heatmaps under CalTopo's own lines, polygons and markers.
+const MAPBOX_BEFORE_LAYER = 'polys-part-stable';
+
+function addMapboxLayer(map, layerId, config, opacity) {
+  const [minzoom, maxzoom] = config.zoomExtent;
+  if (!map.getSource(layerId)) {
+    const [base, hash] = config.template.split('#');
+    const tiles = `${base}${base.includes('?') ? '&' : '?'}recolor-fetch=1${hash === undefined ? '' : `#${hash}`}`;
+    map.addSource(layerId, { type: 'raster', tiles: [tiles], tileSize: 256, minzoom, maxzoom });
+  }
+  if (!map.getLayer(layerId)) {
+    map.addLayer(
+      { id: layerId, type: 'raster', source: layerId, paint: { 'raster-opacity': opacity } },
+      map.getLayer(MAPBOX_BEFORE_LAYER) ? MAPBOX_BEFORE_LAYER : undefined,
+    );
+  }
 }
 
 function getActiveLayerConfigs() {
@@ -152,7 +181,7 @@ function setupOverlayMapTypesListener(googleMap) {
 function detachOverlay(id) {
   const overlay = overlaysById.get(id);
   if (!overlay) return;
-  if (overlay?.__stravaHeatmapRenderer === 'leaflet') {
+  if (overlay.__stravaHeatmapRenderer) {
     overlay.remove();
   } else {
     const overlays = overlay.__stravaHeatmapMap.overlayMapTypes;
@@ -182,10 +211,45 @@ function toggleOverlay(id) {
 function addOverlay(id) {
   const leafletMap = getLeafletMap();
   const googleMap = getGoogleMap();
+  const mapboxMap = getMapboxMap();
   const config = layerConfigs.find((config) => config.id === id);
   const state = layerStates.get(id);
-  if ((!leafletMap && !googleMap) || !config) {
+  if ((!leafletMap && !googleMap && !mapboxMap) || !config) {
     return false;
+  }
+
+  if (mapboxMap) {
+    const existingOverlay = overlaysById.get(id);
+    if (existingOverlay?.__stravaHeatmapMap === mapboxMap) return true;
+    if (existingOverlay) detachOverlay(id);
+
+    const layerId = `strava-heatmap-${id}`;
+    const overlay = {
+      __stravaHeatmapRenderer: 'mapbox',
+      __stravaHeatmapMap: mapboxMap,
+      // Throws while the style is still loading; the styledata watcher retries.
+      ensure() {
+        try {
+          addMapboxLayer(mapboxMap, layerId, config, layerStates.get(id).opacity);
+        } catch (error) {
+          console.debug('[StravaHeatmapExt] Mapbox style not ready.', error);
+        }
+      },
+      setOpacity: (value) => mapboxMap.getLayer(layerId)
+        && mapboxMap.setPaintProperty(layerId, 'raster-opacity', value),
+      remove() {
+        // Leaving 3D can destroy the map before we get to clean up.
+        try {
+          if (mapboxMap.getLayer(layerId)) mapboxMap.removeLayer(layerId);
+          if (mapboxMap.getSource(layerId)) mapboxMap.removeSource(layerId);
+        } catch {}
+      },
+    };
+    overlaysById.set(id, overlay);
+    watchMapboxStyle(mapboxMap);
+    overlay.ensure();
+    updateControls();
+    return true;
   }
 
   if (leafletMap) {
@@ -283,6 +347,18 @@ function addOverlay(id) {
   restoreOverlayOnTop();
   updateControls();
   return true;
+}
+
+// Changing the base layer reloads the style, which drops our sources and layers.
+let styleWatchedMap;
+function watchMapboxStyle(map) {
+  if (styleWatchedMap === map) return;
+  styleWatchedMap = map;
+  map.on('styledata', () => {
+    for (const overlay of overlaysById.values()) {
+      if (overlay.__stravaHeatmapMap === map) overlay.ensure?.();
+    }
+  });
 }
 
 function refreshOverlays() {
@@ -631,6 +707,15 @@ async function main() {
       }
     }
   }, RETRY_INTERVAL_MS);
+
+  // Entering or leaving 3D replaces the map object, dropping our overlays.
+  let lastMap = getCalTopoMap();
+  window.setInterval(() => {
+    const map = getCalTopoMap();
+    if (!map || map === lastMap) return;
+    lastMap = map;
+    refreshOverlays();
+  }, 1000);
 }
 
 main();

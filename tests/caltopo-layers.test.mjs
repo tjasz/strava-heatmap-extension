@@ -136,7 +136,25 @@ function fixture(renderer, saved, initialPresets = presets, mapSheetMaxSize) {
   const timeouts = [];
   const mapOverlays = [];
   const listeners = {};
-  const map = renderer === 'leaflet' ? { addLayer() {}, removeLayer() {} } : {
+  const styleListeners = [];
+  const mapbox = {
+    sources: {}, layers: {}, loaded: true,
+    getStyle: () => ({}),
+    on: (name, callback) => { if (name === 'styledata') styleListeners.push(callback); },
+    addSource(id, source) {
+      if (!this.loaded) throw new Error('Style is not done loading');
+      this.sources[id] = source;
+    },
+    getSource(id) { return this.sources[id]; },
+    removeSource(id) { delete this.sources[id]; },
+    addLayer(layer, before) { this.layers[layer.id] = { ...layer, before }; },
+    getLayer(layerId) { return this.layers[layerId]; },
+    removeLayer(layerId) { delete this.layers[layerId]; },
+    setPaintProperty(layerId, name, value) { this.layers[layerId].paint[name] = value; },
+    reloadStyle() { this.sources = {}; this.layers = {}; styleListeners.forEach((callback) => callback()); },
+  };
+  const map = renderer === 'mapbox' ? mapbox
+    : renderer === 'leaflet' ? { addLayer() {}, removeLayer() {} } : {
     overlayMapTypes: {
       getLength: () => mapOverlays.length,
       getAt: (i) => mapOverlays[i],
@@ -170,7 +188,7 @@ function fixture(renderer, saved, initialPresets = presets, mapSheetMaxSize) {
         setOpacity(opacity) { this.options.opacity = opacity; },
       }),
     };
-  } else {
+  } else if (renderer === 'google') {
     window.google = { maps: { Size: class {} } };
   }
   let authChanged;
@@ -260,6 +278,34 @@ function fixture(renderer, saved, initialPresets = presets, mapSheetMaxSize) {
     },
   };
 }
+
+test('mapbox (3D) adds recolor-opted raster layers, keeps them across style reloads and drops them on toggle', () => {
+  const f = fixture('mapbox');
+  const [id] = Object.keys(f.map.layers);
+  assert.equal(id, Object.keys(f.map.sources)[0]);
+  assert.match(f.map.sources[id].tiles[0].split('#')[0], /[?&]recolor-fetch=1(?:&|$)/);
+  f.row(0).input.value = '35';
+  f.row(0).input.handlers.input();
+  assert.equal(f.map.layers[id].paint['raster-opacity'], 0.35);
+
+  f.map.reloadStyle();
+  assert.equal(f.map.layers[id].paint['raster-opacity'], 0.35);
+
+  f.row(0).button.handlers.click();
+  assert.deepEqual(Object.keys(f.map.layers), []);
+  assert.deepEqual(Object.keys(f.map.sources), []);
+});
+
+test('mapbox (3D) waits for the style to finish loading instead of throwing', () => {
+  const f = fixture('mapbox');
+  f.row(0).button.handlers.click();
+  f.map.loaded = false;
+  f.row(0).button.handlers.click();
+  assert.deepEqual(Object.keys(f.map.layers), []);
+  f.map.loaded = true;
+  f.map.reloadStyle();
+  assert.equal(Object.keys(f.map.layers).length, 1);
+});
 
 for (const renderer of ['leaflet', 'google']) {
   test(`${renderer} heading has one accessible gear that requests settings after repeated updates`, () => {

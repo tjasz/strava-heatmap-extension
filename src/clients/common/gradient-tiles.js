@@ -155,7 +155,13 @@ function installFetchInterceptor(nativeFetch, getColors) {
     const response = await nativeFetch(...args);
     if (!response.ok) return response;
 
-    const recolored = await recolorBlob(await response.blob(), gradient);
+    const blob = await response.blob();
+    // No data here: an empty body can't be decoded, so hand back what Strava sent.
+    // 204/205 must not carry a body, even an empty one.
+    if (blob.size === 0) {
+      return new Response(response.status === 204 || response.status === 205 ? null : blob, response);
+    }
+    const recolored = await recolorBlob(blob, gradient);
     const headers = new Headers(response.headers);
     headers.delete('content-encoding');
     headers.delete('content-length');
@@ -347,7 +353,9 @@ export function installGradientTileRecoloring({ recolorPalettes = false } = {}) 
   const fetchTile = createWeeklyTileLoader(nativeFetch);
   // 'images' recolours palette tiles shown as <img> only; fetch() callers
   // (snap, map sheets) still receive the original grayscale intensity tiles.
-  const getFetchColors = (url) => getColorRamp(url, recolorPalettes === true);
+  // Mapbox GL (CalTopo 3D) loads tiles through fetch() and opts in with this marker.
+  const getFetchColors = (url) =>
+    getColorRamp(url, recolorPalettes === true || /[?&]recolor-fetch=1(?:&|#|$)/.test(url));
   const getImageColors = (url) => getColorRamp(url, Boolean(recolorPalettes));
   installFetchInterceptor(fetchTile, getFetchColors);
   installImageInterceptor(fetchTile, getImageColors);

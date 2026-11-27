@@ -240,6 +240,27 @@ test('CSS clients leave named Strava palettes untouched; unrelated and old fallb
   }
 });
 
+test('fetch passes empty tiles through undecoded, with or without a body-less status', async (t) => {
+  for (const status of [200, 204]) {
+    await t.test(`status ${status}`, async (t) => {
+      const state = setup(t, [128, 128, 128, 255], false, async () => new Response(
+        status === 204 ? null : new Blob([]), { status },
+      ));
+      const response = await window.fetch(`${tile('pink')}&recolor-fetch=1`);
+      assert.equal(response.status, status);
+      assert.equal((await response.blob()).size, 0);
+      assert.equal(state.closed(), 0);
+    });
+  }
+});
+
+test('recolor-fetch marker opts palette tiles into fetch recoloring on image-only clients', async (t) => {
+  setup(t, [128, 128, 128, 255], false);
+  assert.equal(await (await window.fetch(tile('pink'))).text(), 'original');
+  const marked = await (await window.fetch(`${tile('pink')}&recolor-fetch=1`)).blob();
+  assert.notEqual(await marked.text(), 'original');
+});
+
 test('image src and attribute mutations recolor presets and restore visibility', async (t) => {
   const state = setup(t, [128, 17, 43, 128]);
   for (const mutation of [false, true]) {
